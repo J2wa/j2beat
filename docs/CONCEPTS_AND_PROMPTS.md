@@ -34,3 +34,8 @@ An audio-first annotation workstation: upload and listen, select an analytical p
 - AI input is limited to 3 MB to fit Vercel's request payload ceiling after base64 encoding. Local audio playback accepts larger files; longer tracks should use compressed MP3. Larger AI uploads require a storage/upload integration.
 - The model is the original gemini-3-flash-preview, overridable with GEMINI_MODEL. Live provider access requires GEMINI_API_KEY and an available model.
 - AI timestamps and musical classifications require human review; the original animated visualizer is illustrative, not a computed waveform.
+
+## Dark studio redesign
+The current interface uses a minimalist dark navy palette with blue controls, compact Studio/Guide/Library navigation, and a persistent transport bar. It removes the former marketing headline, duplicate footer navigation, profile descriptions in the sidebar, and decorative processing statistics.
+
+The player now derives its waveform from decoded audio, supports pointer/keyboard scrubbing, 10-second skips, 0.5×–2× playback, volume/mute, full-track repeat, A–B section loops, and jumps to annotated segment timestamps. Space toggles playback and Left/Right seek five seconds when focus is outside interactive fields. Audio is decoded locally for the waveform; AI upload behavior is unchanged.

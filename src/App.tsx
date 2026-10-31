@@ -34,7 +34,8 @@ import { twMerge } from "tailwind-merge";
 import { annotateAudio, refineAnnotation } from "./services/geminiService";
 
 
-import { Button, Input, Header, Footer, SectionContainer } from "./components/BrandSystem";
+import { Button, Input, Header, SectionContainer } from "./components/BrandSystem";
+import { MusicPlayer } from "./components/MusicPlayer";
 import annotationSOP from "../Music_Annotation_SOP.md?raw";
 
 /** Utility for Tailwind class merging */
@@ -505,6 +506,8 @@ export default function App() {
       selectedFile.name.endsWith(".mp3") ||
       selectedFile.name.endsWith(".wav")
     ) {
+      audioRef.current?.pause();
+      setCurrentTime(0); setDuration(0); setIsPlaying(false); setActiveSegment(null);
       setFile(selectedFile);
       if (audioUrl) URL.revokeObjectURL(audioUrl);
       setAudioUrl(URL.createObjectURL(selectedFile));
@@ -669,6 +672,9 @@ export default function App() {
   };
 
   const reset = () => {
+    audioRef.current?.pause();
+    if(audioUrl) URL.revokeObjectURL(audioUrl);
+    setCurrentTime(0); setDuration(0); setIsPlaying(false); setActiveSegment(null);
     setFile(null);
     if (audioUrl) URL.revokeObjectURL(audioUrl);
     setAudioUrl(null);
@@ -702,7 +708,7 @@ export default function App() {
       } else {
         audioRef.current.currentTime = start;
         setActiveSegment({ start, end, index });
-        audioRef.current.play();
+        audioRef.current.play().catch(() => setError("Playback could not start. Try another audio file."));
       }
     }
   };
@@ -725,12 +731,18 @@ export default function App() {
     }
   };
 
+  const seekTo = (time: number) => {
+    if(!audioRef.current || !Number.isFinite(duration)) return;
+    const next = Math.max(0,Math.min(duration,time));
+    audioRef.current.currentTime=next; setCurrentTime(next); setActiveSegment(null);
+  };
+
   const togglePlay = () => {
     if (audioRef.current) {
       if (isPlaying) {
         audioRef.current.pause();
       } else {
-        audioRef.current.play();
+        audioRef.current.play().catch(() => setError("Playback could not start. Try another audio file."));
       }
     }
   };
@@ -748,55 +760,15 @@ export default function App() {
     if (audioRef.current) {
       audioRef.current.volume = volume;
     }
-  }, [volume]);
+  }, [volume, audioUrl]);
 
   const toggleMute = () => {
     setVolume((v) => (v === 0 ? 1 : 0));
   };
 
-  const WaveformVisualizer = ({ active = false }: { active?: boolean }) => {
-    return (
-      <div className="flex items-center gap-[2px] h-6 px-2 overflow-hidden">
-        {Array.from({ length: 48 }).map((_, i) => {
-          const height = 20 + Math.sin(i * 0.5) * 15 + Math.random() * 10;
-          return (
-            <motion.div
-              key={i}
-              className={cn(
-                "w-[2px] rounded-full",
-                active ? "bg-accent" : "bg-dim/30",
-                i / 48 < currentTime / duration ? "bg-accent" : "",
-              )}
-              animate={
-                active
-                  ? {
-                      height: [
-                        height * 0.6,
-                        height,
-                        height * 0.4,
-                        height * 0.8,
-                      ],
-                    }
-                  : { height }
-              }
-              transition={
-                active
-                  ? {
-                      duration: 0.8 + Math.random() * 0.5,
-                      repeat: Infinity,
-                      ease: "easeInOut",
-                    }
-                  : { duration: 0 }
-              }
-            />
-          );
-        })}
-      </div>
-    );
-  };
 
   return (
-    <div className="min-h-screen p-4 md:p-8 flex flex-col items-center max-w-6xl mx-auto bg-bg-main selection:bg-accent/20">
+    <div className="app-shell">
       <AnimatePresence>
         {(isProcessing || isRefining) && (
           <motion.div
@@ -851,284 +823,31 @@ export default function App() {
       </AnimatePresence>
 
       <Header view={view} onNavigate={setView} onProfile={() => setIsProfileModalOpen(true)} />
-      <SectionContainer className="workspace-intro">
-        <div><p className="eyebrow">ACES INTELLIGENCE / MUSIC ANNOTATION</p><h1>Listen closely.<br /><span>Annotate precisely.</span></h1><p className="intro-copy">A focused workspace for structure, sound, and the details that matter. Upload a track, shape the analysis, and review every segment.</p></div>
-        <div className="workspace-meta"><span>YOUR WORKSPACE</span><strong>{activeProfile || 'PRODUCER'}</strong><p>{annotationProfile === 'brief' ? 'Brief & concise' : 'Standard analysis'} · {credits} local credits</p><Button onClick={handleResetCredits}><RotateCcw /> Reset local credits</Button></div>
-      </SectionContainer>
-      {serviceReady === false && <div role="status" className="service-notice">AI analysis is not configured yet. Audio playback, profiles, guidelines, and saved annotations are available. The project owner must add GEMINI_API_KEY in Vercel to enable generation.</div>}
+      <div className="page-title"><h1>{view === 'workspace' ? 'Studio' : view === 'archive' ? 'Library' : 'Guide'}</h1>{view === 'workspace' && <span className="small muted">{sections.length ? `${sections.length} segments` : 'Music annotation'}</span>}</div>
+      {serviceReady === false && <details className="service-notice"><summary><span className="status-dot"/> AI offline <span className="muted">Setup required</span></summary><p>Add GEMINI_API_KEY in Vercel and redeploy to enable analysis. Playback and editing are available.</p></details>}
       {error && <div role="alert" className="error-notice">{error}</div>}
-      {view === 'guidelines' && <SectionContainer className="document-view"><p className="eyebrow">REFERENCE / 01</p><h2>Annotation guidelines</h2><p>AI output is a draft. Listen to the track and verify instruments, timestamps, and descriptions before exporting.</p><div className="markdown-body"><ReactMarkdown remarkPlugins={[remarkGfm]}>{annotationSOP}</ReactMarkdown></div></SectionContainer>}
-      {view === 'archive' && <SectionContainer className="document-view"><p className="eyebrow">SAVED IN THIS BROWSER / 02</p><h2>Your annotation archive</h2><p>Up to 30 successful analyses are saved locally. Audio files are not stored. Export important work before clearing browser data.</p>{archive.length === 0 ? <p className="archive-empty">No saved annotations yet. Your completed analyses will appear here.</p> : archive.map(item => <article className="archive-row" key={item.id}><div><h3>{item.name}</h3><p>{new Date(item.date).toLocaleString()}</p></div><Button onClick={() => {setResult(item.text); parseSections(item.text); setView('workspace'); setError(null);}}><FileAudio /> Open annotation</Button></article>)}</SectionContainer>}
-      <main id="workspace" hidden={view !== "workspace"} className="w-full grid lg:grid-cols-[340px_minmax(0,1fr)] gap-8">
-        {/* Left Control Panel */}
-        <section className="space-y-6">
-          <div className="hardware-card p-6 rounded-lg bg-bg-panel shadow-2xl">
-            <h2 className="text-sm font-bold uppercase tracking-[0.2em] text-secondary mb-5 flex items-center gap-2">
-              <Settings className="w-3 h-3 text-accent" /> 01 / Upload & configure
-            </h2>
-
-            <div
-              className={cn(
-                "border border-border-dim rounded-md p-8 flex flex-col items-center justify-center transition-all cursor-pointer bg-bg-main/50 group",
-                dragActive
-                  ? "border-accent bg-accent/5"
-                  : "hover:border-accent/40",
-                file ? "border-accent/30 bg-accent/5" : "",
-              )}
-              onDragEnter={handleDrag}
-              onDragLeave={handleDrag}
-              onDragOver={handleDrag}
-              onDrop={handleDrop}
-              role="button" tabIndex={0} aria-label="Choose an audio track"
-              onKeyDown={e => { if(e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInputRef.current?.click(); } }}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <Input
-                ref={fileInputRef}
-                type="file"
-                className="hidden"
-                accept="audio/*"
-                onChange={(e) =>
-                  e.target.files?.[0] && handleFileSelection(e.target.files[0])
-                }
-              />
-
-              {file ? (
-                <div className="flex flex-col items-center text-center">
-                  <FileAudio
-                    className={cn(
-                      "w-12 h-12 mb-3 text-accent transition-transform duration-500",
-                      isProcessing && "scale-110",
-                    )}
-                  />
-                  <span className="text-xs font-semibold text-primary truncate max-w-[180px]">
-                    {file.name}
-                  </span>
-                  <span className="text-sm text-dim mono mt-1">
-                    {(file.size / (1024 * 1024)).toFixed(2)} MB
-                  </span>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center text-center">
-                  <Upload className="w-8 h-8 mb-4 text-dim group-hover:text-accent/50 transition-colors" />
-                  <span className="text-sm text-secondary font-bold tracking-widest uppercase">
-                    Select Track
-                  </span>
-                  <p className="text-sm text-dim uppercase mt-1">
-                    MP3 / WAV / AIFF · AI upload max 3 MB
-                  </p>
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-3 pt-6">
-              <Button
-                disabled={!file || isProcessing || serviceReady !== true}
-                onClick={() => setIsGenerateModalOpen(true)}
-                className={cn(
-                  "w-full py-4 px-6 rounded-sm text-sm font-bold tracking-[0.15em] uppercase flex items-center justify-between transition-all",
-                  file && !isProcessing
-                    ? "bg-accent text-bg-main hover:bg-accent/90 active:scale-[0.98]"
-                    : "bg-bg-card text-dim cursor-not-allowed border border-border-dim",
-                )}
-              >
-                {isProcessing ? (
-                  <div className="flex items-center gap-3 mx-auto">
-                    <Activity className="w-4 h-4 animate-spin" />
-                    Generating...
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex items-center gap-3">
-                      <Play
-                        className={cn(
-                          "w-3.5 h-3.5 fill-current",
-                          !file && "opacity-100",
-                        )}
-                      />
-                      {result ? "Re-generate Analysis" : "Generate Annotation"}
-                    </div>
-                    {file && (
-                      <span className="text-sm bg-black/20 px-2 py-0.5 rounded opacity-80">
-                        {GENERATE_COST} CR
-                      </span>
-                    )}
-                  </>
-                )}
-              </Button>
-
-              {file && !isProcessing && (
-                <Button
-                  onClick={reset}
-                  className="w-full py-2 px-6 text-sm font-bold text-dim hover:text-primary transition-colors flex items-center justify-center gap-1.5 uppercase tracking-widest mt-2"
-                >
-                  <Trash2 className="w-3 h-3" /> Eject File
-                </Button>
-              )}
-
-              <div className="pt-4 border-t border-border-dim mt-4 space-y-3">
-                <div className="flex flex-col gap-1">
-                  <h4 className="text-sm font-bold uppercase tracking-[0.2em] text-accent/70">
-                    Guidance
-                  </h4>
-                  <Button
-                    onClick={() => setIsGenerateModalOpen(true)}
-                    className="w-full py-2.5 px-3 bg-bg-card hover:bg-bg-card border border-border-dim rounded text-sm text-primary transition-all font-medium text-left mt-1 cursor-pointer"
-                  >
-                    Configure Guidance & Inputs
-                  </Button>
-                  {(generalGuidance.trim() || Object.values(accurateData).some(v => v.trim())) && (
-                    <div className="text-sm text-accent mt-1 bg-accent/10 border border-accent/20 rounded p-2 flex flex-col gap-1">
-                      <span className="font-bold uppercase tracking-wider text-sm border-b border-accent/20 pb-0.5">Guidance Loaded:</span>
-                      {generalGuidance.trim() && <span className="opacity-95">• General aesthetic notes set</span>}
-                      {accurateData.segmentsCount.trim() && <span className="opacity-95">• Total segments: {accurateData.segmentsCount.trim()}</span>}
-                      {accurateData.timestamps.trim() && <span className="opacity-95">• Specific timestamps active</span>}
-                      {accurateData.instruments.trim() && <span className="opacity-95">• Custom instruments specified</span>}
-                      {accurateData.vocals.trim() && <span className="opacity-95">• Vocal profile specified</span>}
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex flex-col gap-2 pt-3 border-t border-border-dim">
-                  <div className="flex justify-between items-center">
-                    <h4 className="text-sm font-bold uppercase tracking-[0.2em] text-accent/70">
-                      Active analysis profile
-                    </h4>
-                    <Button
-                      onClick={() => setIsProfileModalOpen(true)}
-                      className="text-sm font-bold text-accent uppercase tracking-widest hover:underline"
-                    >
-                      Switch
-                    </Button>
-                  </div>
-                  
-                  {activeProfile ? (
-                    (() => {
-                      const profile = PROFILES.find(p => p.id === activeProfile) || PROFILES[0];
-                      return (
-                        <div className="p-3 rounded border border-accent/20 bg-accent/5 flex flex-col gap-1.5">
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm font-black tracking-widest uppercase text-primary">
-                              {profile.label}
-                            </span>
-                            <span className="text-sm text-accent/60 font-mono uppercase">
-                              Active analysis
-                            </span>
-                          </div>
-                          <p className="text-sm text-dim font-medium leading-relaxed">
-                            {profile.desc}
-                          </p>
-                          <div className="mt-1 pt-1.5 border-t border-border-dim flex flex-col gap-0.5">
-                            <span className="text-sm uppercase tracking-wider text-accent/60 font-bold">
-                              Core Section Flow:
-                            </span>
-                            <span className="text-sm font-mono text-primary select-all leading-normal">
-                              {profile.formula}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })()
-                  ) : (
-                    <Button
-                      onClick={() => setIsProfileModalOpen(true)}
-                      className="w-full py-3 px-4 rounded border border-dashed border-accent/30 hover:border-accent/60 text-sm font-bold uppercase tracking-widest text-accent text-center bg-accent/5 hover:bg-accent/10 transition-all cursor-pointer"
-                    >
-                      Select Analysis profile Profile
-                    </Button>
-                  )}
-                </div>
-
-                <div className="flex flex-col gap-2 pt-3 border-t border-border-dim">
-                  <div className="flex justify-between items-center">
-                    <h4 className="text-sm font-bold uppercase tracking-[0.2em] text-accent/70">
-                      Annotation Profile
-                    </h4>
-                    <span className="text-sm font-mono text-accent uppercase tracking-wider">
-                      Style Selection
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 mt-1">
-                    <Button
-                      onClick={() => selectAnnotationProfile("default")}
-                      className={cn(
-                        "py-2 px-3 rounded text-sm font-bold uppercase tracking-wider text-center transition-all cursor-pointer border",
-                        annotationProfile === "default"
-                          ? "bg-accent/10 border-accent/50 text-accent shadow-[0_0_12px_rgba(215,183,139,0.05)]"
-                          : "bg-bg-card border-border-dim text-dim hover:bg-bg-card"
-                      )}
-                    >
-                      Default
-                    </Button>
-                    <Button
-                      onClick={() => selectAnnotationProfile("brief")}
-                      className={cn(
-                        "py-2 px-3 rounded text-sm font-bold uppercase tracking-wider text-center transition-all cursor-pointer border",
-                        annotationProfile === "brief"
-                          ? "bg-accent/10 border-accent/50 text-accent shadow-[0_0_12px_rgba(215,183,139,0.05)]"
-                          : "bg-bg-card border-border-dim text-dim hover:bg-bg-card"
-                      )}
-                    >
-                      Brief
-                    </Button>
-                  </div>
-                  <p className="text-sm text-dim uppercase tracking-wider leading-relaxed mt-0.5">
-                    {annotationProfile === "brief"
-                      ? "Brief Mode: Natural human tone with simple sentences & reduced slops."
-                      : "Standard Mode: Style manual template specifications."}
-                  </p>
-                </div>
-
-
-                <div className="pt-4 border-t border-border-dim flex flex-col gap-2 mt-2">
-                  <div className="flex justify-between items-center px-1">
-                    <span className="text-sm font-bold uppercase tracking-[0.2em] text-accent/75">
-                      Credit Maintenance
-                    </span>
-                    <span className="text-sm text-primary font-mono">
-                      {credits} CR Left
-                    </span>
-                  </div>
-                  <Button
-                    onClick={handleResetCredits}
-                    className="w-full py-2 px-3 rounded text-sm font-bold uppercase tracking-widest bg-accent/10 hover:bg-accent/15 border border-accent/20 hover:border-accent/40 text-accent hover:text-primary active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <RotateCcw className="w-3 h-3" /> Reset Credits to 1000
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="hardware-card p-6 rounded-lg bg-bg-panel/50">
-            <h2 className="text-sm font-bold uppercase tracking-[0.2em] text-secondary mb-5">
-              Processing Matrix
-            </h2>
-            <div className="space-y-4">
-              <div className="space-y-1.5">
-                <div className="flex justify-between items-center text-sm mono uppercase tracking-wider">
-                  <span className="text-dim">Analysis Depth</span>
-                  <span className="text-accent">Exhaustive</span>
-                </div>
-                <div className="w-full h-1 bg-border-dim rounded-full overflow-hidden">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: "94%" }}
-                    className="h-full bg-accent"
-                  />
-                </div>
-              </div>
-              <div className="flex justify-between items-center text-sm mono uppercase">
-                <span className="text-dim">Latency Target</span>
-                <span className="text-primary">1.00 - 3.00m</span>
-              </div>
-            </div>
-          </div>
+      {view === 'guidelines' && <SectionContainer className="document-view"><p className="eyebrow"></p><h2>Annotation guidelines</h2><p>AI output is a draft. Listen to the track and verify instruments, timestamps, and descriptions before exporting.</p><div className="markdown-body"><ReactMarkdown remarkPlugins={[remarkGfm]}>{annotationSOP}</ReactMarkdown></div></SectionContainer>}
+      {view === 'archive' && <SectionContainer className="document-view"><p className="eyebrow"></p><h2>Saved annotations</h2><p>Saved in this browser. Audio files are not stored.</p>{archive.length === 0 ? <p className="archive-empty">No saved annotations yet.</p> : archive.map(item => <article className="archive-row" key={item.id}><div><h3>{item.name}</h3><p>{new Date(item.date).toLocaleString()}</p></div><Button onClick={() => {setResult(item.text); parseSections(item.text); setView('workspace'); setError(null);}}><FileAudio /> Open annotation</Button></article>)}</SectionContainer>}
+      <div className="player-section" hidden={view !== 'workspace'}>
+        <MusicPlayer file={file} audioUrl={audioUrl} audioRef={audioRef} currentTime={currentTime} duration={duration} isPlaying={isPlaying} volume={volume} onFile={handleFileSelection} onSeek={seekTo} onToggle={togglePlay} onVolume={setVolume} onReset={reset} onTimeUpdate={handleTimeUpdate} onLoadedMetadata={handleLoadedMetadata} onPlaying={setIsPlaying} onError={setError} segments={sections}/>
+      </div>
+      <main id="workspace" hidden={view !== "workspace"} className="studio-grid">
+        <section className="settings-panel">
+          <h2>Analysis settings</h2>
+          <label className="field-label" htmlFor="profile-select">Profile</label>
+          <select id="profile-select" value={activeProfile || 'PRODUCER'} onChange={e=>{setActiveProfile(e.target.value);localStorage.setItem('active_profile',e.target.value);}}>{PROFILES.map(p=><option key={p.id} value={p.id}>{p.label.charAt(0)+p.label.slice(1).toLowerCase()}</option>)}</select>
+          <div className="field-label">Writing style</div>
+          <div className="segmented-control"><Button aria-pressed={annotationProfile==='default'} onClick={()=>selectAnnotationProfile('default')}>Standard</Button><Button aria-pressed={annotationProfile==='brief'} onClick={()=>selectAnnotationProfile('brief')}>Brief</Button></div>
+          <label className="toggle-row"><span>Simple language</span><input type="checkbox" checked={isSimplified} onChange={e=>setIsSimplified(e.target.checked)}/></label>
+          <label className="toggle-row"><span>Detailed segmentation</span><input type="checkbox" checked={isHighAccuracy} onChange={e=>setIsHighAccuracy(e.target.checked)}/></label>
+          <Button className="guidance-button" onClick={()=>setIsGenerateModalOpen(true)}><Settings/>Guidance{generalGuidance.trim() || Object.values(accurateData).some(v=>v.trim()) ? <span className="status-dot"/>:null}</Button>
+          <Button variant="primary" className="generate-button" disabled={!file || isProcessing || serviceReady!==true} onClick={handleProcess}>{isProcessing?<Activity/>:<Play/>}{isProcessing?'Analyzing…':result?'Analyze again':'Analyze track'}</Button>
+          <details className="credit-details"><summary>{credits} local credits</summary><Button variant="text" onClick={handleResetCredits}><RotateCcw/>Reset credits</Button></details>
         </section>
 
         {/* Right Output Area */}
         <section className="flex flex-col">
-          <div className="hardware-card rounded-lg flex-1 flex flex-col min-h-[640px] overflow-hidden bg-bg-panel shadow-2xl">
+          <div className="hardware-card annotation-panel flex-1 flex flex-col overflow-hidden">
             <div className="border-b border-border-dim px-6 py-4 flex justify-between items-center bg-bg-card/30">
               <div className="flex items-center gap-4">
                 <div
@@ -1143,10 +862,10 @@ export default function App() {
                 />
                 <h3 className="text-sm font-bold tracking-[0.25em] uppercase text-secondary">
                   {isProcessing
-                    ? "Engine Active"
+                    ? "Analyzing…"
                     : result
-                      ? "Transcription Finalized"
-                      : "Annotation workspace"}
+                      ? "Annotations"
+                      : "Annotations"}
                 </h3>
               </div>
 
@@ -1159,13 +878,13 @@ export default function App() {
                       isEditing ? "text-accent" : "text-dim hover:text-accent",
                     )}
                   >
-                    {isEditing ? "Save Session" : "Review & Edit"}
+                    {isEditing ? "Save changes" : "Edit"}
                   </Button>
                   <Button
                     onClick={() => copyToClipboard(result || "")}
                     className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-dim hover:text-accent transition-colors"
                   >
-                    <Copy className="w-3.5 h-3.5" /> Copy Raw
+                    <Copy className="w-3.5 h-3.5" /> Copy
                   </Button>
                   <Button
                     onClick={async () => (await import("./utils/pdfGenerator")).generatePDF(file?.name || "audio_transcription", duration ? `${Math.floor(duration / 60)}:${Math.floor(duration % 60).toString().padStart(2, "0")}` : "0:00", globalMetadata, sections)}
@@ -1177,7 +896,7 @@ export default function App() {
               )}
             </div>
 
-            <div className="flex-1 overflow-y-auto p-10 relative bg-bg-main">
+            <div className="annotation-content flex-1 relative">
               <AnimatePresence mode="wait">
                 {isProcessing ? (
                   <motion.div
@@ -1817,7 +1536,7 @@ export default function App() {
                       <div className="pt-12 border-t border-border-dim">
                         <div className="flex justify-between items-center mb-6">
                           <h2 className="text-xs uppercase tracking-wide text-accent font-bold">
-                            Raw Annotation Feed
+                            Full annotation
                           </h2>
                           <CopyBadge
                             text={result}
@@ -1854,10 +1573,10 @@ export default function App() {
                     </div>
                     <div className="text-center space-y-2">
                       <p className="text-sm font-bold tracking-wide uppercase text-primary">
-                        Your next annotation starts here
+                        No annotations yet
                       </p>
                       <p className="text-sm uppercase tracking-[0.2em] opacity-100">
-                        Choose an audio track to explore its structure and sound.
+                        Upload a track and select Analyze.
                       </p>
                     </div>
                   </motion.div>
@@ -1873,11 +1592,6 @@ export default function App() {
                   </div>
                   AI draft · Human review required
                 </div>
-                {audioUrl && (
-                  <div className="flex-1 px-8 max-w-md hidden md:block">
-                    <WaveformVisualizer active={isPlaying} />
-                  </div>
-                )}
                 <div className="flex items-center gap-4 text-sm mono text-secondary uppercase tracking-tighter">
                   <span>
                     {Math.floor(currentTime / 60)}:
@@ -1898,122 +1612,6 @@ export default function App() {
         </section>
       </main>
 
-      <Footer onNavigate={setView} />
-
-      {/* Persistent Audio Logic */}
-      {audioUrl && (
-        <audio
-          ref={audioRef}
-          src={audioUrl}
-          onTimeUpdate={handleTimeUpdate}
-          onLoadedMetadata={handleLoadedMetadata}
-          onPlay={() => setIsPlaying(true)}
-          onPause={() => setIsPlaying(false)}
-          className="hidden"
-        />
-      )}
-
-      {/* Floating Bottom Player */}
-      <AnimatePresence>
-        {audioUrl && (
-          <motion.footer
-            initial={{ y: 100, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 100, opacity: 0 }}
-            className="fixed bottom-0 left-0 right-0 z-50 p-4"
-          >
-            <div className="max-w-5xl mx-auto hardware-card bg-bg-panel/90 backdrop-blur-2xl border border-border-dim rounded-2xl p-4 flex flex-col md:flex-row items-center gap-6 shadow-[0_-20px_50px_rgba(0,0,0,0.6)]">
-              {/* Play Control */}
-              <div className="flex items-center gap-4 shrink-0">
-                <Button
-                  aria-label={isPlaying ? "Pause audio" : "Play audio"} onClick={togglePlay}
-                  className="w-12 h-12 rounded-full bg-accent text-bg-main flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-[0_0_20px_rgba(215,183,139,0.3)]"
-                >
-                  {isPlaying ? (
-                    <Pause size={20} fill="currentColor" />
-                  ) : (
-                    <Play size={20} fill="currentColor" className="ml-1" />
-                  )}
-                </Button>
-                <div className="flex flex-col">
-                  <p className="text-sm font-black uppercase tracking-widest text-primary max-w-[140px] truncate">
-                    {file?.name}
-                  </p>
-                  <p className="text-sm text-accent/60 uppercase tracking-[0.2em] mono font-bold">
-                    {Math.floor(currentTime / 60)}:
-                    {Math.floor(currentTime % 60)
-                      .toString()
-                      .padStart(2, "0")}
-                  </p>
-                </div>
-              </div>
-
-              {/* Waveform & Scrubber */}
-              <div className="flex-1 w-full flex flex-col gap-2">
-                <div
-                  className="relative h-10 group cursor-pointer flex items-center"
-                  onClick={handleProgressBarClick}
-                >
-                  <div className="absolute inset-0 flex items-center">
-                    <WaveformVisualizer active={isPlaying} />
-                  </div>
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full h-[2px] bg-bg-card rounded-full relative">
-                      <motion.div
-                        className="absolute h-full bg-accent/40 rounded-full"
-                        style={{ width: `${(currentTime / duration) * 100}%` }}
-                      />
-                      <motion.div
-                        className="absolute w-2 h-6 bg-accent rounded-full -top-[11px] shadow-[0_0_10px_rgba(215,183,139,0.5)]"
-                        style={{
-                          left: `calc(${(currentTime / duration) * 100}% - 4px)`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Volume & Stats */}
-              <div className="hidden lg:flex items-center gap-6 px-6 border-l border-border-dim shrink-0">
-                <div className="flex items-center gap-3">
-                  <Button
-                    aria-label={volume === 0 ? "Unmute audio" : "Mute audio"} onClick={toggleMute}
-                    className="text-dim hover:text-accent transition-colors"
-                  >
-                    {volume === 0 ? (
-                      <VolumeX className="w-4 h-4" />
-                    ) : (
-                      <Volume2 className="w-4 h-4" />
-                    )}
-                  </Button>
-                  <Input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.01"
-                    value={volume}
-                    onChange={(e) => setVolume(parseFloat(e.target.value))}
-                    className="w-20 h-1 bg-bg-card rounded-lg appearance-none cursor-pointer accent-accent"
-                  />
-                </div>
-                <div className="flex flex-col items-end gap-1">
-                  <span className="text-sm uppercase tracking-wide text-dim font-bold">
-                    Signal
-                  </span>
-                  <span className="text-xs font-mono text-primary tabular-nums">
-                    {Math.floor(duration / 60)}:
-                    {Math.floor(duration % 60)
-                      .toString()
-                      .padStart(2, "0")}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </motion.footer>
-        )}
-      </AnimatePresence>
-
       {isGenerateModalOpen && (
         <div role="dialog" aria-modal="true" aria-label="Annotation guidance" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in">
           <div className="bg-bg-panel border border-border-dim rounded-xl p-6 w-full max-w-lg shadow-2xl relative max-h-[90vh] overflow-y-auto">
@@ -2027,10 +1625,10 @@ export default function App() {
             <div className="mb-4">
               <h3 className="text-sm font-bold text-primary uppercase tracking-widest flex items-center gap-2">
                 <Settings className="w-4 h-4 text-accent" />
-                Annotation Configuration & Guidance
+                Guidance
               </h3>
               <p className="text-sm text-dim uppercase tracking-wider mt-1">
-                Customize structural parameters and creative instructions before running the AI.
+                Optional notes for the analysis.
               </p>
             </div>
             
@@ -2054,10 +1652,10 @@ export default function App() {
               {/* Structured Template Inputs */}
               <div>
                 <label className="text-sm text-accent uppercase tracking-wider font-semibold block mb-1">
-                  2. Structured Ingestion Template Inputs
+                  Track details
                 </label>
                 <span className="text-sm text-dim uppercase tracking-wide block mb-3">
-                  Specify exact musical constraints to force strict timing and instrumentation.
+                  
                 </span>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
@@ -2241,7 +1839,7 @@ export default function App() {
                       onClick={() => setProfileStep(2)}
                       className="py-3 px-10 bg-accent text-bg-main font-bold text-sm uppercase tracking-[0.2em] rounded-sm hover:bg-accent/90 active:scale-[0.98] transition-all cursor-pointer shadow-[0_0_15px_rgba(215,183,139,0.15)]"
                     >
-                      Next Step: Annotation Profile
+                      Continue
                     </Button>
                   ) : (
                     <p className="text-sm text-accent/60 uppercase tracking-widest animate-pulse font-bold">
@@ -2257,10 +1855,10 @@ export default function App() {
                     <ShieldCheck className="w-6 h-6" />
                   </div>
                   <h3 className="text-base font-black text-primary uppercase tracking-[0.2em]">
-                    Annotation Profile Setup (Step 2 of 2)
+                    Writing style
                   </h3>
                   <p className="text-sm text-dim uppercase tracking-widest mt-1.5 max-w-md mx-auto leading-relaxed">
-                    Select how you want the AI to formulate and compose descriptions.
+                    
                   </p>
                 </div>
 
@@ -2344,7 +1942,7 @@ export default function App() {
                     }}
                     className="py-3 px-8 bg-accent text-bg-main font-bold text-sm uppercase tracking-[0.2em] rounded-sm hover:bg-accent/90 active:scale-[0.98] transition-all cursor-pointer shadow-[0_0_15px_rgba(215,183,139,0.15)]"
                   >
-                    Confirm & Access Terminal
+                    Save profile
                   </Button>
                 </div>
               </>
