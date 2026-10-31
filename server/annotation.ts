@@ -188,7 +188,6 @@ export async function annotateAudio(
   const styleInstruction = getStyleInstruction(activeProfile, annotationProfile);
 
   const response = await generateWithFallback({
-    model: process.env.GEMINI_MODEL || "gemini-3-flash-preview",
     contents: [
       {
         parts: [
@@ -251,7 +250,6 @@ export async function refineAnnotation(
   const styleInstruction = getStyleInstruction(activeProfile, annotationProfile);
 
   const response = await generateWithFallback({
-    model: process.env.GEMINI_MODEL || "gemini-3-flash-preview",
     contents: [
       {
         parts: [

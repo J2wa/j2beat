@@ -7,8 +7,10 @@ Use natural, direct English throughout all narrative and global fields: concrete
 Describe only sounds within each segment. Match the instrument list to the narrative. Describe vocal timbre and delivery without asserting personal identity. Do not use web search to substitute for listening. Before answering, silently check timing, contradictions, unsupported details, duplicate phrasing and schema completeness. Return only the annotation, with uncertainty in the relevant fields.`;
 export async function generateWithFallback(request: any) {
  const system = String(request.config.systemInstruction) + QUALITY;
- const order = process.env.AI_PRIMARY_PROVIDER === 'openrouter' ? ['openrouter','gemini'] : ['gemini','openrouter'];
- for (const provider of order) {
+ // Keep the requested default first, including when legacy environment overrides exist.
+ const models = ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-2.5-flash'];
+ const attempts = [...models.map(model => ({provider: 'gemini', model})), {provider: 'openrouter', model: process.env.OPENROUTER_MODEL}];
+ for (const {provider, model} of attempts) {
   if(provider==='gemini' && !process.env.GEMINI_API_KEY)continue;
   if(provider==='openrouter' && (!process.env.OPENROUTER_API_KEY || !process.env.OPENROUTER_MODEL))continue;
   try {
@@ -27,9 +29,16 @@ export async function generateWithFallback(request: any) {
        c.parts[i]={fileData:{fileUri:uploaded.uri,mimeType:data.mimeType}};
       }
      }
-     const result=await ai.models.generateContent({...request,contents,config:{...request.config,systemInstruction:system,temperature:0.2,tools:undefined,httpOptions:{timeout:50000}}});
+     const config = {...request.config, systemInstruction:system, tools:undefined, httpOptions:{timeout:50000}};
+     // Gemini 3 models use their default sampling parameters.
+     delete config.temperature;
+     delete config.topP;
+     delete config.topK;
+     delete config.candidateCount;
+     const result=await ai.models.generateContent({...request,model,contents,config});
+     if(result.candidates?.[0]?.finishReason !== 'STOP')throw new Error('Incomplete output');
      text=result.text;
-    } finally { if(uploadedName)await ai.files.delete({name:uploadedName}).catch(()=>{}); }
+    } finally { if(uploadedName)await ai.files.delete({name:uploadedName,config:{httpOptions:{timeout:2000}}}).catch(()=>{}); }
    } else {
     const content=request.contents.flatMap((c:any)=>c.parts.map((p:any)=>p.text?{type:'text',text:p.text}:{type:'input_audio',input_audio:{data:p.inlineData.data,format:({'audio/mpeg':'mp3','audio/x-wav':'wav','audio/wave':'wav','audio/x-aiff':'aiff'} as Record<string,string>)[p.inlineData.mimeType] || p.inlineData.mimeType.split('/')[1]}}));
     const response=await fetch('https://openrouter.ai/api/v1/chat/completions',{method:'POST',signal:AbortSignal.timeout(50000),headers:{Authorization:`Bearer ${process.env.OPENROUTER_API_KEY}`,'Content-Type':'application/json','X-Title':'ACES Music'},body:JSON.stringify({model:process.env.OPENROUTER_MODEL,messages:[{role:'system',content:system},{role:'user',content}],temperature:0.2})});
@@ -40,7 +49,7 @@ export async function generateWithFallback(request: any) {
    }
    if(typeof text!=='string'||!text.trim())throw new Error('Empty output');
    return {text};
-  } catch { /* Try the other configured provider; never expose keys or raw provider errors. */ }
+  } catch { /* Try the next model/provider; never expose keys or raw provider errors. */ }
  }
  throw new Error('All configured providers failed');
 }
