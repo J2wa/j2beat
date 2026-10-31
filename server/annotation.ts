@@ -3,11 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { GoogleGenAI } from "@google/genai";
+import { generateWithFallback } from "./providers.js";
 import { SYSTEM_PROMPT } from "../src/constants.js";
 import { KNOWLEDGE_BASE } from "../src/knowledgeBase.js";
 
-const getAI = () => new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
 export type AudioInput = { data: string; type: string };
 
 export interface AnnotationResult {
@@ -187,7 +187,7 @@ export async function annotateAudio(
 
   const styleInstruction = getStyleInstruction(activeProfile, annotationProfile);
 
-  const response = await getAI().models.generateContent({
+  const response = await generateWithFallback({
     model: process.env.GEMINI_MODEL || "gemini-3-flash-preview",
     contents: [
       {
@@ -250,7 +250,7 @@ export async function refineAnnotation(
 
   const styleInstruction = getStyleInstruction(activeProfile, annotationProfile);
 
-  const response = await getAI().models.generateContent({
+  const response = await generateWithFallback({
     model: process.env.GEMINI_MODEL || "gemini-3-flash-preview",
     contents: [
       {

@@ -3,7 +3,7 @@ export const config = { maxDuration: 120 };
 export default async function handler(req: any, res: any) {
  res.setHeader('Cache-Control', 'no-store');
  if (req.method !== 'POST') { res.setHeader('Allow','POST'); return res.status(405).json({error:'Use POST for analysis.'}); }
- if (!process.env.GEMINI_API_KEY) return res.status(503).json({error:'AI analysis is not configured. The project owner must add GEMINI_API_KEY in Vercel.'});
+ if (!process.env.GEMINI_API_KEY && !(process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_MODEL)) return res.status(503).json({error:'AI analysis is not configured. Configure Gemini or OpenRouter in Vercel.'});
  const b = req.body;
  if (!b || !['annotate','refine'].includes(b.action) || !b.audio || typeof b.audio.data !== 'string' || !/^[A-Za-z0-9+/]+={0,2}$/.test(b.audio.data) || typeof b.audio.type !== 'string' || !/^audio\/[a-z0-9.+-]+$/i.test(b.audio.type)) return res.status(400).json({error:'Provide a valid audio file.'});
  if (b.audio.data.length > 4194304) return res.status(413).json({error:'AI uploads must be under 3 MB. Use a compressed MP3.'});
