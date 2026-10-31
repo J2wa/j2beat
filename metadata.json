@@ -1,0 +1,6 @@
+{
+  "name": "J2 Beats",
+  "description": "Professional music annotation tool v1.0. Analyze structure, instruments, and melodic motifs with AI-powered precision.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["audio_processing"]
+}
