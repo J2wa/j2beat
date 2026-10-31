@@ -15,8 +15,21 @@ export async function generateWithFallback(request: any) {
    let text: string | undefined;
    if(provider==='gemini') {
     const ai=new GoogleGenAI({apiKey:process.env.GEMINI_API_KEY});
-    const result=await ai.models.generateContent({...request,config:{...request.config,systemInstruction:system,temperature:0.2,tools:undefined,httpOptions:{timeout:50000}}});
-    text=result.text;
+    let uploadedName: string | undefined;
+    try {
+     const contents=structuredClone(request.contents);
+     for(const c of contents)for(let i=0;i<c.parts.length;i++) {
+      const data=c.parts[i].inlineData;
+      if(data?.data?.length>12*1024*1024) {
+       const uploaded=await ai.files.upload({file:new Blob([Buffer.from(data.data,'base64')],{type:data.mimeType}),config:{mimeType:data.mimeType,httpOptions:{timeout:30000}}});
+       uploadedName=uploaded.name;
+       if(!uploaded.uri)throw new Error('Audio upload failed');
+       c.parts[i]={fileData:{fileUri:uploaded.uri,mimeType:data.mimeType}};
+      }
+     }
+     const result=await ai.models.generateContent({...request,contents,config:{...request.config,systemInstruction:system,temperature:0.2,tools:undefined,httpOptions:{timeout:50000}}});
+     text=result.text;
+    } finally { if(uploadedName)await ai.files.delete({name:uploadedName}).catch(()=>{}); }
    } else {
     const content=request.contents.flatMap((c:any)=>c.parts.map((p:any)=>p.text?{type:'text',text:p.text}:{type:'input_audio',input_audio:{data:p.inlineData.data,format:({'audio/mpeg':'mp3','audio/x-wav':'wav','audio/wave':'wav','audio/x-aiff':'aiff'} as Record<string,string>)[p.inlineData.mimeType] || p.inlineData.mimeType.split('/')[1]}}));
     const response=await fetch('https://openrouter.ai/api/v1/chat/completions',{method:'POST',signal:AbortSignal.timeout(50000),headers:{Authorization:`Bearer ${process.env.OPENROUTER_API_KEY}`,'Content-Type':'application/json','X-Title':'ACES Music'},body:JSON.stringify({model:process.env.OPENROUTER_MODEL,messages:[{role:'system',content:system},{role:'user',content}],temperature:0.2})});

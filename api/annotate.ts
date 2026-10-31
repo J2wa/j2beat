@@ -1,12 +1,23 @@
+import { get, del } from '@vercel/blob';
 import { annotateAudio, refineAnnotation } from '../server/annotation.js';
-export const config = { maxDuration: 120 };
+export const config = { maxDuration: 300 };
 export default async function handler(req: any, res: any) {
  res.setHeader('Cache-Control', 'no-store');
  if (req.method !== 'POST') { res.setHeader('Allow','POST'); return res.status(405).json({error:'Use POST for analysis.'}); }
  if (!process.env.GEMINI_API_KEY && !(process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_MODEL)) return res.status(503).json({error:'AI analysis is not configured. Configure Gemini or OpenRouter in Vercel.'});
  const b = req.body;
+ if(b?.audio?.path) {
+  const path=b.audio.path;
+  if(typeof path!=='string'||!/^audio\/[a-f0-9-]{36}\.[a-z0-9]{2,5}$/.test(path))return res.status(400).json({error:'Invalid audio reference.'});
+  try {
+   const stored=await get(path,{access:'private'});
+   if(!stored || stored.statusCode!==200 || stored.blob.size>100*1024*1024)throw new Error('Invalid upload');
+   b.audio.data=Buffer.from(await new Response(stored.stream).arrayBuffer()).toString('base64');
+  }catch{return res.status(400).json({error:'Could not read the audio upload. Please upload again.'});}
+  finally{await del(path).catch(()=>{});}
+ }
  if (!b || !['annotate','refine'].includes(b.action) || !b.audio || typeof b.audio.data !== 'string' || !/^[A-Za-z0-9+/]+={0,2}$/.test(b.audio.data) || typeof b.audio.type !== 'string' || !/^audio\/[a-z0-9.+-]+$/i.test(b.audio.type)) return res.status(400).json({error:'Provide a valid audio file.'});
- if (b.audio.data.length > 4194304) return res.status(413).json({error:'AI uploads must be under 3 MB. Use a compressed MP3.'});
+ if (!b.audio.path && b.audio.data.length > 4194304) return res.status(413).json({error:'Use the direct upload flow for this file.'});
  if (![b.creativeGuidance,b.feedback,b.previousResult].every(v => v === undefined || (typeof v === 'string' && v.length <= 120000))) return res.status(400).json({error:'The supplied text is invalid or too long.'});
  if (b.action === 'refine' && (!b.previousResult || !b.feedback?.trim())) return res.status(400).json({error:'Provide an annotation and correction instructions.'});
  const profiles=['PRODUCER','VOCAL','R&B','SOLOIST','ACOUSTIC','TEXTURE','RHYTHM','EXPERT','AMBIENT','DYNAMICS'];
