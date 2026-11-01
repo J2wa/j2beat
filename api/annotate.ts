@@ -1,7 +1,9 @@
+import { requireSession } from '../server/auth.js';
 import { get, del } from '@vercel/blob';
 import { annotateAudio, refineAnnotation } from '../server/annotation.js';
 export const config = { maxDuration: 300 };
 export default async function handler(req: any, res: any) {
+ if (!requireSession(req, res)) return;
  res.setHeader('Cache-Control', 'no-store');
  if (req.method !== 'POST') { res.setHeader('Allow','POST'); return res.status(405).json({error:'Use POST for analysis.'}); }
  if (!process.env.GEMINI_API_KEY && !(process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_MODEL)) return res.status(503).json({error:'AI analysis is not configured. Configure Gemini or OpenRouter in Vercel.'});

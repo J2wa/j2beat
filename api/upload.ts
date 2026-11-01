@@ -1,5 +1,7 @@
+import { requireSession } from '../server/auth.js';
 import { handleUpload } from '@vercel/blob/client';
 export default async function handler(req:any,res:any) {
+ if (!requireSession(req, res)) return;
  if(req.method!=='POST')return res.status(405).json({error:'Use POST.'});
  try {
   const result=await handleUpload({body:req.body,request:req,onBeforeGenerateToken:async(pathname)=>{

@@ -19,3 +19,9 @@ Set server-only GEMINI_API_KEY and/or OPENROUTER_API_KEY plus OPENROUTER_MODEL (
 All generated and refined outputs receive an evidence-first natural-writing directive, overriding formulaic style instructions while preserving parser field labels. Accuracy cannot be guaranteed by a prompt; human listening review remains necessary.
 
 Large audio files use private direct multipart uploads (up to 100 MB), bypassing the function request body limit. Analysis consumes and deletes uploaded temporary files; interrupted uploads may need manual cleanup. Provider context, audio duration, and runtime limits still apply. Blob store: j2beat-audio. Connect it to the project with Blob credentials if OIDC access is unavailable.
+
+
+## Shared-password login
+Set `USER_PASSWORD` in Vercel → j2beat → Settings → Environment Variables, for Production and Preview, then redeploy. This matches the variable name used by the video project. Everyone enters their own display name and the same shared password. No signup, database, or verified individual accounts are required. Never use a VITE_ prefix for this secret.
+
+The app blocks access until configured. Signed, HttpOnly, Secure, SameSite cookies expire after 12 hours. Changing the shared password and redeploying invalidates existing sessions. Analysis, status, and upload-token endpoints require a valid session. Sign out clears the browser cookie. Existing browser-local profiles/library remain unchanged and are shared on that browser, not private per-person accounts. Login throttling is best-effort per function instance, not a global distributed rate limit.

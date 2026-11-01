@@ -1,4 +1,6 @@
-export default function handler(_req: any, res: any) {
+import { requireSession } from '../server/auth.js';
+export default function handler(req: any, res: any) {
+ if (!requireSession(req, res)) return;
  res.setHeader('Cache-Control', 'no-store');
  const gemini=Boolean(process.env.GEMINI_API_KEY);
  const openrouter=Boolean(process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_MODEL);

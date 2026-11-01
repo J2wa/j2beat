@@ -19,3 +19,16 @@
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 
 button.aces-brand{background:none;border:0;padding:0;color:inherit;cursor:pointer}
+
+.login-page { min-height:100dvh; display:grid; place-items:center; padding:24px; background:#0b0e14; }
+.login-card { width:100%; max-width:400px; padding:32px; border:1px solid #29344a; border-radius:12px; background:#121721; display:flex; flex-direction:column; gap:12px; }
+.login-brand { display:flex; align-items:center; gap:12px; font-weight:700; font-size:20px; margin-bottom:20px; }
+.login-brand svg { color:#6493ff; }
+.login-card h1 { font-size:28px; line-height:1.2; letter-spacing:-.03em; margin:0 0 12px; }
+.login-card label { font-size:16px; margin-top:8px; }
+.login-card input { width:100%; min-width:0; min-height:48px; border:1px solid #35425b; border-radius:7px; padding:12px; background:#0b0e14; color:#f5f7ff; font-size:16px; }
+.login-password { display:flex; gap:8px; }
+.login-password input { flex:1; }
+.login-card > button { margin-top:12px; justify-content:center; }
+.login-error { color:#ffb4b4; font-size:14px; line-height:1.5; overflow-wrap:anywhere; }
+@media(max-width:420px){.login-card{padding:24px}.login-page{padding:16px}}
