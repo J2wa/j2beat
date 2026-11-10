@@ -1,5 +1,5 @@
 import { DEFAULT_MODEL, type ModelId } from '../../shared/models';
-import { upload } from "@vercel/blob/client";
+import { put } from "@vercel/blob/client";
 const progress = (stage:string) => window.dispatchEvent(new CustomEvent('analysis-progress',{detail:stage}));
 // Credentials and prompt assembly live exclusively in the server function.
 async function request(audioFile: File, options: Record<string, unknown>): Promise<string> {
@@ -9,9 +9,23 @@ async function request(audioFile: File, options: Record<string, unknown>): Promi
   if(audioFile.size > 3*1024*1024) {
     if(audioFile.size>100*1024*1024)throw new Error('Audio uploads currently support files up to 100 MB.');
     const extension=audioFile.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g,'') || 'mp3';
-    const blob=await upload(`audio/${crypto.randomUUID()}.${extension}`,audioFile,{abortSignal:AbortSignal.timeout(120000),access:'private',handleUploadUrl:'/api/upload',multipart:true,contentType:type});
+    const pathname = `audio/${crypto.randomUUID()}.${extension}`;
+    progress('Requesting upload permission');
+    let tokenResponse: Response;
+    try {
+      tokenResponse = await fetch('/api/upload', {method:'POST', signal:AbortSignal.timeout(30000), headers:{'Content-Type':'application/json'}, body:JSON.stringify({type:'blob.generate-client-token',payload:{pathname,multipart:true,clientPayload:null}})});
+    } catch { throw new Error('Upload permission request timed out or could not connect. The AI has not started. Check your connection and retry.'); }
+    const tokenBody = await tokenResponse.json().catch(()=>({}));
+    if(!tokenResponse.ok || !tokenBody.clientToken) throw new Error(tokenBody.error || 'Could not authorize the audio upload. Sign in again and retry. The AI has not started.');
+    progress('Uploading audio — 0%');
+    let blob;
+    try {
+      blob = await put(pathname,audioFile,{token:tokenBody.clientToken,abortSignal:AbortSignal.timeout(120000),access:'private',multipart:true,contentType:type,
+        onUploadProgress:({percentage})=>progress(percentage >= 100 ? 'Finalizing audio upload' : `Uploading audio — ${Math.floor(percentage)}%`)});
+    } catch { throw new Error('Audio upload failed or exceeded 2 minutes. The AI has not started. Check your connection or try a smaller audio file.'); }
     audio={path:blob.pathname,type};
   } else {
+  progress('Reading audio file');
   const data = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result).split(",")[1]);
