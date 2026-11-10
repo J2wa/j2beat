@@ -1,3 +1,4 @@
+import { DEFAULT_MODEL, MODEL_OPTIONS, isModelId, type ModelId } from '../shared/models';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -127,6 +128,10 @@ const PROFILES = [
 ];
 
 export default function App() {
+  const [selectedModel, setSelectedModel] = useState<ModelId>(() => {
+    try { const stored = localStorage.getItem('aces_music_model'); return isModelId(stored) ? stored : DEFAULT_MODEL; }
+    catch { return DEFAULT_MODEL; }
+  });
   const [view, setView] = useState<'workspace' | 'guidelines' | 'archive'>('workspace');
   const [archive, setArchive] = useState<Array<{id: string; name: string; text: string; date: string}>>(() => {
     try { return JSON.parse(localStorage.getItem('aces_music_archive_v1') || '[]'); } catch { return []; }
@@ -577,6 +582,7 @@ export default function App() {
         duration,
         activeProfile || "PRODUCER",
         annotationProfile,
+        selectedModel,
       );
       setCredits((prev) => prev - GENERATE_COST);
       setResult(annotation);
@@ -611,6 +617,7 @@ export default function App() {
         duration,
         activeProfile || "PRODUCER",
         annotationProfile,
+        selectedModel,
       );
       setCredits((prev) => prev - REFINE_COST);
       setResult(refinedAnnotation);
@@ -824,7 +831,7 @@ export default function App() {
 
       <Header view={view} onNavigate={setView} onProfile={() => setIsProfileModalOpen(true)} />
       <div className="page-title"><h1>{view === 'workspace' ? 'Studio' : view === 'archive' ? 'Library' : 'Guide'}</h1>{view === 'workspace' && <span className="small muted">{sections.length ? `${sections.length} segments` : 'Music annotation'}</span>}</div>
-      {serviceReady === false && <details className="service-notice"><summary><span className="status-dot"/> AI offline <span className="muted">Setup required</span></summary><p>In Vercel → j2beat → Settings → Environment Variables, set GEMINI_API_KEY and/or OPENROUTER_API_KEY with OPENROUTER_MODEL (an audio-input model). Gemini 3.5 Flash-Lite is tried first, followed by Gemini 3.1 Flash-Lite, Gemini 2.5 Flash, and the configured OpenRouter model if needed. Redeploy to apply. Keys remain server-side.</p></details>}
+      {serviceReady === false && <details className="service-notice"><summary><span className="status-dot"/> AI offline <span className="muted">Setup required</span></summary><p>In Vercel → j2beat → Settings → Environment Variables, set GEMINI_API_KEY and/or OPENROUTER_API_KEY with OPENROUTER_MODEL (an audio-input model). Your selected model is tried first, followed by the other Gemini models and the configured OpenRouter model if needed. Redeploy to apply. Keys remain server-side.</p></details>}
       {error && <div role="alert" className="error-notice">{error}</div>}
       {view === 'guidelines' && <SectionContainer className="document-view"><p className="eyebrow"></p><h2>Annotation guidelines</h2><p>AI output is a draft. Listen to the track and verify instruments, timestamps, and descriptions before exporting.</p><div className="markdown-body"><ReactMarkdown remarkPlugins={[remarkGfm]}>{annotationSOP}</ReactMarkdown></div></SectionContainer>}
       {view === 'archive' && <SectionContainer className="document-view"><p className="eyebrow"></p><h2>Saved annotations</h2><p>Saved in this browser. Audio files are not stored.</p>{archive.length === 0 ? <p className="archive-empty">No saved annotations yet.</p> : archive.map(item => <article className="archive-row" key={item.id}><div><h3>{item.name}</h3><p>{new Date(item.date).toLocaleString()}</p></div><Button onClick={() => {setResult(item.text); parseSections(item.text); setView('workspace'); setError(null);}}><FileAudio /> Open annotation</Button></article>)}</SectionContainer>}
@@ -834,6 +841,11 @@ export default function App() {
       <main id="workspace" hidden={view !== "workspace"} className="studio-grid">
         <section className="settings-panel">
           <h2>Analysis settings</h2>
+          <label className="field-label" htmlFor="model-select">Model</label>
+          <select id="model-select" value={selectedModel} disabled={isProcessing || isRefining} onChange={e=>{
+            if (isModelId(e.target.value)) { setSelectedModel(e.target.value); try { localStorage.setItem('aces_music_model',e.target.value); } catch {} }
+          }}>{MODEL_OPTIONS.map(model=><option key={model.id} value={model.id}>{model.label}{model.id===DEFAULT_MODEL?' (default)':''}</option>)}</select>
+          <p className="small muted">Automatic fallback enabled.</p>
           <label className="field-label" htmlFor="profile-select">Profile</label>
           <select id="profile-select" value={activeProfile || 'PRODUCER'} onChange={e=>{setActiveProfile(e.target.value);localStorage.setItem('active_profile',e.target.value);}}>{PROFILES.map(p=><option key={p.id} value={p.id}>{p.label.charAt(0)+p.label.slice(1).toLowerCase()}</option>)}</select>
           <div className="field-label">Writing style</div>

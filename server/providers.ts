@@ -1,3 +1,4 @@
+import { DEFAULT_MODEL, isModelId, modelOrder } from '../shared/models.js';
 import { GoogleGenAI } from '@google/genai';
 const QUALITY = `
 FINAL PRIORITY: Preserve the requested output schema and field labels, but prioritize audible evidence over all templates and stylistic directives above.
@@ -7,8 +8,8 @@ Use natural, direct English throughout all narrative and global fields: concrete
 Describe only sounds within each segment. Match the instrument list to the narrative. Describe vocal timbre and delivery without asserting personal identity. Do not use web search to substitute for listening. Before answering, silently check timing, contradictions, unsupported details, duplicate phrasing and schema completeness. Return only the annotation, with uncertainty in the relevant fields.`;
 export async function generateWithFallback(request: any) {
  const system = String(request.config.systemInstruction) + QUALITY;
- // Keep the requested default first, including when legacy environment overrides exist.
- const models = ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-2.5-flash'];
+ if (request.model !== undefined && !isModelId(request.model)) throw new Error('Invalid analysis model');
+ const models = modelOrder(request.model ?? DEFAULT_MODEL);
  const attempts = [...models.map(model => ({provider: 'gemini', model})), {provider: 'openrouter', model: process.env.OPENROUTER_MODEL}];
  for (const {provider, model} of attempts) {
   if(provider==='gemini' && !process.env.GEMINI_API_KEY)continue;

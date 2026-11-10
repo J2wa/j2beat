@@ -1,3 +1,4 @@
+import { DEFAULT_MODEL, isModelId, type ModelId } from '../shared/models.js';
 import { requireSession } from '../server/auth.js';
 import { get, del } from '@vercel/blob';
 import { annotateAudio, refineAnnotation } from '../server/annotation.js';
@@ -8,6 +9,7 @@ export default async function handler(req: any, res: any) {
  if (req.method !== 'POST') { res.setHeader('Allow','POST'); return res.status(405).json({error:'Use POST for analysis.'}); }
  if (!process.env.GEMINI_API_KEY && !(process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_MODEL)) return res.status(503).json({error:'AI analysis is not configured. Configure Gemini or OpenRouter in Vercel.'});
  const b = req.body;
+ if (b?.model !== undefined && !isModelId(b.model)) return res.status(400).json({error:'Choose a supported analysis model.'});
  if(b?.audio?.path) {
   const path=b.audio.path;
   if(typeof path!=='string'||!/^audio\/[a-f0-9-]{36}\.[a-z0-9]{2,5}$/.test(path))return res.status(400).json({error:'Invalid audio reference.'});
@@ -25,9 +27,9 @@ export default async function handler(req: any, res: any) {
  const profiles=['PRODUCER','VOCAL','R&B','SOLOIST','ACOUSTIC','TEXTURE','RHYTHM','EXPERT','AMBIENT','DYNAMICS'];
  if (!profiles.includes(b.activeProfile) || !['default','brief'].includes(b.annotationProfile) || typeof b.audioDuration !== 'number' || !Number.isFinite(b.audioDuration) || b.audioDuration < 0) return res.status(400).json({error:'Invalid analysis settings.'});
  try {
-   const args = [b.audio, !!b.isSimplified, !!b.isHighAccuracy, b.creativeGuidance || '', b.audioDuration, b.activeProfile, b.annotationProfile] as const;
+   const args = [b.audio, !!b.isSimplified, !!b.isHighAccuracy, b.creativeGuidance || '', b.audioDuration, b.activeProfile, b.annotationProfile, b.model ?? DEFAULT_MODEL] as const;
    const text = b.action === 'refine'
-    ? await refineAnnotation(b.audio,b.previousResult,b.feedback,...args.slice(1) as [boolean,boolean,string,number,string,string])
+    ? await refineAnnotation(b.audio,b.previousResult,b.feedback,...args.slice(1) as [boolean,boolean,string,number,string,string,ModelId])
     : await annotateAudio(...args);
    return res.status(200).json({text});
  } catch { return res.status(502).json({error:'The AI provider could not complete the analysis. Please retry, or ask the project owner to check the API key and model availability. Your input has been preserved.'}); }

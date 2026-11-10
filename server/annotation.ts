@@ -1,3 +1,4 @@
+import { DEFAULT_MODEL, type ModelId } from '../shared/models.js';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -178,7 +179,8 @@ export async function annotateAudio(
   creativeGuidance: string = "",
   audioDuration: number = 0,
   activeProfile: string = "PRODUCER",
-  annotationProfile: string = "default"
+  annotationProfile: string = "default",
+  model: ModelId = DEFAULT_MODEL
 ): Promise<string> {
   const base64Data = audioFile.data;
   const mimeType = audioFile.type;
@@ -188,6 +190,7 @@ export async function annotateAudio(
   const styleInstruction = getStyleInstruction(activeProfile, annotationProfile);
 
   const response = await generateWithFallback({
+    model,
     contents: [
       {
         parts: [
@@ -240,7 +243,8 @@ export async function refineAnnotation(
   creativeGuidance: string = "",
   audioDuration: number = 0,
   activeProfile: string = "PRODUCER",
-  annotationProfile: string = "default"
+  annotationProfile: string = "default",
+  model: ModelId = DEFAULT_MODEL
 ): Promise<string> {
   const base64Data = audioFile.data;
   const mimeType = audioFile.type;
@@ -250,6 +254,7 @@ export async function refineAnnotation(
   const styleInstruction = getStyleInstruction(activeProfile, annotationProfile);
 
   const response = await generateWithFallback({
+    model,
     contents: [
       {
         parts: [
