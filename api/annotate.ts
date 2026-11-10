@@ -1,3 +1,5 @@
+import { progressContext } from '../server/progress.js';
+import { AnalysisError } from '../server/providers.js';
 import { DEFAULT_MODEL, isModelId, type ModelId } from '../shared/models.js';
 import { requireSession } from '../server/auth.js';
 import { get, del } from '@vercel/blob';
@@ -26,11 +28,15 @@ export default async function handler(req: any, res: any) {
  if (b.action === 'refine' && (!b.previousResult || !b.feedback?.trim())) return res.status(400).json({error:'Provide an annotation and correction instructions.'});
  const profiles=['PRODUCER','VOCAL','R&B','SOLOIST','ACOUSTIC','TEXTURE','RHYTHM','EXPERT','AMBIENT','DYNAMICS'];
  if (!profiles.includes(b.activeProfile) || !['default','brief'].includes(b.annotationProfile) || typeof b.audioDuration !== 'number' || !Number.isFinite(b.audioDuration) || b.audioDuration < 0) return res.status(400).json({error:'Invalid analysis settings.'});
+ const streaming = req.headers.accept === 'application/x-ndjson';
+ const emit = (event:any) => { if (!res.destroyed && !res.writableEnded) res.write(JSON.stringify(event)+'\n'); };
+ if(streaming) { res.setHeader('Content-Type','application/x-ndjson'); res.setHeader('X-Accel-Buffering','no'); res.flushHeaders(); emit({stage:'Preparing AI analysis'}); }
  try {
    const args = [b.audio, !!b.isSimplified, !!b.isHighAccuracy, b.creativeGuidance || '', b.audioDuration, b.activeProfile, b.annotationProfile, b.model ?? DEFAULT_MODEL] as const;
-   const text = b.action === 'refine'
+   const text = await progressContext.run(stage => {if(streaming) emit({stage});}, async () => b.action === 'refine'
     ? await refineAnnotation(b.audio,b.previousResult,b.feedback,...args.slice(1) as [boolean,boolean,string,number,string,string,ModelId])
-    : await annotateAudio(...args);
+    : await annotateAudio(...args));
+   if(streaming) {emit({text}); return res.end();}
    return res.status(200).json({text});
- } catch { return res.status(502).json({error:'The AI provider could not complete the analysis. Please retry, or ask the project owner to check the API key and model availability. Your input has been preserved.'}); }
+ } catch (error) { if(streaming) { emit({error:error instanceof AnalysisError ? error.message+' Your input has been preserved.' : 'AI analysis failed. Your input is preserved. Please retry.'}); return res.end(); } if (error instanceof AnalysisError) return res.status(error.status).json({code:error.code,error:error.message+' Your input has been preserved.'}); return res.status(502).json({error:'The AI provider could not complete the analysis. Please retry, or ask the project owner to check the API key and model availability. Your input has been preserved.'}); }
 }

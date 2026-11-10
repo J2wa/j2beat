@@ -291,6 +291,20 @@ export default function App() {
 
   const [userFeedback, setUserFeedback] = useState("");
   const [isRefining, setIsRefining] = useState(false);
+  const [analysisStage, setAnalysisStage] = useState('Preparing audio');
+  useEffect(() => {
+    const update = (event: Event) => setAnalysisStage((event as CustomEvent<string>).detail);
+    window.addEventListener('analysis-progress',update);
+    return () => window.removeEventListener('analysis-progress',update);
+  }, []);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  useEffect(() => {
+    if (!isProcessing && !isRefining) return;
+    const start = Date.now();
+    setElapsedSeconds(0);
+    const timer = window.setInterval(() => setElapsedSeconds(Math.floor((Date.now()-start)/1000)),1000);
+    return () => window.clearInterval(timer);
+  }, [isProcessing, isRefining]);
   const [error, setError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -822,7 +836,13 @@ export default function App() {
               </div>
 
               <p className="text-sm text-dim font-mono uppercase tracking-wide">
-                Estimated Time: ~45-60s
+                {analysisStage}<br />Elapsed: {Math.floor(elapsedSeconds/60)}:{String(elapsedSeconds%60).padStart(2,'0')}
+              </p>
+              <p role="status" className="text-sm text-dim text-center mt-3">
+                {elapsedSeconds < 90 ? 'Audio analysis and writing can take around 1–2 minutes; this is an estimate.' : 'This is taking longer than expected. The server may still be processing or trying another model.'}
+              </p>
+              <p className="text-sm text-dim text-center mt-3">
+                Stages: Upload → Analyze → Write → Finish. Completion time varies; AI does not report a reliable percentage. AI processing is limited to 4 minutes. Upload time is additional. A failure will appear here when the request ends.
               </p>
             </div>
           </motion.div>

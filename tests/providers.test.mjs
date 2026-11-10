@@ -5,6 +5,7 @@ import { DEFAULT_MODEL, MODEL_OPTIONS, modelOrder } from '../shared/models.ts';
 let calls=[], responses=[];
 globalThis.MockGoogleGenAI=class { models={generateContent:async request=>{calls.push(request);const next=responses.shift();if(next instanceof Error)throw next;return next;}}; };
 const source=readFileSync(new URL('../server/providers.ts',import.meta.url),'utf8')
+ .replace("import { reportProgress } from './progress.js';", "const reportProgress = () => {};")
  .replace("import { GoogleGenAI } from '@google/genai';",'const GoogleGenAI = globalThis.MockGoogleGenAI;')
  .replace("'../shared/models.js'",JSON.stringify(new URL('../shared/models.ts',import.meta.url).href));
 const code=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
@@ -33,12 +34,17 @@ responses=MODEL_OPTIONS.map(()=>new Error());
 assert.equal((await generateWithFallback(request)).text,'router annotation');
 delete process.env.OPENROUTER_API_KEY;
 responses=MODEL_OPTIONS.map(()=>new Error());
-await assert.rejects(generateWithFallback(request),/All configured providers failed/);
+await assert.rejects(generateWithFallback(request),/could not complete|All configured providers failed|four-minute/g);
 console.log('Passed: default, every selection, deduplicated fallback, invalid model, failure cases and OpenRouter fallback.');
 calls=[];responses=[new Error('unavailable'),good];
-await assert.rejects(generateWithFallback(request,{maxAttempts:1}),/All configured providers failed/);
+await assert.rejects(generateWithFallback(request,{maxAttempts:1}),/could not complete|All configured providers failed|four-minute/g);
 assert.equal(calls.length,1);
 calls=[];
-await assert.rejects(generateWithFallback(request,{deadline:Date.now()-1}),/All configured providers failed/);
+await assert.rejects(generateWithFallback(request,{deadline:Date.now()-1}),/could not complete|All configured providers failed|four-minute/g);
 assert.equal(calls.length,0);
 console.log('Passed single-attempt evidence budget and expired deadline.');
+for(const [status,code] of [[429,'AI_QUOTA'],[401,'AI_AUTH'],[404,'AI_MODEL'],[503,'AI_UNAVAILABLE']]) {
+ responses=[Object.assign(new Error('private provider details'),{status})];
+ await assert.rejects(generateWithFallback(request,{maxAttempts:1}), e=>e.code===code && !e.message.includes('private provider details'));
+}
+console.log('Passed safe provider error categories.');

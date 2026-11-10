@@ -1,3 +1,4 @@
+import { reportProgress } from './progress.js';
 import { generateWithFallback } from './providers.js';
 
 // Independently implemented workflow inspired by MOSS-Music-Data-Pipeline.
@@ -31,6 +32,7 @@ export async function generateMusicAnnotation(request: any, duration: number, ge
   const deadline = Date.now() + 240000;
   let evidence: ReturnType<typeof cleanEvidence> | undefined;
   try {
+    reportProgress('Analyzing audio');
     const result = await generate({
       model: request.model,
       contents: [{parts: [
@@ -47,5 +49,6 @@ export async function generateMusicAnnotation(request: any, duration: number, ge
   const contents = evidence
     ? request.contents.map((c:any) => ({...c, parts:c.parts.filter((p:any) => typeof p.text === 'string')}))
     : request.contents;
+  reportProgress(evidence ? 'Writing annotation from analysis' : 'Analyzing and writing directly');
   return generate({...request, contents, config:{...request.config, systemInstruction:request.config.systemInstruction+instruction}}, {deadline, metadataOnly:!!evidence});
 }

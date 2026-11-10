@@ -25,3 +25,8 @@ calls=[];
 await generateMusicAnnotation(request,20,async(r:any)=>{calls.push(r);if(calls.length===1)throw Error('offline');return {text:'direct'};});
 assert.ok(calls[1].config.systemInstruction.includes('extraction was unavailable'));
 console.log('Passed evidence cleanup, duration/overlap rejection, two-stage audio flow and graceful fallback.');
+const {progressContext} = await import('../server/progress.ts');
+const stages:string[]=[];
+await progressContext.run(stage=>stages.push(stage),()=>generateMusicAnnotation(request,20,async(r:any)=>({text:r.config.responseMimeType?raw:'Final'})));
+assert.deepEqual(stages,['Analyzing audio','Writing annotation from analysis']);
+console.log('Passed actual pipeline progress events.');
