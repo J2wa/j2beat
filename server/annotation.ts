@@ -4,7 +4,7 @@ import { DEFAULT_MODEL, type ModelId } from '../shared/models.js';
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { generateWithFallback } from "./providers.js";
+import { generateMusicAnnotation } from "./musicPipeline.js";
 import { SYSTEM_PROMPT } from "../src/constants.js";
 import { KNOWLEDGE_BASE } from "../src/knowledgeBase.js";
 
@@ -189,7 +189,7 @@ export async function annotateAudio(
 
   const styleInstruction = getStyleInstruction(activeProfile, annotationProfile);
 
-  const response = await generateWithFallback({
+  const response = await generateMusicAnnotation({
     model,
     contents: [
       {
@@ -225,10 +225,8 @@ export async function annotateAudio(
         "\n\nCRITICAL MELODY REQUIREMENT: For the 'Melody:' field of each timeline segment, you MUST select exactly ONE of the standard phrases from the predefined list, or leave it completely empty/blank/None if there is no melody or if you are unsure. You are STRICTLY FORBIDDEN from outputting generic, non-specific placeholders such as 'melody line' or 'melody' alone. It must be a specific, accurate melody phrase or blank/None." +
         (isSimplified ? "\n\nMODE: SIMPLIFIED TONE. Limit Global Analysis fields to exactly 1 sentence." : "") +
         (isHighAccuracy ? "\n\nMODE: HIGH ACCURACY SEGMENTATION (Hyper-granular, extremely precise start/end timestamps down to the exact second for rapidly changing sections.)" : ""),
-      temperature: 0.7,
-      tools: [{ googleSearch: {} }],
     },
-  });
+  }, audioDuration);
 
   if (!response.text?.trim()) throw new Error("Empty annotation response");
   return response.text;
@@ -253,7 +251,7 @@ export async function refineAnnotation(
 
   const styleInstruction = getStyleInstruction(activeProfile, annotationProfile);
 
-  const response = await generateWithFallback({
+  const response = await generateMusicAnnotation({
     model,
     contents: [
       {
@@ -290,10 +288,8 @@ export async function refineAnnotation(
         "\n\nCRITICAL MELODY REQUIREMENT: For the 'Melody:' field of each timeline segment, you MUST select exactly ONE of the standard phrases from the predefined list, or leave it completely empty/blank/None if there is no melody or if you are unsure. You are STRICTLY FORBIDDEN from outputting generic, non-specific placeholders such as 'melody line' or 'melody' alone. It must be a specific, accurate melody phrase or blank/None." +
         (isSimplified ? "\n\nMODE: SIMPLIFIED TONE. Limit Global Analysis fields to exactly 1 sentence." : "") +
         (isHighAccuracy ? "\n\nMODE: HIGH ACCURACY SEGMENTATION (Hyper-granular, extremely precise start/end timestamps down to the exact second for rapidly changing sections.)" : ""),
-      temperature: 0.4, // Slightly lower temperature for refinement
-      tools: [{ googleSearch: {} }],
     },
-  });
+  }, audioDuration);
 
   if (!response.text?.trim()) throw new Error("Empty refinement response");
   return response.text;
