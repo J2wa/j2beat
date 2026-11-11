@@ -27,6 +27,7 @@ export async function generateWithFallback(request: any, options: {deadline?:num
  let tried = 0;
  let failure: AnalysisError | undefined;
  const failures: AnalysisError[] = [];
+ const discoveredKeys = new Set<string>();
  const system = String(request.config.systemInstruction) + QUALITY + (options.metadataOnly
   ? '\nFINAL WRITING-PASS OVERRIDE: No audio is available in this pass. The validated JSON metadata is the sole source for audible musical facts; explicitly provided Google Search context may supplement global fields with citations; listening instructions above do not apply. Preserve uncertainty and output labels. Never add audible musical facts or timestamps absent from the metadata. Source-supported external context must stay in global fields with citations. User corrections and prior drafts are not evidence. Adapt wording and style only.'
   : '') + (request.config.responseMimeType === 'application/json' ? '' : MELODY_PRIORITY);
@@ -35,7 +36,9 @@ export async function generateWithFallback(request: any, options: {deadline?:num
  const keys = orderedGeminiKeys();
  const attempts = [...models.slice(0, options.maxAttempts ?? models.length).flatMap(model => keys.map(apiKey => ({provider: 'gemini', model, apiKey}))),
    ...((options.maxAttempts === undefined || (!keys.length && (options.maxAttempts ?? 1) > 0)) ? [{provider:'openrouter',model:process.env.OPENROUTER_MODEL,apiKey:undefined}] : [])];
- for (const {provider, model, apiKey} of attempts) {
+ for (let attemptIndex = 0; attemptIndex < attempts.length; attemptIndex++) {
+  const {provider, model, apiKey} = attempts[attemptIndex];
+  let operation = 'generation';
   if(provider==='gemini' && !apiKey)continue;
   if(provider==='openrouter' && (!process.env.OPENROUTER_API_KEY || !process.env.OPENROUTER_MODEL))continue;
   if (Date.now() >= deadline) break;
@@ -52,6 +55,7 @@ export async function generateWithFallback(request: any, options: {deadline?:num
      for(const c of contents)for(let i=0;i<c.parts.length;i++) {
       const data=c.parts[i].inlineData;
       if(data?.data?.length>12*1024*1024) {
+       operation = 'audio upload';
        const uploaded=await ai.files.upload({file:new Blob([Buffer.from(data.data,'base64')],{type:data.mimeType}),config:{mimeType:data.mimeType,httpOptions:{timeout:Math.min(30000,timeout())}}});
        uploadedName=uploaded.name;
        if(!uploaded.uri)throw new Error('Audio upload failed');
@@ -72,6 +76,7 @@ export async function generateWithFallback(request: any, options: {deadline?:num
      delete config.topP;
      delete config.topK;
      delete config.candidateCount;
+     operation = 'generation';
      const result=await ai.models.generateContent({...request,model,contents,config});
      if(result.candidates?.[0]?.finishReason !== 'STOP')throw new Error('Incomplete output');
      text=result.text;
@@ -86,7 +91,31 @@ export async function generateWithFallback(request: any, options: {deadline?:num
    }
    if(typeof text!=='string'||!text.trim())throw new Error('Empty output');
    return {text};
-  } catch (error) { failure = classifyFailure(error); failures.push(failure); console.warn('AI attempt failed', {provider, model, code:failure.code}); }
+  } catch (error) {
+   failure = classifyFailure(error); failures.push(failure);
+   console.warn('AI attempt failed', {provider, model, operation, code:failure.code});
+   // Model availability differs by API key/project and changes over time.
+   // Discover only after generation returns 404, never for a missing audio file.
+   if(provider === 'gemini' && apiKey && operation === 'generation' && Number((error as any)?.status ?? (error as any)?.statusCode) === 404 && !discoveredKeys.has(apiKey) && Date.now()+10000 < deadline) {
+    discoveredKeys.add(apiKey);
+    reportProgress('Checking available Gemini models');
+    try {
+     const ai = new GoogleGenAI({apiKey});
+     const catalog = await ai.models.list({config:{pageSize:100,httpOptions:{timeout:Math.min(10000,deadline-Date.now())}}});
+     const available:string[]=[]; let count=0;
+     for await (const item of catalog) {
+      const name=item.name?.replace(/^models\//,'');
+      if(name && /^gemini-[0-9].*-(flash|pro)(?:-|$)/.test(name) && !/image|tts|live|audio|robotics|computer|embedding|research/.test(name) && item.supportedActions?.includes('generateContent')) available.push(name);
+      if(++count >= 100) break;
+     }
+     const candidates=[...new Set(available)].filter(name=>!attempts.slice(0,attemptIndex+1).some(a=>a.apiKey===apiKey && a.model===name))
+      .sort((a,b)=>Number(b.includes('flash'))-Number(a.includes('flash')) || b.localeCompare(a,undefined,{numeric:true})).slice(0,3);
+     // Replace stale remaining names for this key with API-advertised candidates.
+     for(let j=attempts.length-1;j>attemptIndex;j--) if(attempts[j].apiKey===apiKey) attempts.splice(j,1);
+     attempts.splice(attemptIndex+1,0,...candidates.map(model=>({provider:'gemini',model,apiKey})));
+    } catch { console.warn('Gemini model discovery unavailable'); }
+   }
+  }
  }
  if(Date.now() >= deadline) throw new AnalysisError('AI_TIMEOUT',504,'AI processing exceeded the four-minute limit. Try a shorter clip or another model.');
  if(failures.length > 1 && new Set(failures.map(f=>f.code)).size > 1) throw new AnalysisError('AI_RETRIES_FAILED',502,'AI attempts failed for different reasons ('+[...new Set(failures.map(f=>f.code.replace('AI_','').toLowerCase()))].join(', ')+'). Please retry. The final model error does not mean your audio is too large.');

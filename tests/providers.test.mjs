@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import ts from 'typescript';
 import { DEFAULT_MODEL, MODEL_OPTIONS, modelOrder } from '../shared/models.ts';
 let calls=[], responses=[], usedKeys=[];
-globalThis.MockGoogleGenAI=class { constructor(options){usedKeys.push(options.apiKey);} models={generateContent:async request=>{calls.push(request);const next=responses.shift();if(next instanceof Error)throw next;return next;}}; };
+globalThis.MockGoogleGenAI=class { constructor(options){usedKeys.push(options.apiKey);} models={list:async()=>globalThis.modelCatalog ?? [],generateContent:async request=>{calls.push(request);const next=responses.shift();if(next instanceof Error)throw next;return next;}}; };
 const source=readFileSync(new URL('../server/providers.ts',import.meta.url),'utf8')
  .replace("'./apiKeys.js'",JSON.stringify(new URL('../server/apiKeys.ts',import.meta.url).href))
  .replace("'../shared/melody.js'",JSON.stringify(new URL('../shared/melody.ts',import.meta.url).href))
@@ -83,3 +83,15 @@ assert.ok(calls[0].config.httpOptions.timeout>50000);
 responses=[Object.assign(new Error('timeout'),{status:503}),...MODEL_OPTIONS.slice(1).map(()=>Object.assign(new Error('missing'),{status:404}))];
 await assert.rejects(generateWithFallback(request),error=>error.code==='AI_RETRIES_FAILED');
 console.log('Passed writing budget and mixed failure reporting.');
+
+calls=[];globalThis.modelCatalog=[
+ {name:'models/gemini-3.6-flash',supportedActions:['generateContent']},
+ {name:'models/gemini-3.6-flash-image',supportedActions:['generateContent']},
+ {name:'models/embedding-model',supportedActions:['embedContent']}
+];
+responses=[Object.assign(new Error('not found'),{status:404}),good];
+assert.equal((await generateWithFallback(request)).text,'annotation');
+assert.equal(calls[1].model,'gemini-3.6-flash');
+assert.equal(calls.length,2);
+delete globalThis.modelCatalog;
+console.log('Passed API-discovered model recovery and incompatible-model filtering.');
