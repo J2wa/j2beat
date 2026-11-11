@@ -1,5 +1,5 @@
 import { jsPDF } from "jspdf";
-import { researchAsMarkdown, type ResearchReport } from '../../shared/research';
+import { researchAsMarkdown, splitResearch, type ResearchReport } from '../../shared/research';
 
 interface Section {
   startTime: string;
@@ -67,7 +67,7 @@ export function generatePDF(
     doc.setFont("helvetica", "bold");
     doc.setFontSize(8);
     doc.setTextColor(140, 120, 95); // Deep accent color matching theme
-    doc.text("MUSIC ANNOTATION & SPECTRAL ANALYSIS REPORT", margin, 12);
+    drawBrand(doc, margin, 5);
     
     doc.setDrawColor(220, 210, 195);
     doc.setLineWidth(0.3);
@@ -317,4 +317,30 @@ export function generatePDF(
   // Save the document
   const safeName = fileName.replace(/[^a-zA-Z0-9]/g, "_");
   doc.save(`${safeName}_music_annotation_report.pdf`);
+}
+
+// Vector version of the studio's audio-bars mark: crisp at print resolution.
+function drawBrand(doc: jsPDF, x: number, y: number) {
+  doc.setFillColor(21,72,237);
+  [4,7,10,7,4].forEach((height,i)=>doc.roundedRect(x+i*1.5,y+(10-height)/2,0.9,height,0.4,0.4,'F'));
+  doc.setTextColor(30,30,30); doc.setFont('helvetica','bold'); doc.setFontSize(10);
+  doc.text('ACES INTELLIGENCE',x+10,y+4);
+  doc.setFont('helvetica','normal'); doc.setFontSize(6); doc.text('MUSIC ANNOTATION REPORT',x+10,y+8);
+}
+
+export function exportSavedPDF(name: string, text: string, date: string) {
+  const {annotation,research}=splitResearch(text);
+  const doc=new jsPDF(); const width=170; let y=30;
+  const header=()=>{drawBrand(doc,20,6);doc.setDrawColor(210);doc.line(20,19,190,19);};
+  header(); doc.setFontSize(14);doc.setFont('helvetica','bold');
+  for(const line of doc.splitTextToSize(name,width)){doc.text(line,20,y);y+=7;}
+  doc.setFontSize(8);doc.setFont('helvetica','normal');doc.text(new Date(date).toLocaleString(),20,y);y+=10;
+  const content=(annotation+researchAsMarkdown(research)).replace(/<!--[^]*?-->/g,'').replace(/\*\*/g,'').replace(/\[([^\]]+)\]\(<?([^)>]+)>?\)/g,'$1 ($2)');
+  doc.setFontSize(10);
+  for(const line of doc.splitTextToSize(content,width)){
+    if(y>275){doc.addPage();header();y=30;}doc.text(line,20,y);y+=5;
+  }
+  const count=doc.getNumberOfPages();
+  for(let i=1;i<=count;i++){doc.setPage(i);doc.setFontSize(7);doc.text('ACES Intelligence | AI draft - human review required',20,287);doc.text(i+' / '+count,190,287,{align:'right'});}
+  doc.save(name.replace(/[^a-z0-9]/gi,'_')+'_annotation.pdf');
 }

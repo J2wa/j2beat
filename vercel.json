@@ -5,6 +5,9 @@
   "functions": {
     "api/annotate.ts": {
       "maxDuration": 300
+    },
+    "api/spotify.py": {
+      "maxDuration": 300
     }
   },
   "rewrites": [

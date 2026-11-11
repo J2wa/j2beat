@@ -67,3 +67,14 @@ before every key is tried. Search retains its 55-second total budget.
 Keys, provider error bodies, and credential indexes are never sent in progress messages.
 This is best-effort distribution, not a centralized queue or concurrency guarantee.
 Existing OpenRouter fallback is unchanged and uses its existing single key.
+
+
+## Spotify track import and Library PDF exports
+
+Library rows provide branded PDF export from their own saved annotation text, without changing the current workspace. PDF headers include a vector ACES Intelligence mark and company name. Older browser-local entries remain exportable.
+
+The signed-in Spotify import accepts one track URL and uses spotDL 4.6.0 with bundled FFmpeg to find a matching YouTube recording. It does not download audio from Spotify. The user confirms download/analysis permission before import. Python dependencies are pinned in requirements.txt. Import has a 210-second downloader timeout and 300-second Vercel function limit; AI analysis runs as a separate request with its existing deadline. Source sites can reject data-center downloads; unavailable matches return an explicit error with manual upload as fallback.
+
+Audio is stored in the existing private Vercel Blob store using BLOB_READ_WRITE_TOKEN or Vercel OIDC credentials plus BLOB_STORE_ID. Browser Library entries retain the private pathname and source link, allowing Open & play and Download audio after refresh. Library metadata still resides in this browser; it is not a shared cross-device catalog. Audio import creates a Library entry before analysis, so a failed AI call does not hide the saved track. Existing uploads without a saved audio reference remain annotation-only entries. All signed-in users share the existing app access model. Blob audio persists until removed from storage; no automatic retention deletion is configured.
+
+Validation: npm run lint, npm run build, python tests/spotify_test.py, and generated-PDF text inspection. Downloader execution and external matching require source-site availability; mocked integration tests do not establish live download success.

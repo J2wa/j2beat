@@ -148,13 +148,17 @@ export default function App() {
     catch { return DEFAULT_MODEL; }
   });
   const [view, setView] = useState<'workspace' | 'guidelines' | 'archive'>('workspace');
-  const [archive, setArchive] = useState<Array<{id: string; name: string; text: string; date: string}>>(() => {
+  const [archive, setArchive] = useState<Array<{id: string; name: string; text: string; date: string; audioPath?: string; sourceUrl?: string; duration?: number}>>(() => {
     try { return JSON.parse(localStorage.getItem('aces_music_archive_v1') || '[]'); } catch { return []; }
   });
   const [serviceReady, setServiceReady] = useState<boolean | null>(null);
   useEffect(() => { fetch('/api/status').then(r => r.json()).then(data => setServiceReady(data.ready)).catch(() => setServiceReady(false)); }, []);
-  const saveAnnotation = (text: string) => {
-    const next = [{id: crypto.randomUUID(), name: file?.name || 'Untitled annotation', text, date: new Date().toISOString()}, ...archive].slice(0, 30);
+  const importedSource = useRef<{path:string;sourceUrl:string} | null>(null);
+  const [spotifyLink,setSpotifyLink]=useState('');
+  const [importing,setImporting]=useState(false);
+  const [rightsConfirmed,setRightsConfirmed]=useState(false);
+  const saveAnnotation = (text: string, audioFile = file, audioDuration = duration) => {
+    const next = [{id: crypto.randomUUID(), name: audioFile?.name || 'Untitled annotation', text, date: new Date().toISOString(), duration:audioDuration, audioPath:importedSource.current?.path, sourceUrl:importedSource.current?.sourceUrl}, ...archive].slice(0, 30);
     try { localStorage.setItem('aces_music_archive_v1', JSON.stringify(next)); setArchive(next); }
     catch { setError('Analysis completed, but this browser could not save the archive. Download your result.'); }
   };
@@ -540,6 +544,7 @@ export default function App() {
   };
 
   const handleFileSelection = (selectedFile: File) => {
+    importedSource.current=null;
     if (
       selectedFile.type.startsWith("audio/") ||
       selectedFile.name.endsWith(".mp3") ||
@@ -592,8 +597,8 @@ export default function App() {
     return items.join("\n");
   };
 
-  const handleProcess = async () => {
-    if (!file || isProcessing || isRefining) return;
+  const handleProcess = async (sourceFile = file, sourceDuration = duration) => {
+    if (!sourceFile || isProcessing || isRefining) return;
     if (credits < GENERATE_COST) {
       setError(
         "Insufficient credits. You need 10 credits for a new generation.",
@@ -610,18 +615,18 @@ export default function App() {
     setError(null);
     try {
       const annotation = await annotateAudio(
-        file,
+        sourceFile,
         isSimplified,
         isHighAccuracy,
         compiledGuidance,
-        duration,
+        sourceDuration,
         activeProfile || "PRODUCER",
         annotationProfile,
         selectedModel,
       );
       setCredits((prev) => prev - GENERATE_COST);
       setResult(annotation);
-      saveAnnotation(annotation);
+      saveAnnotation(annotation, sourceFile, sourceDuration);
       parseSections(annotation);
       playNotificationSound();
     } catch (err) {
@@ -630,6 +635,42 @@ export default function App() {
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const loadStoredAudio = async (path:string,name:string) => {
+    const response=await fetch('/api/audio?path='+encodeURIComponent(path));
+    if(!response.ok)throw new Error('Could not load the saved audio.');
+    return new File([await response.blob()],name,{type:'audio/mpeg'});
+  };
+  const importSpotify = async () => {
+    if(importing || isProcessing || isRefining)return;
+    if(credits<GENERATE_COST){setError('You need 10 local credits to import and analyze.');return;}
+    setImporting(true);setError(null);setView('workspace');
+    try {
+      const response=await fetch('/api/spotify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:spotifyLink.trim(),rightsConfirmed}),signal:AbortSignal.timeout(290000)});
+      const data=await response.json();
+      if(!response.ok)throw new Error(typeof data.error==='string'?data.error:'Music import failed.');
+      const downloaded=await loadStoredAudio(data.path,data.name);
+      const trackDuration=await new Promise<number>((resolve,reject)=>{
+        const audio=new Audio();const url=URL.createObjectURL(downloaded);
+        const cleanup=()=>{clearTimeout(timer);audio.removeAttribute('src');URL.revokeObjectURL(url);};
+        const timer=setTimeout(()=>{cleanup();reject(new Error('Could not read imported audio duration.'));},15000);
+        audio.onloadedmetadata=()=>{const value=audio.duration;cleanup();Number.isFinite(value)&&value>0?resolve(value):reject(new Error('Invalid imported duration.'));};
+        audio.onerror=()=>{cleanup();reject(new Error('The downloaded recording could not be played.'));};audio.src=url;
+      });
+      handleFileSelection(downloaded);importedSource.current={path:data.path,sourceUrl:data.sourceUrl};
+      setDuration(trackDuration);saveAnnotation('Audio imported. Analyze this track to generate its annotation.',downloaded,trackDuration);setImporting(false);
+      await handleProcess(downloaded,trackDuration);
+    }catch(error){setError(error instanceof Error?error.message:'Music import failed.');}
+    finally{setImporting(false);}
+  };
+  const openSaved = async (item:typeof archive[number]) => {
+    if(isProcessing || isRefining || importing)return;
+    try {
+      if(item.audioPath){const audio=await loadStoredAudio(item.audioPath,item.name);handleFileSelection(audio);importedSource.current={path:item.audioPath,sourceUrl:item.sourceUrl||''};}
+      else {audioRef.current?.pause();setFile(null);setAudioUrl(null);importedSource.current=null;setDuration(item.duration||0);setSections([]);}
+      setResult(item.text);parseSections(item.text);setView('workspace');setError(null);
+    }catch(error){setError(error instanceof Error?error.message:'Could not open saved audio.');}
   };
 
   const handleRefine = async () => {
@@ -819,7 +860,8 @@ export default function App() {
       {serviceReady === false && <details className="service-notice"><summary><span className="status-dot"/> AI offline <span className="muted">Setup required</span></summary><p>In Vercel → j2beat → Settings → Environment Variables, set GEMINI_API_KEY and/or OPENROUTER_API_KEY with OPENROUTER_MODEL (an audio-input model). Your selected model is tried first, followed by the other Gemini models and the configured OpenRouter model if needed. Redeploy to apply. Keys remain server-side.</p></details>}
       {error && <div role="alert" className="error-notice">{error}</div>}
       {view === 'guidelines' && <SectionContainer className="document-view"><p className="eyebrow"></p><h2>Annotation guidelines</h2><p>AI output is a draft. Listen to the track and verify instruments, timestamps, and descriptions before exporting.</p><div className="markdown-body"><ReactMarkdown remarkPlugins={[remarkGfm]}>{annotationSOP}</ReactMarkdown></div></SectionContainer>}
-      {view === 'archive' && <SectionContainer className="document-view"><p className="eyebrow"></p><h2>Saved annotations</h2><p>Saved in this browser. Audio files are not stored.</p>{archive.length === 0 ? <p className="archive-empty">No saved annotations yet.</p> : archive.map(item => <article className="archive-row" key={item.id}><div><h3>{item.name}</h3><p>{new Date(item.date).toLocaleString()}</p></div><Button onClick={() => {setResult(item.text); parseSections(item.text); setView('workspace'); setError(null);}}><FileAudio /> Open annotation</Button></article>)}</SectionContainer>}
+      {view === 'archive' && <SectionContainer className="document-view"><p className="eyebrow"></p><h2>Saved annotations</h2><p>Annotations are saved in this browser. Imported recordings are stored privately for playback.</p>{archive.length === 0 ? <p className="archive-empty">No saved annotations yet.</p> : archive.map(item => <article className="archive-row" key={item.id}><div><h3>{item.name}</h3><p>{new Date(item.date).toLocaleString()}</p></div><div className="archive-actions"><Button disabled={isProcessing||isRefining||importing} onClick={()=>openSaved(item)}><FileAudio />{item.audioPath?'Open & play':'Open annotation'}</Button><Button onClick={async()=>{try{(await import('./utils/pdfGenerator')).exportSavedPDF(item.name,item.text,item.date);}catch{setError('PDF export failed. Please retry.');}}}><Download/>Export PDF</Button>{item.audioPath&&<a className="aces-button aces-button--secondary" href={'/api/audio?path='+encodeURIComponent(item.audioPath)} download={item.name}>Download audio</a>}</div></article>)}</SectionContainer>}
+      {view==='workspace'&&<section className="spotify-import"><div><h3>Import from Spotify</h3><p className="field-hint">Paste one track link. spotDL finds a matching YouTube recording, saves it privately, then starts AI analysis. Verify the recording version.</p></div><label htmlFor="spotify-link" className="sr-only">Spotify track link</label><input id="spotify-link" type="url" value={spotifyLink} placeholder="https://open.spotify.com/track/…" onChange={e=>setSpotifyLink(e.target.value)} disabled={importing||isProcessing||isRefining}/><label className="import-permission"><input type="checkbox" checked={rightsConfirmed} onChange={e=>setRightsConfirmed(e.target.checked)}/>I have permission to download and analyze this recording.</label><Button variant="primary" disabled={!spotifyLink.trim()||!rightsConfirmed||importing||isProcessing||isRefining} onClick={importSpotify}>{importing?'Finding and saving recording…':'Import & analyze'}</Button>{importing&&<p role="status">Downloading and saving audio. This can take a few minutes. The player remains available.</p>}</section>}
       {(isProcessing || isRefining) && <section className="analysis-progress-panel" aria-label="Annotation progress">
         <div className="analysis-progress-heading"><div><span className="analysis-pulse"/><strong>{isRefining ? 'Refining annotation' : 'Analyzing track'}</strong></div><time>{Math.floor(elapsedSeconds/60)}:{String(elapsedSeconds%60).padStart(2,'0')}</time></div>
         <p role="status" aria-live="polite">{analysisStage}</p>
@@ -841,7 +883,7 @@ export default function App() {
             return {...previous,timestamps:existing+(existing && added.length ? ', ' : '')+added.join(', ')};
           });
           setIsGenerateModalOpen(true);
-        }} file={file} audioUrl={audioUrl} audioRef={audioRef} currentTime={currentTime} duration={duration} isPlaying={isPlaying} volume={volume} onFile={handleFileSelection} onSeek={seekTo} onToggle={togglePlay} onVolume={setVolume} onReset={reset} onTimeUpdate={handleTimeUpdate} onLoadedMetadata={handleLoadedMetadata} onPlaying={setIsPlaying} onError={setError} segments={sections} busy={isProcessing || isRefining}/>
+        }} file={file} audioUrl={audioUrl} audioRef={audioRef} currentTime={currentTime} duration={duration} isPlaying={isPlaying} volume={volume} onFile={handleFileSelection} onSeek={seekTo} onToggle={togglePlay} onVolume={setVolume} onReset={reset} onTimeUpdate={handleTimeUpdate} onLoadedMetadata={handleLoadedMetadata} onPlaying={setIsPlaying} onError={setError} segments={sections} busy={isProcessing || isRefining || importing}/>
       </div>
       <main id="workspace" hidden={view !== "workspace"} className="studio-grid">
         <section className="settings-panel" aria-labelledby="analysis-settings-title">
@@ -867,7 +909,7 @@ export default function App() {
           </div>
           <div className="settings-actions">
             <Button className="guidance-button" onClick={()=>setIsGenerateModalOpen(true)}><Settings/>Track details & guidance{generalGuidance.trim() || Object.values(accurateData).some(v=>v.trim()) ? <span className="status-dot"/>:null}</Button>
-            <Button variant="primary" className="generate-button" disabled={!file || isProcessing || isRefining || serviceReady!==true} onClick={handleProcess}>{isProcessing?<Activity/>:<Play/>}{isProcessing?'Analyzing…':result?'Analyze again':'Analyze track'}</Button>
+            <Button variant="primary" className="generate-button" disabled={!file || importing || isProcessing || isRefining || serviceReady!==true} onClick={()=>handleProcess()}>{isProcessing?<Activity/>:<Play/>}{isProcessing?'Analyzing…':result?'Analyze again':'Analyze track'}</Button>
             <p className="field-hint">Song research uses Google Search. Review sources alongside the audio.</p>
           </div>
           <details className="credit-details"><summary>{credits} local credits</summary><Button variant="text" onClick={handleResetCredits}><RotateCcw/>Reset credits</Button></details>
