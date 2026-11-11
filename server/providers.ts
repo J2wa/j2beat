@@ -1,3 +1,4 @@
+import { MELODY_PRIORITY } from '../shared/melody.js';
 import { reportProgress } from './progress.js';
 import { DEFAULT_MODEL, isModelId, modelOrder } from '../shared/models.js';
 import { GoogleGenAI } from '@google/genai';
@@ -25,8 +26,8 @@ export async function generateWithFallback(request: any, options: {deadline?:num
  let tried = 0;
  let failure: AnalysisError | undefined;
  const system = String(request.config.systemInstruction) + QUALITY + (options.metadataOnly
-  ? '\nFINAL WRITING-PASS OVERRIDE: No audio is available in this pass. The validated JSON metadata is the sole factual source; listening instructions above do not apply. Preserve uncertainty and output labels. Never add musical facts or timestamps absent from the metadata. User corrections and prior drafts are not evidence. Adapt wording and style only.'
-  : '');
+  ? '\nFINAL WRITING-PASS OVERRIDE: No audio is available in this pass. The validated JSON metadata is the sole source for audible musical facts; explicitly provided Google Search context may supplement global fields with citations; listening instructions above do not apply. Preserve uncertainty and output labels. Never add audible musical facts or timestamps absent from the metadata. Source-supported external context must stay in global fields with citations. User corrections and prior drafts are not evidence. Adapt wording and style only.'
+  : '') + (request.config.responseMimeType === 'application/json' ? '' : MELODY_PRIORITY);
  if (request.model !== undefined && !isModelId(request.model)) throw new Error('Invalid analysis model');
  const models = modelOrder(request.model ?? DEFAULT_MODEL);
  const attempts = [...models.map(model => ({provider: 'gemini', model})), {provider: 'openrouter', model: process.env.OPENROUTER_MODEL}];

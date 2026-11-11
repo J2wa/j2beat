@@ -1,4 +1,5 @@
 import { jsPDF } from "jspdf";
+import { researchAsMarkdown, type ResearchReport } from '../../shared/research';
 
 interface Section {
   startTime: string;
@@ -39,7 +40,8 @@ export function generatePDF(
   fileName: string,
   durationStr: string,
   globalMetadata: GlobalMetadata,
-  sections: Section[]
+  sections: Section[],
+  research?: ResearchReport
 ) {
   const doc = new jsPDF({
     orientation: "portrait",
@@ -148,7 +150,9 @@ export function generatePDF(
 
     // Estimate height needed
     const labelLines = doc.splitTextToSize(`${field.label}:`, contentWidth);
-    const valueLines = doc.splitTextToSize(field.value, contentWidth - 10);
+    // Keep compact citation markers here; full source URLs appear in research.
+    const readableValue = field.value.replace(/\[([^\]]+)\]\(<?([^)>]+)>?\)/g, '[$1]');
+    const valueLines = doc.splitTextToSize(readableValue, contentWidth - 10);
     const totalLines = labelLines.length + valueLines.length;
     const blockHeight = totalLines * 4.5 + 4;
 
@@ -287,6 +291,28 @@ export function generatePDF(
 
     y += 8; // spacing between segments
   });
+
+  if (research) {
+    doc.addPage();
+    y = margin + 10;
+    drawHeaderFooter();
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.setTextColor(40, 40, 40);
+    doc.text('Google Search research', margin, y);
+    y += 10;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    const researchText = researchAsMarkdown(research).replace(/^\s*## Google Search research\s*/, '')
+      .replace(/\[([^\]]+)\]\(<?([^)>]+)>?\)/g, '$1 ($2)');
+    for (const line of doc.splitTextToSize(researchText, contentWidth)) {
+      checkPageBreak(5);
+      doc.setFontSize(9);
+      doc.setTextColor(60, 60, 60);
+      doc.text(line, margin, y);
+      y += 5;
+    }
+  }
 
   // Save the document
   const safeName = fileName.replace(/[^a-zA-Z0-9]/g, "_");

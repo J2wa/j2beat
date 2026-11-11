@@ -32,3 +32,109 @@ button.aces-brand{background:none;border:0;padding:0;color:inherit;cursor:pointe
 .login-card > button { margin-top:12px; justify-content:center; }
 .login-error { color:#ffb4b4; font-size:14px; line-height:1.5; overflow-wrap:anywhere; }
 @media(max-width:420px){.login-card{padding:24px}.login-page{padding:16px}}
+
+/* Studio layout: fields stay grouped, controls keep consistent proportions. */
+.app-shell{max-width:1440px}
+.page-title{margin:32px 0 22px;gap:20px}
+.page-title h1{font-size:30px;letter-spacing:-.04em}
+.studio-grid{grid-template-columns:272px minmax(0,1fr);gap:24px}
+.studio-grid>*{min-width:0}
+.settings-panel{display:flex;flex-direction:column;gap:20px;padding:24px;position:sticky;top:20px}
+.settings-heading h2{margin:5px 0 7px;font-size:17px}
+.section-eyebrow{font-size:11px;font-weight:650;letter-spacing:.12em;text-transform:uppercase;color:#7f9cc8}
+.settings-field{min-width:0;display:flex;flex-direction:column;gap:8px}
+.settings-panel .field-label{margin:0;color:#c3cee0;font-size:13px;font-weight:550}
+.settings-panel select{grid-area:auto;min-width:0;padding-right:26px}
+.field-hint{font-size:12px;line-height:1.6;color:#8e9db4;margin:0}
+.settings-options{display:flex;flex-direction:column;gap:14px;border-top:1px solid var(--line);padding-top:20px}
+.settings-panel .toggle-row{margin:0;min-height:24px}
+.toggle-row input{width:18px;height:18px;flex-shrink:0}
+.settings-actions{display:flex;flex-direction:column;gap:10px}
+.settings-actions .aces-button{margin:0;min-height:44px;font-size:13px;padding:10px 12px}
+.settings-actions .guidance-button{justify-content:center}
+.settings-actions .generate-button{font-size:14px}
+.settings-panel .credit-details{margin:0;padding-top:16px}
+.output-column{min-width:0}
+.annotation-panel{container-type:inline-size;overflow:visible!important}
+.annotation-toolbar{display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;padding:18px 24px;border-bottom:1px solid var(--line)}
+.annotation-actions{display:flex;flex-wrap:wrap;gap:8px}
+.annotation-actions .aces-button{min-height:38px;padding:8px 12px;font-size:13px}
+.annotation-content{padding:24px;min-width:0}
+.annotation-results{display:flex;flex-direction:column;gap:28px;min-width:0}
+.annotation-content .uppercase{letter-spacing:normal;text-transform:none}
+.annotation-content .text-xs{font-size:14px}
+.annotation-content .font-black{font-weight:600}
+.annotation-content .text-center{max-width:440px;margin-inline:auto}
+.aces-button{white-space:normal;text-align:center;flex-shrink:0}
+.aces-button.copy-button{min-height:32px;min-width:32px;padding:6px 9px;font-size:12px;font-weight:500;gap:6px;line-height:1.35;border-color:transparent;background:transparent;color:#9aacc7}
+.aces-button.copy-button:hover{border-color:#3c5275;background:#1d2b42;color:#dbe8ff}
+.aces-button.copy-button svg{width:14px;height:14px}
+.correction-panel{background:#151d2b;border:1px solid #2b3c57;border-radius:10px;padding:20px}
+.correction-panel>div:first-child{gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.correction-panel h4{font-size:15px;font-weight:600;color:#d8e5fc}
+.correction-panel textarea{display:block;min-height:104px;padding:12px 14px;resize:vertical;font-size:14px}
+.correction-actions{display:flex;justify-content:flex-end;margin:12px 0}
+.correction-actions .aces-button{height:auto;min-height:40px;font-size:13px}
+.matrix-section{display:flex;flex-direction:column;gap:18px}
+.section-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding-bottom:14px;border-bottom:1px solid var(--line);margin-bottom:0}
+.section-heading h2{font-size:18px!important;font-weight:650;color:#e0e9f8}
+.section-heading h3{font-size:17px;margin-top:4px}
+.section-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.section-actions>span{font-size:12px!important;letter-spacing:normal!important}
+.matrix-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.matrix-card{display:flex;flex-direction:column;gap:12px;padding:20px;background:#101722;border:1px solid var(--line);border-radius:10px;min-width:0}
+.matrix-card>div:first-child{border:0;margin:0;padding:0}
+.matrix-card h4{font-size:15px;font-weight:650;color:#b7cefa}
+.matrix-card .markdown-body{font-size:14px;line-height:1.75;color:#c4d0e2}
+.matrix-card .markdown-body>*+*{margin-top:12px}
+.matrix-card .font-mono{font-family:var(--font-sans);font-weight:450;font-size:12px;letter-spacing:normal}
+.matrix-card .space-y-2>div:first-child{gap:6px;flex-wrap:wrap}
+.matrix-card .space-y-2>div:first-child>span{font-size:12px;font-weight:500;color:#8f9fb9}
+.segment-card{display:flex;gap:18px;padding:20px;background:#101722;border:1px solid var(--line);border-radius:10px;min-width:0}
+.segment-card:hover{border-color:#3d5275}
+.segment-card>.flex:first-child{min-width:48px}
+.segment-card>.flex:first-child .aces-button{padding:10px;width:40px;height:40px;min-width:40px;min-height:40px;border-radius:50%}
+.segment-body{flex:1;min-width:0}
+.segment-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
+.segment-title{display:flex;gap:8px;align-items:center;flex-wrap:wrap;min-width:0}
+.segment-title h4{font-size:15px;font-weight:650}
+.segment-title>div{font-size:11px;line-height:1.5;animation:none}
+.segment-body>p{font-size:14px;line-height:1.75}
+.segment-body>div:last-child>span{font-size:12px;font-weight:500;color:#8f9fb9}
+.full-annotation{padding-top:22px;border-top:1px solid var(--line)}
+.full-annotation>summary{cursor:pointer;color:#bcd0ef;font-size:15px;font-weight:600}
+.full-annotation-actions{display:flex;justify-content:flex-end;margin:14px 0}
+.matrix-editor{display:flex;flex-direction:column;gap:20px;min-width:0}
+.matrix-editor-card{padding:20px;border:1px solid var(--line);border-radius:10px;background:#101722;min-width:0}
+.matrix-editor-fields h3{font-size:16px;color:#b7cefa}
+.editor-label{display:block;font-size:13px;color:#aabbd2;font-weight:500}
+.matrix-editor-fields textarea{font-size:14px;min-height:130px;line-height:1.7}
+.field-guidance{border-top:1px solid var(--line);margin-top:18px;padding-top:14px;color:#8f9fb9;font-size:13px}
+.field-guidance summary{cursor:pointer;font-weight:500}
+.field-guidance>div{margin-top:12px;font-size:13px;line-height:1.7}
+.research-panel{border:1px solid #2c4262;border-radius:10px;background:linear-gradient(135deg,#152136,#101722);padding:20px;min-width:0}
+.research-panel .section-heading{border-bottom:0;padding-bottom:12px}
+.research-message{font-size:13px;color:#aebed5;line-height:1.7}
+.research-status{display:inline-flex;padding:4px 9px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap;background:#2c2b20;color:#e4cea0;border:1px solid #514932}
+.research-status--grounded{background:#183629;color:#a4d9c0;border-color:#2b5744}
+.research-summary{font-size:14px!important;margin-top:16px}
+.research-sources{list-style:none;padding:0;margin:16px 0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.research-sources a{display:flex;align-items:center;gap:9px;min-height:44px;padding:10px;border:1px solid #2e405b;border-radius:6px;font-size:12px;line-height:1.5;color:#b9d2ff;background:#121c2c}
+.research-sources a:hover{border-color:#6591d2;background:#1c2d48}
+.research-sources a>span:nth-child(2){flex:1;overflow-wrap:anywhere}
+.source-number{display:grid;place-items:center;min-width:22px;height:22px;border-radius:5px;background:#253b5c;color:#b4d0ff;font-size:11px}
+.research-queries{font-size:12px;color:#9fb0ca;margin:14px 0}
+.research-queries summary{cursor:pointer}
+.research-queries ul{padding-left:20px;margin-top:8px}
+.google-search-suggestions{width:100%;height:150px;border:0;margin:12px 0;background:transparent}
+.research-panel>.field-hint{margin-top:14px}
+[role=dialog] .aces-button:not(.absolute){min-height:42px}
+[role=dialog] .grid>.aces-button{align-items:flex-start;justify-content:flex-start;white-space:normal}
+[role=dialog] .grid>.aces-button p{text-align:left}
+[role=dialog] label{display:block;font-size:13px;font-weight:550;letter-spacing:normal;text-transform:none}
+@container(max-width:640px){.matrix-grid{grid-template-columns:1fr}.research-sources{grid-template-columns:1fr}.annotation-toolbar{padding:16px}.annotation-content{padding:18px}.segment-card{padding:16px;gap:12px}.section-heading{align-items:flex-start}.annotation-actions{width:100%}}
+@media(max-width:1000px){.studio-grid{grid-template-columns:240px minmax(0,1fr);gap:18px}.settings-panel{padding:20px;gap:18px}}
+@media(max-width:760px){.studio-grid{grid-template-columns:1fr}.settings-panel{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;position:static}.settings-heading,.settings-options,.settings-actions,.settings-panel>.credit-details{grid-column:1/-1}.settings-panel>h2{grid-column:auto}.settings-panel select{grid-column:auto;grid-row:auto}.settings-panel .segmented-control{grid-column:auto;grid-row:auto}.settings-panel .settings-field:nth-child(4){grid-column:1/-1}.settings-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.settings-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:center}.settings-actions .field-hint{grid-column:1/-1}.app-navigation.is-open{grid-template-columns:repeat(3,minmax(0,1fr))}.annotation-toolbar{padding:18px}.page-title h1{font-size:27px}}
+@media(max-width:480px){.settings-panel{grid-template-columns:1fr;padding:18px}.settings-panel>*{grid-column:1/-1}.settings-options{grid-template-columns:1fr;gap:14px}.settings-actions{grid-template-columns:1fr}.annotation-content{padding:16px}.annotation-actions .aces-button{flex:1;padding:8px;font-size:12px}.correction-panel,.research-panel,.matrix-card{padding:16px}.segment-card{flex-direction:column}.segment-card>.flex:first-child{flex-direction:row;justify-content:flex-start;gap:12px}.segment-body{width:100%}.segment-heading>span{max-width:100%;overflow-wrap:anywhere}.page-title{margin:24px 0 18px}.app-navigation.is-open{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.research-findings{margin-top:14px;font-size:13px;color:#b9d2ff}.research-findings>summary{cursor:pointer}.research-findings .research-summary{margin-top:12px}
+.settings-panel .field-label{align-self:stretch}

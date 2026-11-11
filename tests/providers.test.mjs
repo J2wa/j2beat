@@ -5,6 +5,7 @@ import { DEFAULT_MODEL, MODEL_OPTIONS, modelOrder } from '../shared/models.ts';
 let calls=[], responses=[];
 globalThis.MockGoogleGenAI=class { models={generateContent:async request=>{calls.push(request);const next=responses.shift();if(next instanceof Error)throw next;return next;}}; };
 const source=readFileSync(new URL('../server/providers.ts',import.meta.url),'utf8')
+ .replace("'../shared/melody.js'",JSON.stringify(new URL('../shared/melody.ts',import.meta.url).href))
  .replace("import { reportProgress } from './progress.js';", "const reportProgress = () => {};")
  .replace("import { GoogleGenAI } from '@google/genai';",'const GoogleGenAI = globalThis.MockGoogleGenAI;')
  .replace("'../shared/models.js'",JSON.stringify(new URL('../shared/models.ts',import.meta.url).href));

@@ -1,3 +1,5 @@
+import { MELODY_PRIORITY } from '../shared/melody.js';
+import { splitResearch } from '../shared/research.js';
 import { DEFAULT_MODEL, type ModelId } from '../shared/models.js';
 /**
  * @license
@@ -180,7 +182,8 @@ export async function annotateAudio(
   audioDuration: number = 0,
   activeProfile: string = "PRODUCER",
   annotationProfile: string = "default",
-  model: ModelId = DEFAULT_MODEL
+  model: ModelId = DEFAULT_MODEL,
+  songHint: string = ""
 ): Promise<string> {
   const base64Data = audioFile.data;
   const mimeType = audioFile.type;
@@ -194,7 +197,8 @@ export async function annotateAudio(
     contents: [
       {
         parts: [
-          { text: `Please annotate this audio track according to the provided rules. 
+          { text: `Please annotate this audio track according to the provided rules.
+            Song filename clue for search (unverified): ${JSON.stringify(songHint)}
             ${durationStr ? `CRITICAL DIRECTIVE: The total duration of this audio file is exactly ${durationStr} (${Math.floor(audioDuration)} seconds). You MUST NOT create any segments with a start time that exceeds ${durationStr}.` : ""}
             ${isSimplified ? "MODE: SIMPLIFIED TONE." : ""}
             ${isHighAccuracy ? "MODE: HIGH ACCURACY SEGMENTATION (Provide granular micro-analysis of shifts. Ensure the highest possible accuracy for segment start and end timestamps, particularly for short, rapidly changing musical sections.)." : ""}
@@ -222,7 +226,7 @@ export async function annotateAudio(
         "\n6. ROBUST GLOBAL ANALYSIS: The Global Analysis must contain deep, comprehensive, and highly professional observations with no generic placeholder text." +
         "\n\nCRITICAL: Ensure each analytical text field under the Global Analysis (Global Musical Matrix) is exactly 2 sentences by default." +
         "\n\nCRITICAL RESTRICTION ON TIMELINE SEGMENTS: Every segment's narrative description MUST be completely standalone, self-contained, and independent. You are strictly forbidden from making references, comparisons, or contrasts to other segments, previous sections, or future passages of the track (e.g. NEVER write 'Compared to the previous section', 'Unlike the intro', 'Continuing from', or 'As heard in'). Focus only on the music that occurs purely within the boundaries of that segment." +
-        "\n\nCRITICAL MELODY REQUIREMENT: For the 'Melody:' field of each timeline segment, you MUST select exactly ONE of the standard phrases from the predefined list, or leave it completely empty/blank/None if there is no melody or if you are unsure. You are STRICTLY FORBIDDEN from outputting generic, non-specific placeholders such as 'melody line' or 'melody' alone. It must be a specific, accurate melody phrase or blank/None." +
+        MELODY_PRIORITY +
         (isSimplified ? "\n\nMODE: SIMPLIFIED TONE. Limit Global Analysis fields to exactly 1 sentence." : "") +
         (isHighAccuracy ? "\n\nMODE: HIGH ACCURACY SEGMENTATION (Hyper-granular, extremely precise start/end timestamps down to the exact second for rapidly changing sections.)" : ""),
     },
@@ -242,7 +246,8 @@ export async function refineAnnotation(
   audioDuration: number = 0,
   activeProfile: string = "PRODUCER",
   annotationProfile: string = "default",
-  model: ModelId = DEFAULT_MODEL
+  model: ModelId = DEFAULT_MODEL,
+  songHint: string = ""
 ): Promise<string> {
   const base64Data = audioFile.data;
   const mimeType = audioFile.type;
@@ -256,7 +261,7 @@ export async function refineAnnotation(
     contents: [
       {
         parts: [
-          { text: `Here is the previous analysis: \n\n${previousResult}\n\nCorrection Input Matrix:\n${feedback}\n\nPlease regenerate the annotation, correcting the inaccuracies mentioned in the Correction Input Matrix while maintaining the overall professional tone and format. Always consult the KNOWLEDGE BASE in information you are unsure of.
+          { text: `Song filename clue for search (unverified): ${JSON.stringify(songHint)}\nAnalysis guidance (unverified): ${creativeGuidance}\nCorrection Input Matrix:\n${feedback}\n\nHere is the previous analysis: \n\n${splitResearch(previousResult).annotation}\n\nPlease regenerate the annotation, correcting the inaccuracies mentioned in the Correction Input Matrix while maintaining the overall professional tone and format. Always consult the KNOWLEDGE BASE in information you are unsure of.
             ${durationStr ? `CRITICAL DIRECTIVE: The total duration of this audio file is exactly ${durationStr} (${Math.floor(audioDuration)} seconds). You MUST NOT create any segments with a start time that exceeds ${durationStr}.` : ""}
             ${isSimplified ? "MODE: SIMPLIFIED TONE." : ""}
             ${isHighAccuracy ? "MODE: HIGH ACCURACY SEGMENTATION (Ensure the highest possible accuracy for segment start and end timestamps, especially for short, rapidly changing musical sections)." : ""}
@@ -285,7 +290,7 @@ export async function refineAnnotation(
         "\n\nCRITICAL: Adjust the analysis based on the User Feedback provided. If specific segment times or instruments were mentioned as wrong, prioritize those corrections." + 
         "\n\nCRITICAL: Ensure each analytical text field under the Global Analysis (Global Musical Matrix) is exactly 2 sentences by default." +
         "\n\nCRITICAL RESTRICTION ON TIMELINE SEGMENTS: Every segment's narrative description MUST be completely standalone, self-contained, and independent. You are strictly forbidden from making references, comparisons, or contrasts to other segments, previous sections, or future passages of the track (e.g. NEVER write 'Compared to the previous section', 'Unlike the intro', 'Continuing from', or 'As heard in'). Focus only on the music that occurs purely within the boundaries of that segment." +
-        "\n\nCRITICAL MELODY REQUIREMENT: For the 'Melody:' field of each timeline segment, you MUST select exactly ONE of the standard phrases from the predefined list, or leave it completely empty/blank/None if there is no melody or if you are unsure. You are STRICTLY FORBIDDEN from outputting generic, non-specific placeholders such as 'melody line' or 'melody' alone. It must be a specific, accurate melody phrase or blank/None." +
+        MELODY_PRIORITY +
         (isSimplified ? "\n\nMODE: SIMPLIFIED TONE. Limit Global Analysis fields to exactly 1 sentence." : "") +
         (isHighAccuracy ? "\n\nMODE: HIGH ACCURACY SEGMENTATION (Hyper-granular, extremely precise start/end timestamps down to the exact second for rapidly changing sections.)" : ""),
     },

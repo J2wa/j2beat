@@ -1,3 +1,4 @@
+import { MELODY_INSTRUCTION } from '../shared/melody';
 export const KNOWLEDGE_BASE = `
 # KNOWLEDGE BASE
 
@@ -198,52 +199,7 @@ Half-time feel:
 
 --- MELODY DESCRIPTION GUIDELINES ---
 
-When describing the Melody field per section, you MUST adhere to the following rules:
-- **Melody Field Analysis:** Select exactly ONE of the standard melody phrases from the list below that best matches the melody in this specific segment.
-- DO NOT include category headers, explanation text, or parentheses under any circumstances.
-- If there is no melody in the segment (e.g. if it is purely spoken word, a drum break, or has no prominent melody) or if you are unsure, you MUST write "None" or leave it completely blank.
-- CRITICAL RESTRICTION: You are strictly forbidden from outputting generic, non-specific placeholders such as "melody line" or "melody" alone. Each segment's melody description must be a precise, accurate phrase from the standard list below, or completely blank/empty/None.
-
-#### Standard Melody Phrases:
-- Ascending melodic line
-- Descending melodic line
-- Arch-shaped phrase
-- Wave-like/undulating melody
-- Static/repetitive pitch pattern
-- Zigzag melodic movement
-- Stepwise motion
-- Leaping intervals
-- Mixed stepwise and leaping
-- Scalar passage
-- Arpeggiated melody line
-- Narrow melodic range
-- Wide/expansive range
-- Sudden octave jump
-- Syncopated melodic rhythm
-- Straight/even rhythmic pulse
-- Rubato/free-flowing phrasing
-- Fast-moving melodic runs
-- Sparse, spaced-out notes
-- Dense, note-heavy phrasing
-- Melismatic vocal run
-- Grace note embellishment
-- Vibrato-heavy delivery
-- Clean, unornamented line
-- Slide/glide between notes
-- Short, repeated motif
-- Long, sustained phrase
-- Call-and-response pattern
-- Sequential repetition
-- Fragmented/broken phrase
-- Bright, uplifting melody
-- Dark, minor-key feel
-- Tense, dissonant line
-- Resolved, consonant close
-- Hook-driven, catchy motif
-- Lead vocal carries melody
-- Instrumental countermelody
-- Doubled melody
-- Harmonized melodic line
+${MELODY_INSTRUCTION}
 
 --- SECTION TYPE SELECTION GUIDE ---
 

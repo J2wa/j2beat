@@ -24,6 +24,7 @@ export default async function handler(req: any, res: any) {
  }
  if (!b || !['annotate','refine'].includes(b.action) || !b.audio || typeof b.audio.data !== 'string' || !/^[A-Za-z0-9+/]+={0,2}$/.test(b.audio.data) || typeof b.audio.type !== 'string' || !/^audio\/[a-z0-9.+-]+$/i.test(b.audio.type)) return res.status(400).json({error:'Provide a valid audio file.'});
  if (!b.audio.path && b.audio.data.length > 4194304) return res.status(413).json({error:'Use the direct upload flow for this file.'});
+ if (b.songHint !== undefined && (typeof b.songHint !== 'string' || b.songHint.length > 500)) return res.status(400).json({error:'Invalid song filename clue.'});
  if (![b.creativeGuidance,b.feedback,b.previousResult].every(v => v === undefined || (typeof v === 'string' && v.length <= 120000))) return res.status(400).json({error:'The supplied text is invalid or too long.'});
  if (b.action === 'refine' && (!b.previousResult || !b.feedback?.trim())) return res.status(400).json({error:'Provide an annotation and correction instructions.'});
  const profiles=['PRODUCER','VOCAL','R&B','SOLOIST','ACOUSTIC','TEXTURE','RHYTHM','EXPERT','AMBIENT','DYNAMICS'];
@@ -32,9 +33,9 @@ export default async function handler(req: any, res: any) {
  const emit = (event:any) => { if (!res.destroyed && !res.writableEnded) res.write(JSON.stringify(event)+'\n'); };
  if(streaming) { res.setHeader('Content-Type','application/x-ndjson'); res.setHeader('X-Accel-Buffering','no'); res.flushHeaders(); emit({stage:'Preparing AI analysis'}); }
  try {
-   const args = [b.audio, !!b.isSimplified, !!b.isHighAccuracy, b.creativeGuidance || '', b.audioDuration, b.activeProfile, b.annotationProfile, b.model ?? DEFAULT_MODEL] as const;
+   const args = [b.audio, !!b.isSimplified, !!b.isHighAccuracy, b.creativeGuidance || '', b.audioDuration, b.activeProfile, b.annotationProfile, b.model ?? DEFAULT_MODEL, b.songHint || ''] as const;
    const text = await progressContext.run(stage => {if(streaming) emit({stage});}, async () => b.action === 'refine'
-    ? await refineAnnotation(b.audio,b.previousResult,b.feedback,...args.slice(1) as [boolean,boolean,string,number,string,string,ModelId])
+    ? await refineAnnotation(b.audio,b.previousResult,b.feedback,...args.slice(1) as [boolean,boolean,string,number,string,string,ModelId,string])
     : await annotateAudio(...args));
    if(streaming) {emit({text}); return res.end();}
    return res.status(200).json({text});

@@ -1,3 +1,6 @@
+import {unavailableResearch} from '../server/songResearch.ts';
+const noResearch = async () => unavailableResearch();
+import {splitResearch} from '../shared/research.ts';
 import assert from 'node:assert/strict';
 import {cleanEvidence, generateMusicAnnotation} from '../server/musicPipeline.ts';
 const section = {start:0,end:10,label:'opening',observations:'Piano enters.'};
@@ -11,7 +14,7 @@ assert.equal(cleanEvidence('```json\n'+JSON.stringify({overview:'x',sections:[]}
 const request = {model:'gemini-2.5-flash',contents:[{parts:[{text:'User notes'}, {inlineData:{data:'YQ==',mimeType:'audio/wav'}}]}],config:{systemInstruction:'Keep output labels'}};
 let calls:any[]=[];
 const generate = async (r:any, options:any) => {calls.push({r,options});return {text:calls.length===1?raw:'Final annotation'};};
-assert.equal((await generateMusicAnnotation(request,20,generate)).text,'Final annotation');
+assert.equal(splitResearch((await generateMusicAnnotation(request,20,generate,noResearch)).text).annotation,'Final annotation');
 assert.equal(calls.length,2);
 assert.ok(calls[1].r.contents.every((c:any)=>c.parts.every((p:any)=>!p.inlineData)));
 assert.equal(calls[1].options.metadataOnly,true);
@@ -22,11 +25,11 @@ assert.ok(calls[1].r.config.systemInstruction.includes('Validated preliminary'))
 assert.ok(!calls[1].r.config.systemInstruction.includes('"end":25'));
 assert.equal(request.config.systemInstruction,'Keep output labels');
 calls=[];
-await generateMusicAnnotation(request,20,async(r:any)=>{calls.push(r);if(calls.length===1)throw Error('offline');return {text:'direct'};});
+await generateMusicAnnotation(request,20,async(r:any)=>{calls.push(r);if(calls.length===1)throw Error('offline');return {text:'direct'};},noResearch);
 assert.ok(calls[1].config.systemInstruction.includes('extraction was unavailable'));
 console.log('Passed evidence cleanup, duration/overlap rejection, two-stage audio flow and graceful fallback.');
 const {progressContext} = await import('../server/progress.ts');
 const stages:string[]=[];
-await progressContext.run(stage=>stages.push(stage),()=>generateMusicAnnotation(request,20,async(r:any)=>({text:r.config.responseMimeType?raw:'Final'})));
-assert.deepEqual(stages,['Analyzing audio','Writing annotation from analysis']);
+await progressContext.run(stage=>stages.push(stage),()=>generateMusicAnnotation(request,20,async(r:any)=>({text:r.config.responseMimeType?raw:'Final'}),noResearch));
+assert.deepEqual(stages,['Analyzing audio','Searching Google for song context','Writing annotation from analysis']);
 console.log('Passed actual pipeline progress events.');

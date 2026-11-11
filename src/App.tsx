@@ -1,10 +1,11 @@
+import { attachResearch, splitResearch, researchAsMarkdown, type ResearchReport } from "../shared/research";
 import { DEFAULT_MODEL, MODEL_OPTIONS, isModelId, type ModelId } from '../shared/models';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import {
   Upload,
   Music,
@@ -42,6 +43,20 @@ import annotationSOP from "../Music_Annotation_SOP.md?raw";
 /** Utility for Tailwind class merging */
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
+}
+
+function ResearchContext({ research }: { research?: ResearchReport }) {
+  if (!research) return <aside className="research-panel"><h3>Google Search context</h3><p className="small muted">This saved annotation has no research record. Analyze the track again to add sources.</p></aside>;
+  const status = research.status === 'grounded' ? 'Sources found' : research.status === 'unverified' ? 'Needs verification' : 'Search unavailable';
+  return <aside className="research-panel" aria-label="Google Search research">
+    <div className="section-heading"><div><span className="section-eyebrow">Supporting evidence</span><h3>Google Search context</h3></div><span className={`research-status research-status--${research.status}`}>{status}</span></div>
+    <p className="research-message">{research.message}</p>
+    {research.summary && <details className="research-findings"><summary>Read research findings</summary><div className="markdown-body research-summary"><ReactMarkdown remarkPlugins={[remarkGfm]}>{research.summary}</ReactMarkdown></div></details>}
+    {research.sources.length > 0 && <ol className="research-sources">{research.sources.map(source => <li key={`${source.id}-${source.url}`}><a href={source.url} target="_blank" rel="noopener noreferrer"><span className="source-number">{source.id}</span><span>{source.title}</span><ChevronRight size={16} aria-hidden="true"/></a></li>)}</ol>}
+    {research.queries.length > 0 && <details className="research-queries"><summary>Search queries</summary><ul>{research.queries.map((query, i) => <li key={i}>{query}</li>)}</ul></details>}
+    {research.searchEntryPoint && <iframe title="Google Search suggestions" className="google-search-suggestions" sandbox="allow-popups allow-popups-to-escape-sandbox" referrerPolicy="no-referrer" srcDoc={`<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src https:; base-uri 'none'; form-action 'none'"><base target="_blank"><style>body{margin:0;padding:4px;background:transparent;color:#dce6f7;font:14px system-ui}a{color:#8ab0ff}</style></head><body>${research.searchEntryPoint}</body></html>`}/>}
+    <p className="field-hint">Sources support the generated song context. Review manual edits against those sources and verify recording-specific details by listening.</p>
+  </aside>;
 }
 
 const PROFILES = [
@@ -220,6 +235,7 @@ export default function App() {
     vocals: "",
   });
   const [result, setResult] = useState<string | null>(null);
+  const { annotation: annotationText, research } = useMemo(() => splitResearch(result || ""), [result]);
   const [globalMetadata, setGlobalMetadata] = useState<{
     genreEraSceneTags?: string;
     genreEraScene?: string;
@@ -312,8 +328,7 @@ export default function App() {
 
   const cleanMelodyType = (text: string) => {
     if (!text) return "";
-    const prefixRegex = /^\s*(?:\*\*)?(?:Ascending\s+Line|Descending\s+Line|Arch\s+or\s+Hill|Arch\s*\/\s*Hill|Inverted\s+Arch\s+or\s+Valley|Inverted\s+Arch\s*\/\s*Valley|Static\s+or\s+Monotone|Stepwise\s+Conjoint|Stepwise\s*\(Conjoint\)|Leaping\s+Disjoint|Leaping\s*\(Disjoint\)|Wave\s+or\s+Zig-Zag|Wave\s*\/\s*Zig-Zag|Call\s+and\s+Response|Motivic\s+Repetition|Sequence|Pedal\s+Tone\s+Motif|Arpeggiated|Scale-Run)(?:\*\*)?\s*[:.-]?\s*/i;
-    const cleaned = text.replace(prefixRegex, "").trim();
+    const cleaned = text.trim();
     const lower = cleaned.toLowerCase().replace(/\.$/, ""); // remove trailing period for check
     if (
       lower === "" ||
@@ -332,6 +347,7 @@ export default function App() {
   };
 
   const parseSections = (text: string) => {
+    text = splitResearch(text).annotation;
     let sectionBlocks = text.split(/Timeline Sections/i)[1] || text;
     const splitIndex = sectionBlocks.search(/Global Musical Matrix|Global Analysis|1\.\s*Genre/i);
     if (splitIndex !== -1) {
@@ -407,16 +423,19 @@ export default function App() {
     });
 
     const globalBlock = text.split(/Global Musical Matrix|Global Analysis/i)[1] || text;
+    const globalLabels = ["Genre, Era & Scene Tags", "Genre, Era & Scene", "Tempo, Rhythm & Groove Tags", "Tempo, Rhythm & Groove", "Harmony, Chords & Key Tags", "Harmony, Chords & Key", "Instrumentation Tags", "Instrumentation", "Playing Style Tags", "Playing Style", "Wow Factor Tags", "Wow Factor", "Emotion, Vibe & Setting Tags", "Emotion, Vibe & Setting", "Mix & Production Tags", "Mix & Production", "Sonic Fidelity Tags", "Sonic Fidelity", "Vocal Expression Tags", "Vocal Expression", "Lyrical Evocation Tags", "Lyrical Evocation", "Song title", "Song by", "Performing Artists"];
     const extractGlobal = (key: string) => {
-      const escapedKey = key.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&");
-      const regex = new RegExp(
-        `(?:^|\\n)\\s*(?:-\\s*)?(?:\\d+\\.\\s*)?(?:\\*\\*)?\\s*${escapedKey}\\s*(?:\\*\\*)?:\\s*(?:\\*\\*)?\\s*([\\s\\S]*?)(?=\\n\\s*(?:-\\s*)?(?:\\d+\\.\\s*)?(?:\\*\\*)?(?:Genre, Era & Scene Tags|Genre, Era & Scene|Tempo, Rhythm & Groove Tags|Tempo, Rhythm & Groove|Harmony, Chords & Key Tags|Harmony, Chords & Key|Instrumentation Tags|Instrumentation|Playing Style Tags|Playing Style|Wow Factor Tags|Wow Factor|Emotion, Vibe & Setting Tags|Emotion, Vibe & Setting|Mix & Production Tags|Mix & Production|Sonic Fidelity Tags|Sonic Fidelity|Vocal Expression Tags|Vocal Expression|Lyrical Evocation Tags|Lyrical Evocation|Song title|Song by|Performing Artists)[\\s:]|$)`,
-        "im",
-      );
-      const match = globalBlock.match(regex);
-      let val = match?.[1]?.trim() || "";
-      val = val.replace(/^\*\*|\*\*$/g, "").trim();
-      return val;
+      const lines = globalBlock.split("\n");
+      const normalizeHeader = (line: string) => line.trim().replace(/^(?:[-*]\s+|\d+\.\s*)/, "").replace(/\*\*/g, "");
+      const start = lines.findIndex(line => normalizeHeader(line).startsWith(`${key}:`));
+      if (start < 0) return "";
+      const first = normalizeHeader(lines[start]).slice(key.length + 1).trim();
+      const values = [first];
+      for (let i = start + 1; i < lines.length; i++) {
+        if (globalLabels.some(label => normalizeHeader(lines[i]).startsWith(`${label}:`))) break;
+        values.push(lines[i]);
+      }
+      return values.join("\n").trim();
     };
 
     setGlobalMetadata({
@@ -455,7 +474,7 @@ export default function App() {
       text += `- **Narrative Description:** ${s.description || ""}\n`;
       text += `- **Instruments:** ${s.instruments || ""}\n`;
       text += `- **Vibe Tags:** ${s.vibe || ""}\n`;
-      text += `- **Melody:** ${s.melody || "None"}\n\n`;
+      text += `- **Melody:** ${s.melody || ""}\n\n`;
     });
 
     text += "Global Musical Matrix\n";
@@ -482,7 +501,7 @@ export default function App() {
     text += `21. Lyrical Evocation Tags: ${currentMetadata.lyricsTags || ""}\n`;
     text += `22. Lyrical Evocation: ${currentMetadata.lyrics || ""}\n`;
 
-    return text.trim();
+    return attachResearch(text.trim(), research);
   };
 
   const handleToggleEditing = () => {
@@ -674,8 +693,10 @@ export default function App() {
     return (
       <Button
         onClick={handleCopy}
+        aria-label={label.toLowerCase().startsWith("copy ") ? label : `Copy ${label.toLowerCase()}`}
+        title={copied ? "Copied" : label.toLowerCase().startsWith("copy ") ? label : `Copy ${label.toLowerCase()}`}
         className={cn(
-          "flex items-center gap-1.5 px-2 py-0.5 rounded text-sm font-bold uppercase tracking-widest transition-all",
+          "copy-button",
           copied
             ? "bg-green-500/20 text-green-500 border border-green-500/30"
             : "bg-bg-card text-dim border border-border-dim hover:border-accent/40 hover:text-accent",
@@ -687,7 +708,7 @@ export default function App() {
         ) : (
           <Copy className="w-2 h-2" />
         )}
-        {label}
+        {copied ? "Copied" : label}
       </Button>
     );
   };
@@ -859,28 +880,39 @@ export default function App() {
         <MusicPlayer file={file} audioUrl={audioUrl} audioRef={audioRef} currentTime={currentTime} duration={duration} isPlaying={isPlaying} volume={volume} onFile={handleFileSelection} onSeek={seekTo} onToggle={togglePlay} onVolume={setVolume} onReset={reset} onTimeUpdate={handleTimeUpdate} onLoadedMetadata={handleLoadedMetadata} onPlaying={setIsPlaying} onError={setError} segments={sections}/>
       </div>
       <main id="workspace" hidden={view !== "workspace"} className="studio-grid">
-        <section className="settings-panel">
-          <h2>Analysis settings</h2>
-          <label className="field-label" htmlFor="model-select">Model</label>
-          <select id="model-select" value={selectedModel} disabled={isProcessing || isRefining} onChange={e=>{
-            if (isModelId(e.target.value)) { setSelectedModel(e.target.value); try { localStorage.setItem('aces_music_model',e.target.value); } catch {} }
-          }}>{MODEL_OPTIONS.map(model=><option key={model.id} value={model.id}>{model.label}{model.id===DEFAULT_MODEL?' (default)':''}</option>)}</select>
-          <p className="small muted">Automatic fallback enabled.</p>
-          <label className="field-label" htmlFor="profile-select">Profile</label>
-          <select id="profile-select" value={activeProfile || 'PRODUCER'} onChange={e=>{setActiveProfile(e.target.value);localStorage.setItem('active_profile',e.target.value);}}>{PROFILES.map(p=><option key={p.id} value={p.id}>{p.label.charAt(0)+p.label.slice(1).toLowerCase()}</option>)}</select>
-          <div className="field-label">Writing style</div>
-          <div className="segmented-control"><Button aria-pressed={annotationProfile==='default'} onClick={()=>selectAnnotationProfile('default')}>Standard</Button><Button aria-pressed={annotationProfile==='brief'} onClick={()=>selectAnnotationProfile('brief')}>Brief</Button></div>
-          <label className="toggle-row"><span>Simple language</span><input type="checkbox" checked={isSimplified} onChange={e=>setIsSimplified(e.target.checked)}/></label>
-          <label className="toggle-row"><span>Detailed segmentation</span><input type="checkbox" checked={isHighAccuracy} onChange={e=>setIsHighAccuracy(e.target.checked)}/></label>
-          <Button className="guidance-button" onClick={()=>setIsGenerateModalOpen(true)}><Settings/>Guidance{generalGuidance.trim() || Object.values(accurateData).some(v=>v.trim()) ? <span className="status-dot"/>:null}</Button>
-          <Button variant="primary" className="generate-button" disabled={!file || isProcessing || serviceReady!==true} onClick={handleProcess}>{isProcessing?<Activity/>:<Play/>}{isProcessing?'Analyzing…':result?'Analyze again':'Analyze track'}</Button>
+        <section className="settings-panel" aria-labelledby="analysis-settings-title">
+          <div className="settings-heading"><span className="section-eyebrow">Configure</span><h2 id="analysis-settings-title">Analysis settings</h2><p className="small muted">Choose how to describe this recording.</p></div>
+          <div className="settings-field">
+            <label className="field-label" htmlFor="model-select">Model</label>
+            <select id="model-select" value={selectedModel} disabled={isProcessing || isRefining} onChange={e=>{
+              if (isModelId(e.target.value)) { setSelectedModel(e.target.value); try { localStorage.setItem('aces_music_model',e.target.value); } catch {} }
+            }}>{MODEL_OPTIONS.map(model=><option key={model.id} value={model.id}>{model.label}{model.id===DEFAULT_MODEL?' (default)':''}</option>)}</select>
+            <p className="field-hint">Automatic fallback enabled.</p>
+          </div>
+          <div className="settings-field">
+            <label className="field-label" htmlFor="profile-select">Analysis profile</label>
+            <select id="profile-select" value={activeProfile || 'PRODUCER'} onChange={e=>{setActiveProfile(e.target.value);localStorage.setItem('active_profile',e.target.value);}}>{PROFILES.map(p=><option key={p.id} value={p.id}>{p.label.charAt(0)+p.label.slice(1).toLowerCase()}</option>)}</select>
+          </div>
+          <div className="settings-field">
+            <span className="field-label" id="writing-style-label">Writing style</span>
+            <div className="segmented-control" role="group" aria-labelledby="writing-style-label"><Button aria-pressed={annotationProfile==='default'} onClick={()=>selectAnnotationProfile('default')}>Standard</Button><Button aria-pressed={annotationProfile==='brief'} onClick={()=>selectAnnotationProfile('brief')}>Brief</Button></div>
+          </div>
+          <div className="settings-options">
+            <label className="toggle-row"><span>Simple language</span><input type="checkbox" checked={isSimplified} onChange={e=>setIsSimplified(e.target.checked)}/></label>
+            <label className="toggle-row"><span>Detailed segmentation</span><input type="checkbox" checked={isHighAccuracy} onChange={e=>setIsHighAccuracy(e.target.checked)}/></label>
+          </div>
+          <div className="settings-actions">
+            <Button className="guidance-button" onClick={()=>setIsGenerateModalOpen(true)}><Settings/>Track details & guidance{generalGuidance.trim() || Object.values(accurateData).some(v=>v.trim()) ? <span className="status-dot"/>:null}</Button>
+            <Button variant="primary" className="generate-button" disabled={!file || isProcessing || serviceReady!==true} onClick={handleProcess}>{isProcessing?<Activity/>:<Play/>}{isProcessing?'Analyzing…':result?'Analyze again':'Analyze track'}</Button>
+            <p className="field-hint">Song research uses Google Search. Review sources alongside the audio.</p>
+          </div>
           <details className="credit-details"><summary>{credits} local credits</summary><Button variant="text" onClick={handleResetCredits}><RotateCcw/>Reset credits</Button></details>
         </section>
 
         {/* Right Output Area */}
-        <section className="flex flex-col">
+        <section className="output-column flex flex-col">
           <div className="hardware-card annotation-panel flex-1 flex flex-col overflow-hidden">
-            <div className="border-b border-border-dim px-6 py-4 flex justify-between items-center bg-bg-card/30">
+            <div className="annotation-toolbar">
               <div className="flex items-center gap-4">
                 <div
                   className={cn(
@@ -902,7 +934,7 @@ export default function App() {
               </div>
 
               {result && (
-                <div className="flex gap-4">
+                <div className="annotation-actions">
                   <Button
                     onClick={handleToggleEditing}
                     className={cn(
@@ -913,13 +945,13 @@ export default function App() {
                     {isEditing ? "Save changes" : "Edit"}
                   </Button>
                   <Button
-                    onClick={() => copyToClipboard(result || "")}
+                    onClick={() => copyToClipboard(annotationText + researchAsMarkdown(research))}
                     className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-dim hover:text-accent transition-colors"
                   >
                     <Copy className="w-3.5 h-3.5" /> Copy
                   </Button>
                   <Button
-                    onClick={async () => (await import("./utils/pdfGenerator")).generatePDF(file?.name || "audio_transcription", duration ? `${Math.floor(duration / 60)}:${Math.floor(duration % 60).toString().padStart(2, "0")}` : "0:00", globalMetadata, sections)}
+                    onClick={async () => (await import("./utils/pdfGenerator")).generatePDF(file?.name || "audio_transcription", duration ? `${Math.floor(duration / 60)}:${Math.floor(duration % 60).toString().padStart(2, "0")}` : "0:00", globalMetadata, sections, research)}
                     className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-dim hover:text-accent transition-colors cursor-pointer"
                   >
                     <Download className="w-3.5 h-3.5" /> Export PDF
@@ -980,7 +1012,7 @@ export default function App() {
                     >
                       <div className="flex gap-2 border-b border-border-dim pb-4">
                         <Button
-                          onClick={() => setEditTab("form")}
+                          onClick={() => { if (editTab === "raw") parseSections(result || ""); setEditTab("form"); }}
                           className={cn(
                             "px-4 py-2 text-sm font-bold uppercase tracking-widest border transition-all rounded",
                             editTab === "form"
@@ -1009,14 +1041,15 @@ export default function App() {
                       {editTab === "raw" ? (
                         <div className="flex-1 min-h-[400px]">
                           <textarea
-                            value={result || ""}
-                            onChange={(e) => setResult(e.target.value)}
+                            aria-label="Raw annotation"
+                            value={annotationText}
+                            onChange={(e) => setResult(attachResearch(e.target.value, research))}
                             className="w-full h-full min-h-[400px] bg-transparent text-primary p-0 focus:outline-none mono text-sm resize-none"
                             spellCheck={false}
                           />
                         </div>
                       ) : (
-                        <div className="space-y-12 max-w-5xl mx-auto pb-32">
+                        <div className="matrix-editor">
                           {[
                             {
                               id: "genreEraScene",
@@ -1142,14 +1175,15 @@ export default function App() {
                           ].map((cat) => (
                             <div
                               key={cat.id}
-                              className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch border-b border-border-dim pb-8 last:border-b-0 last:pb-0"
+                              className="matrix-editor-card"
                             >
-                              <div className="lg:col-span-2 space-y-4">
+                              <div className="matrix-editor-fields space-y-4"><h3>{cat.label}</h3>
                                 <div className="space-y-1.5">
-                                  <label className="text-sm font-black uppercase tracking-[0.2em] text-accent">
-                                    {cat.tagLabel}
+                                  <label htmlFor={`${cat.id}-tags`} className="editor-label">
+                                    Tags
                                   </label>
                                   <Input
+                                    id={`${cat.id}-tags`}
                                     type="text"
                                     value={(globalMetadata as any)[cat.tagKey] || ""}
                                     onChange={(e) =>
@@ -1163,10 +1197,11 @@ export default function App() {
                                   />
                                 </div>
                                 <div className="space-y-1.5">
-                                  <label className="text-sm font-black uppercase tracking-[0.2em] text-accent">
-                                    {cat.descLabel}
+                                  <label htmlFor={`${cat.id}-description`} className="editor-label">
+                                    Description
                                   </label>
                                   <textarea
+                                    id={`${cat.id}-description`}
                                     value={(globalMetadata as any)[cat.descKey] || ""}
                                     onChange={(e) =>
                                       setGlobalMetadata((prev) => ({
@@ -1179,14 +1214,12 @@ export default function App() {
                                   />
                                 </div>
                               </div>
-                              <div className="bg-bg-card border border-border-dim rounded p-5 flex flex-col justify-center">
-                                <span className="text-sm font-black uppercase tracking-[0.15em] text-primary mb-2 block">
-                                  Expert Guidance
-                                </span>
+                              <details className="field-guidance">
+                                <summary>Writing guidance</summary>
                                 <div className="text-sm text-dim font-medium leading-relaxed whitespace-pre-line">
                                   {cat.help}
                                 </div>
-                              </div>
+                              </details>
                             </div>
                           ))}
                         </div>
@@ -1197,16 +1230,16 @@ export default function App() {
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       key="result"
-                      className="space-y-12 max-w-4xl mx-auto pb-32"
+                      className="annotation-results"
                     >
                       {/* Feedback Section */}
-                      <section className="bg-bg-panel/80 border border-border-dim rounded-lg p-6 mb-8 mt-2 shadow-inner">
+                      <section className="correction-panel">
                         <div className="flex justify-between items-center mb-4">
                           <h4 className="text-sm font-bold uppercase tracking-[0.2em] text-accent flex items-center gap-2">
-                            Correction Input Matrix
+                            Refine the annotation
                           </h4>
                           <span className="text-sm text-dim uppercase">
-                            Alpha v1.0 Refiner
+                            Optional
                           </span>
                         </div>
                         <div className="relative">
@@ -1217,7 +1250,7 @@ export default function App() {
                             className="w-full bg-bg-main/50 border border-border-dim rounded p-4 text-xs text-primary focus:outline-none focus:border-accent/30 min-h-[80px] resize-none"
                             disabled={isRefining}
                           />
-                          <div className="absolute bottom-3 right-3">
+                          <div className="correction-actions">
                             <Button
                               onClick={handleRefine}
                               disabled={!userFeedback.trim() || isRefining}
@@ -1248,25 +1281,24 @@ export default function App() {
                             </Button>
                           </div>
                         </div>
-                        <p className="text-sm text-dim uppercase mt-3 tracking-widest text-center opacity-100">
-                          System will re-process spectral data with provided
-                          context
-                        </p>
+                        <p className="field-hint">Describe what should change. The model will review the audio and update its draft.</p>
                       </section>
 
+                      <ResearchContext research={research} />
+
                       {/* Global Analysis Matrix */}
-                      <div className="pt-8 space-y-8">
-                        <div className="flex justify-between items-end border-b border-border-dim pb-2">
+                      <div className="matrix-section">
+                        <div className="section-heading">
                           <h2 className="text-xs uppercase tracking-wide text-accent font-bold mb-0">
                             Global Musical Matrix
                           </h2>
                           <CopyBadge
                             text={JSON.stringify(globalMetadata, null, 2)}
-                            label="Export Metadata JSON"
+                            label="Copy JSON"
                           />
                         </div>
 
-                        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div className="matrix-grid">
                           {[
                             {
                               category: "Genre, Era & Scene",
@@ -1339,7 +1371,7 @@ export default function App() {
                               (item.tags || item.desc) && (
                                 <div
                                   key={item.id}
-                                  className="bg-bg-panel/40 border border-border-dim rounded-lg p-5 flex flex-col gap-3 group/item shadow-inner"
+                                  className="matrix-card"
                                 >
                                   <div className="flex justify-between items-center mb-1 pb-1 border-b border-border-dim">
                                     <h4 className="text-sm font-bold uppercase tracking-[0.2em] text-accent">
@@ -1355,7 +1387,7 @@ export default function App() {
                                         </span>
                                         <CopyBadge
                                           text={item.tags}
-                                          label="Copy Tags"
+                                          label="Tags"
                                           className="bg-accent/10 border-accent/20 text-accent hover:bg-accent hover:text-bg-main text-sm px-2 py-0.5"
                                         />
                                       </div>
@@ -1384,7 +1416,7 @@ export default function App() {
                                         </span>
                                         <CopyBadge
                                           text={item.desc}
-                                          label="Copy Description"
+                                          label="Description"
                                           className="bg-accent/10 border-accent/20 text-accent hover:bg-accent hover:text-bg-main text-sm px-2 py-0.5"
                                         />
                                       </div>
@@ -1402,11 +1434,11 @@ export default function App() {
                       {/* Sections List */}
                       {sections.length > 0 && (
                         <div className="space-y-4">
-                          <div className="flex justify-between items-end mb-6 border-b border-border-dim pb-2">
+                          <div className="section-heading">
                             <h2 className="text-xs uppercase tracking-wide text-accent font-bold mb-0 flex items-center gap-4">
                               Timeline Segmentation
                             </h2>
-                            <div className="flex gap-4 items-center">
+                            <div className="section-actions">
                               <CopyBadge
                                 text={sections
                                   .map(
@@ -1417,7 +1449,7 @@ export default function App() {
                                 label="Copy All Segments"
                               />
                               <span className="text-sm font-mono text-dim uppercase tracking-widest">
-                                {sections.length} TOTAL SEGMENTS DETECTED
+                                {sections.length} segments
                               </span>
                             </div>
                           </div>
@@ -1428,13 +1460,15 @@ export default function App() {
                                 initial={{ opacity: 0, x: -10 }}
                                 animate={{ opacity: 1, x: 0 }}
                                 transition={{ delay: idx * 0.05 }}
-                                className="group relative hardware-card rounded-lg bg-bg-card/40 border border-border-dim hover:border-accent/40 transition-all p-5 flex gap-6"
+                                className="segment-card group"
                               >
                                 <div className="flex flex-col items-center gap-2">
                                   <span className="mono text-sm text-accent font-bold mb-1">
                                     {section.startTime}
                                   </span>
                                   <Button
+                                    aria-label={`${activeSegment?.index === idx && isPlaying ? "Pause" : "Play"} segment ${idx + 1}`}
+                                    disabled={!audioUrl}
                                     onClick={() => seekAndPlaySegment(idx)}
                                     className={cn(
                                       "w-10 h-10 rounded-full flex items-center justify-center transition-all group-hover:scale-110 active:scale-95",
@@ -1451,9 +1485,9 @@ export default function App() {
                                     )}
                                   </Button>
                                 </div>
-                                <div className="flex-1 space-y-2">
-                                  <div className="flex justify-between items-start">
-                                    <div className="flex items-center gap-3">
+                                <div className="segment-body space-y-2">
+                                  <div className="segment-heading">
+                                    <div className="segment-title">
                                       <h4 className="text-sm font-bold text-primary uppercase tracking-wider">
                                         {section.type}
                                       </h4>
@@ -1499,7 +1533,7 @@ export default function App() {
                                   {section.melody && (
                                     <div className="bg-bg-card p-3 rounded border-l-2 border-accent/20 relative group/melody">
                                       <p className="text-sm uppercase text-accent/60 font-bold mb-1 tracking-wider">
-                                        Melodic Motif
+                                        Melody
                                       </p>
                                       <p className="text-sm text-primary italic">
                                         {section.melody}
@@ -1534,7 +1568,7 @@ export default function App() {
                                     />
                                     <CopyBadge
                                       text={section.description}
-                                      label="Desc"
+                                      label="Description"
                                     />
                                     <CopyBadge
                                       text={
@@ -1542,7 +1576,7 @@ export default function App() {
                                           ? section.instruments
                                           : `${section.instruments}${section.instruments ? "," : ""}`
                                       }
-                                      label="Inst"
+                                      label="Instruments"
                                     />
                                     {section.vibe && (
                                       <CopyBadge
@@ -1565,20 +1599,18 @@ export default function App() {
                       )}
 
                       {/* Raw Markdown Output */}
-                      <div className="pt-12 border-t border-border-dim">
-                        <div className="flex justify-between items-center mb-6">
-                          <h2 className="text-xs uppercase tracking-wide text-accent font-bold">
-                            Full annotation
-                          </h2>
+                      <details className="full-annotation">
+                        <summary>Full annotation</summary>
+                        <div className="full-annotation-actions">
                           <CopyBadge
-                            text={result}
-                            label="Copy Entire Analysis"
+                            text={annotationText + researchAsMarkdown(research)}
+                            label="Copy full annotation"
                           />
                         </div>
                         <div className="markdown-body">
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{result}</ReactMarkdown>
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{annotationText}</ReactMarkdown>
                         </div>
-                      </div>
+                      </details>
                     </motion.div>
                   )
                 ) : error ? (
@@ -1660,7 +1692,7 @@ export default function App() {
                 Guidance
               </h3>
               <p className="text-sm text-dim uppercase tracking-wider mt-1">
-                Optional notes for the analysis.
+                Add the song title, artist, and recording version here to help Google Search identify the right song.
               </p>
             </div>
             
@@ -1668,10 +1700,10 @@ export default function App() {
               {/* General Guidance Section */}
               <div className="flex flex-col gap-1.5 border-b border-border-dim pb-4">
                 <label className="text-sm text-accent uppercase tracking-wider font-semibold">
-                  1. General Creative & Aesthetic Guidance
+                  Song details & listening guidance
                 </label>
                 <span className="text-sm text-dim uppercase tracking-wide">
-                  Describe mood directions, specific focus zones, or references to guide the analysis.
+                  Include the track identity and any audible details you want checked.
                 </span>
                 <textarea
                   aria-label="Creative guidance" value={generalGuidance}
@@ -1761,7 +1793,7 @@ export default function App() {
                     disabled={isProcessing}
                     className="flex-1 py-3 bg-accent text-bg-main font-bold text-sm uppercase tracking-[0.15em] rounded hover:bg-accent/90 transition-colors cursor-pointer flex items-center justify-center gap-1.5 shadow-[0_0_15px_rgba(215,183,139,0.15)]"
                   >
-                    Proceed & Generate ({GENERATE_COST} CR)
+                    Analyze track ({GENERATE_COST} CR)
                   </Button>
                 ) : (
                   <Button
@@ -1772,7 +1804,7 @@ export default function App() {
                     }}
                     className="flex-1 py-3 bg-bg-card hover:bg-bg-card text-primary border border-border-dim font-bold text-sm uppercase tracking-[0.15em] rounded transition-colors cursor-pointer"
                   >
-                    Save Guidance & Close
+                    Save guidance
                   </Button>
                 )}
               </div>

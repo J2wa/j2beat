@@ -22,7 +22,7 @@ This workflow dictates the step-by-step process for performing a chronological, 
    - **Narrative Description:** Limit to exactly 1 or 2 sentences depending on configuration. Describe the transition and musical focus (DO NOT analyze lyrics). Do not refer to previous or other sections; make the description standalone for each segment.
    - **Instruments:** Provide a pure comma-separated list of active dominant instruments (e.g., *Drum kit, Synth bass, Acoustic guitar,*).
    - **Vibe Tags:** Provide a comma-separated list of mood and energy descriptors.
-   - **Melody:** Provide a full descriptive phrase (max 7 words). Do not use single words like "ascending" or "melodic motif" alone. Use descriptive phrases like "stepwise ascending vocal run."
+   - **Melody:** [One sentence, 8 to 20 words, saying who carries the melodic idea in this segment and what it does: its direction, step or leap movement, rhythm, phrase length, and any repeating or answering. Include one audible detail that belongs to this recording only. Use only instruments from the Instruments field. Don't choose from a phrase list, don't open with a contour word like "Ascending" or "Arpeggiated", don't judge it (catchy, beautiful, emotional), and don't reuse another segment's sentence shape. Don't name pitches or keys unless certain. If there is no melody just leave it blank]
 
 ---
 
@@ -156,48 +156,11 @@ The narrative descriptions MUST be constructed by selecting and following one of
 - **Template 2:** Compared to the previous section, the instrumentation introduces `[additional/reduced]` layers while the harmonic movement shifts to `[increase/release/maintain]` tension. Vocals adapt naturally to the evolving arrangement as the groove reinforces the section's changing energy.
 
 ### Melody Field Analysis
-Select exactly ONE of the standard melody phrases from the list below that best matches the melody in this specific segment. DO NOT include category headers, explanation text, or parentheses under any circumstances. If there is no melody in the segment (e.g. if it is purely spoken word, a drum break, or has no prominent melody) or if you are unsure, you MUST write "None" or leave it completely blank.
 
-CRITICAL RESTRICTION: You are strictly forbidden from outputting generic, non-specific placeholders such as "melody line" or "melody" alone. Each segment's melody description must be a precise, accurate phrase from the standard list below, or completely blank/empty/None.
+**Melody:** [One sentence, 8 to 20 words, saying who carries the melodic idea in this segment and what it does: its direction, step or leap movement, rhythm, phrase length, and any repeating or answering. Include one audible detail that belongs to this recording only. Use only instruments from the Instruments field. Don't choose from a phrase list, don't open with a contour word like "Ascending" or "Arpeggiated", don't judge it (catchy, beautiful, emotional), and don't reuse another segment's sentence shape. Don't name pitches or keys unless certain. If there is no melody just leave it blank]
 
-#### Standard Melody Phrases:
-- Ascending melodic line
-- Descending melodic line
-- Arch-shaped phrase
-- Wave-like/undulating melody
-- Static/repetitive pitch pattern
-- Zigzag melodic movement
-- Stepwise motion
-- Leaping intervals
-- Mixed stepwise and leaping
-- Scalar passage
-- Arpeggiated melody line
-- Narrow melodic range
-- Wide/expansive range
-- Sudden octave jump
-- Syncopated melodic rhythm
-- Straight/even rhythmic pulse
-- Rubato/free-flowing phrasing
-- Fast-moving melodic runs
-- Sparse, spaced-out notes
-- Dense, note-heavy phrasing
-- Melismatic vocal run
-- Grace note embellishment
-- Vibrato-heavy delivery
-- Clean, unornamented line
-- Slide/glide between notes
-- Short, repeated motif
-- Long, sustained phrase
-- Call-and-response pattern
-- Sequential repetition
-- Fragmented/broken phrase
-- Bright, uplifting melody
-- Dark, minor-key feel
-- Tense, dissonant line
-- Resolved, consonant close
-- Hook-driven, catchy motif
-- Lead vocal carries melody
-- Instrumental countermelody
-- Doubled melody
-- Harmonized melodic line
+Melody wording must be composed from the audible evidence for each segment. If the evidence is insufficient, leave the field blank. No preset phrase list applies.
 
+### Google Search context
+
+Use the research panel to inspect song context and its sources. Lyrical themes, release context and other supported global information may draw on search results with citations. Check the song and recording version. Search cannot establish which instruments, melody, production effects or timing are audible in the uploaded segment. An uncertain match or unavailable search must stay explicit.

@@ -1,3 +1,4 @@
+import { MELODY_INSTRUCTION } from '../shared/melody';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -129,46 +130,7 @@ You MUST format each section EXACTLY as follows, replacing the brackets with you
 - **Narrative Description:** [Description - You MUST write this description by selecting and strictly following one of the formulas/templates from the BP MASTER MUSIC ANNOTATION WRITING STYLE GUIDE for the corresponding section type (Intro, Verse, Chorus, Bridge, Outro, or one of the Describing Energy/Rhythm/Vocals/Instrumentation/Universal Flow templates). Replace the brackets in the selected template with actual, direct musical observations. Limit this description to a maximum of 2 sentences. Do NOT reference lyrics. CRITICAL RESTRICTION: Do NOT refer to other segments or previous/following sections under any circumstances; the description must be completely standalone and independent for this specific segment. You are strictly forbidden from making comparisons or references to prior or later parts of the track (e.g., do NOT say "Compared to...", "Unlike the...", "Building on the...", "Following...", or "As heard in..."). Avoid parentheses entirely in your description.]
 - **Instruments:** [STRICTLY NO EXPLANATIONS. PURE WORDS ONLY in a comma-separated list of instrument names. DO NOT use sentences.]
 - **Vibe Tags:** [Tags]
-- **Melody:** [Melody - Melody Field Analysis: Select exactly ONE of the standard melody phrases from the list below that best matches the melody in this specific segment. DO NOT include category headers, explanation text, or parentheses under any circumstances. If there is no melody in the segment (e.g. if it is purely spoken word, a drum break, or has no prominent melody) or if you are unsure, you MUST write "None" or leave it completely blank. CRITICAL RESTRICTION: You are strictly forbidden from outputting generic or non-specific placeholders such as "melody line" or "melody" alone. Each segment's melody description must be a precise, accurate phrase from the standard list below, or completely blank/empty/None.
-- Ascending melodic line
-- Descending melodic line
-- Arch-shaped phrase
-- Wave-like/undulating melody
-- Static/repetitive pitch pattern
-- Zigzag melodic movement
-- Stepwise motion
-- Leaping intervals
-- Mixed stepwise and leaping
-- Scalar passage
-- Arpeggiated melody line
-- Narrow melodic range
-- Wide/expansive range
-- Sudden octave jump
-- Syncopated melodic rhythm
-- Straight/even rhythmic pulse
-- Rubato/free-flowing phrasing
-- Fast-moving melodic runs
-- Sparse, spaced-out notes
-- Dense, note-heavy phrasing
-- Melismatic vocal run
-- Grace note embellishment
-- Vibrato-heavy delivery
-- Clean, unornamented line
-- Slide/glide between notes
-- Short, repeated motif
-- Long, sustained phrase
-- Call-and-response pattern
-- Sequential repetition
-- Fragmented/broken phrase
-- Bright, uplifting melody
-- Dark, minor-key feel
-- Tense, dissonant line
-- Resolved, consonant close
-- Hook-driven, catchy motif
-- Lead vocal carries melody
-- Instrumental countermelody
-- Doubled melody
-- Harmonized melodic line]
+- ${MELODY_INSTRUCTION}
 
 [List of permitted Section Types]
 a section, b section, b statement, break, breakdown, build-up, bridge, chorus, coda, development, drop, drum break, final hook, final statement, first statement, hook, idea, instrumental, interlude, intro, main theme, outro, pause, post-chorus, post-hook, post-refrain, pre-chorus, pre-hook, pre-verse, recapitulation, refrain, secondary theme, second statement, section, statement, solo, tag, theme, turnaround, transition, verse, vamp

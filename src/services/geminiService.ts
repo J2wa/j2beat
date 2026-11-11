@@ -1,4 +1,5 @@
 import { DEFAULT_MODEL, type ModelId } from '../../shared/models';
+import { splitResearch } from '../../shared/research';
 import { put } from "@vercel/blob/client";
 const progress = (stage:string) => window.dispatchEvent(new CustomEvent('analysis-progress',{detail:stage}));
 // Credentials and prompt assembly live exclusively in the server function.
@@ -38,7 +39,7 @@ async function request(audioFile: File, options: Record<string, unknown>): Promi
   const response = await fetch('/api/annotate', {
     signal: AbortSignal.timeout(270000),
     method: 'POST', headers: { 'Content-Type': 'application/json', Accept:'application/x-ndjson' },
-    body: JSON.stringify({ audio, ...options }),
+    body: JSON.stringify({ audio, songHint: audioFile.name.slice(0, 500), ...options }),
   }).catch((error) => {
     if(error?.name === 'TimeoutError' || error?.name === 'AbortError') throw new Error('AI processing timed out after 4½ minutes. Your input is preserved. Try a shorter clip or another model.');
     throw new Error('Connection to the analysis server was lost. Check your internet connection and retry.');
@@ -74,5 +75,5 @@ export function annotateAudio(audioFile: File, isSimplified = false, isHighAccur
   return request(audioFile, {action:'annotate', isSimplified, isHighAccuracy, creativeGuidance, audioDuration, activeProfile, annotationProfile, model});
 }
 export function refineAnnotation(audioFile: File, previousResult: string, feedback: string, isSimplified = false, isHighAccuracy = false, creativeGuidance = '', audioDuration = 0, activeProfile = 'PRODUCER', annotationProfile = 'default', model: ModelId = DEFAULT_MODEL) {
-  return request(audioFile, {action:'refine', previousResult, feedback, isSimplified, isHighAccuracy, creativeGuidance, audioDuration, activeProfile, annotationProfile, model});
+  return request(audioFile, {action:'refine', previousResult:splitResearch(previousResult).annotation, feedback, isSimplified, isHighAccuracy, creativeGuidance, audioDuration, activeProfile, annotationProfile, model});
 }
