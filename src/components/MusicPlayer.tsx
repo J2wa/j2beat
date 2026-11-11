@@ -7,6 +7,7 @@ type Props = {
  file: File | null; audioUrl: string | null; audioRef: RefObject<HTMLAudioElement | null>; currentTime: number; duration: number; isPlaying: boolean; volume: number;
  onFile: (file: File) => void; onSeek: (time: number) => void; onToggle: () => void; onVolume: (v: number) => void; onReset: () => void;
  onTimeUpdate: () => void; onLoadedMetadata: () => void; onPlaying: (playing: boolean) => void; onError: (message: string) => void;
+ markers: number[]; onMark: (time: number) => void; onRemoveMarker: (time: number) => void; onClearMarkers: () => void; onUseMarkers: () => void;
  segments: {startTime: string; type?: string; sectionType?: string}[];
 };
 export function MusicPlayer(p: Props) {
@@ -40,12 +41,13 @@ export function MusicPlayer(p: Props) {
    const onKey=(e:KeyboardEvent)=>{
      const target=e.target as HTMLElement;
      if(!p.audioUrl || document.querySelector('[role="dialog"]') || target.closest('input,textarea,select,button,a,[contenteditable="true"]'))return;
+     if(e.code==='KeyM' && !e.repeat){e.preventDefault();p.onMark(p.audioRef.current?.currentTime ?? p.currentTime);}
      if(e.code==='Space'){e.preventDefault();p.onToggle();}
      if(e.code==='ArrowLeft'){e.preventDefault();p.onSeek(p.currentTime-5);}
      if(e.code==='ArrowRight'){e.preventDefault();p.onSeek(p.currentTime+5);}
    };
    window.addEventListener('keydown',onKey);return ()=>window.removeEventListener('keydown',onKey);
- },[p.audioUrl,p.currentTime,p.onToggle,p.onSeek]);
+ },[p.audioUrl,p.currentTime,p.onToggle,p.onSeek,p.onMark]);
  function mute(){if(p.volume>0){lastVolume.current=p.volume;p.onVolume(0);}else p.onVolume(lastVolume.current);}
  function update(){
    if(looped && p.audioRef.current && p.audioRef.current.currentTime>=loopEnd){p.audioRef.current.currentTime=loopStart;}
@@ -62,11 +64,18 @@ export function MusicPlayer(p: Props) {
     </svg>
     {peaks.length===0&&<span className="wave-status">{decoding?'Reading waveform…':waveError?'Waveform unavailable. Playback and seeking still work.':''}</span>}
     {loopStart!==null&&p.duration>0&&<div className="loop-area" style={{left:`${loopStart/p.duration*100}%`,width:`${((loopEnd??p.duration)-loopStart)/p.duration*100}%`}}/>}
+    {p.duration>0&&p.markers.map((time,i)=><div key={time} className="split-marker" style={{left:`${time/p.duration*100}%`}} aria-hidden="true"><span>{i+1}</span></div>)}
     <div className="playhead" style={{left:`${progress}%`}}/>
     {hoverTime!==null&&<span className="wave-tooltip" style={{left:`${Math.min(93,Math.max(7,hoverTime/(p.duration||1)*100))}%`}}>{formatTime(hoverTime)}</span>}
     <input className="wave-seek" type="range" aria-label="Seek audio waveform" aria-valuetext={formatTime(p.currentTime)} min={0} max={p.duration||1} step={.01} value={p.currentTime} disabled={!p.duration} onChange={e=>p.onSeek(Number(e.target.value))}/>
    </div>
    <div className="wave-times"><span>0:00</span><span>{formatTime(p.duration/4)}</span><span>{formatTime(p.duration/2)}</span><span>{formatTime(p.duration*3/4)}</span><span>{formatTime(p.duration)}</span></div>
+   <div className="marker-controls" aria-label="Segment split markers">
+    <div className="marker-actions"><Button disabled={!p.duration} onClick={()=>p.onMark(p.audioRef.current?.currentTime ?? p.currentTime)}>Mark split · {formatTime(p.currentTime)}</Button><Button disabled={!p.markers.length || p.busy} onClick={p.onUseMarkers}>Use in specific timestamps</Button><Button variant="text" disabled={!p.markers.length} onClick={p.onClearMarkers}>Clear markers</Button></div>
+    <p className="muted small">Seek on the waveform, then mark a split, or press M while listening. Times use whole seconds. 0:00 is included when adding to the form.</p>
+    <div className="marker-list" aria-label="Marked split times">{p.markers.map(time=><span className="marker-chip" key={time}><Button variant="text" onClick={()=>p.onSeek(time)} aria-label={`Seek to split ${formatTime(time)}`}>{formatTime(time)}</Button><Button variant="text" onClick={()=>p.onRemoveMarker(time)} aria-label={`Remove split ${formatTime(time)}`}><X size={14}/></Button></span>)}</div>
+    <span role="status" className="sr-only">{p.markers.length} split markers</span>
+   </div>
    {p.segments.length>0&&<div className="segment-chips" aria-label="Jump to segment">{p.segments.map((s,i)=><button key={i} onClick={()=>{const parts=s.startTime.replace(/[\[\]]/g,'').split(':').map(Number);p.onSeek(parts[0]*60+parts[1]);}}>{s.startTime} <span>{s.type||s.sectionType||`Segment ${i+1}`}</span></button>)}</div>}
    <div className="loop-controls"><span className="muted small">Loop selection</span><Button aria-pressed={loopStart!==null} disabled={!p.duration} onClick={()=>{setLoopStart(p.currentTime);setLoopEnd(null);p.onSeek(p.currentTime);}}>A {loopStart!==null?formatTime(loopStart):'Start'}</Button><Button aria-pressed={loopEnd!==null} disabled={loopStart===null || p.currentTime<=loopStart+.1} onClick={()=>setLoopEnd(p.currentTime)}>B {loopEnd!==null?formatTime(loopEnd):'End'}</Button>{loopStart!==null&&<Button variant="text" aria-label="Clear loop selection" onClick={()=>{setLoopStart(null);setLoopEnd(null);}}><X/></Button>}<span className="loop-state">{looped?'Loop active':''}</span><Button className="remove-track" disabled={p.busy} variant="text" onClick={p.onReset}><X/>Remove</Button></div>
    </> : <div className="empty-upload"><div className="upload-orbit"><Headphones size={36}/></div><p>Drop an audio file here</p><span className="muted small">MP3, WAV, AIFF · Analysis up to 100 MB</span><Button variant="text" onClick={()=>picker.current?.click()}>Browse files</Button></div>}

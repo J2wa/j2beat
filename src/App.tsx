@@ -37,7 +37,7 @@ import { annotateAudio, refineAnnotation } from "./services/geminiService";
 
 
 import { Button, Input, Header, SectionContainer } from "./components/BrandSystem";
-import { MusicPlayer } from "./components/MusicPlayer";
+import { MusicPlayer, formatTime } from "./components/MusicPlayer";
 import annotationSOP from "../Music_Annotation_SOP.md?raw";
 
 /** Utility for Tailwind class merging */
@@ -159,6 +159,7 @@ export default function App() {
     catch { setError('Analysis completed, but this browser could not save the archive. Download your result.'); }
   };
   const [file, setFile] = useState<File | null>(null);
+  const [splitMarkers, setSplitMarkers] = useState<number[]>([]);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -548,6 +549,7 @@ export default function App() {
       setCurrentTime(0); setDuration(0); setIsPlaying(false); setActiveSegment(null);
       setFile(selectedFile);
       if (audioUrl) URL.revokeObjectURL(audioUrl);
+      setSplitMarkers([]);
       setAudioUrl(URL.createObjectURL(selectedFile));
       setResult(null);
       setSections([]);
@@ -719,6 +721,7 @@ export default function App() {
     setCurrentTime(0); setDuration(0); setIsPlaying(false); setActiveSegment(null);
     setFile(null);
     if (audioUrl) URL.revokeObjectURL(audioUrl);
+    setSplitMarkers([]);
     setAudioUrl(null);
     setResult(null);
     setSections([]);
@@ -825,7 +828,20 @@ export default function App() {
         <small>{elapsedSeconds>90?'Taking longer than usual. Progress and retries appear above.':'You can listen, seek, and loop while the annotation runs.'} AI processing may take up to 4 minutes, plus upload time.</small>
       </section>}
       <div className="player-section" hidden={view !== 'workspace'}>
-        <MusicPlayer file={file} audioUrl={audioUrl} audioRef={audioRef} currentTime={currentTime} duration={duration} isPlaying={isPlaying} volume={volume} onFile={handleFileSelection} onSeek={seekTo} onToggle={togglePlay} onVolume={setVolume} onReset={reset} onTimeUpdate={handleTimeUpdate} onLoadedMetadata={handleLoadedMetadata} onPlaying={setIsPlaying} onError={setError} segments={sections} busy={isProcessing || isRefining}/>
+        <MusicPlayer markers={splitMarkers} onMark={time=>{
+          if (!Number.isFinite(time) || !duration || time < 0 || time >= duration) return;
+          const second = Math.floor(time);
+          setSplitMarkers(previous=>[...new Set([...previous,second])].sort((a,b)=>a-b));
+        }} onRemoveMarker={time=>setSplitMarkers(previous=>previous.filter(value=>value!==time))} onClearMarkers={()=>setSplitMarkers([])} onUseMarkers={()=>{
+          const times=[...new Set([0,...splitMarkers])].sort((a,b)=>a-b).map(formatTime);
+          setAccurateData(previous=>{
+            const existing=previous.timestamps.trim();
+            const present=new Set(existing.match(/\b\d+:\d{2}\b/g) || []);
+            const added=times.filter(time=>!present.has(time));
+            return {...previous,timestamps:existing+(existing && added.length ? ', ' : '')+added.join(', ')};
+          });
+          setIsGenerateModalOpen(true);
+        }} file={file} audioUrl={audioUrl} audioRef={audioRef} currentTime={currentTime} duration={duration} isPlaying={isPlaying} volume={volume} onFile={handleFileSelection} onSeek={seekTo} onToggle={togglePlay} onVolume={setVolume} onReset={reset} onTimeUpdate={handleTimeUpdate} onLoadedMetadata={handleLoadedMetadata} onPlaying={setIsPlaying} onError={setError} segments={sections} busy={isProcessing || isRefining}/>
       </div>
       <main id="workspace" hidden={view !== "workspace"} className="studio-grid">
         <section className="settings-panel" aria-labelledby="analysis-settings-title">
