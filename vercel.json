@@ -7,7 +7,8 @@
       "maxDuration": 300
     },
     "api/spotify.py": {
-      "maxDuration": 300
+      "maxDuration": 300,
+      "excludeFiles": "{node_modules/**,src/**,dist/**,tests/**,.git/**}"
     }
   },
   "rewrites": [

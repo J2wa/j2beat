@@ -36,13 +36,13 @@ class handler(BaseHTTPRequestHandler):
             match = re.fullmatch(r'https://open\.spotify\.com/(?:intl-[a-z]+/)?track/([A-Za-z0-9]{22})(?:\?[^\s]*)?', data.get('url',''))
             if not match: return self.reply(400, {'error':'Paste a single Spotify track link. Albums and playlists are not supported.'})
             if data.get('rightsConfirmed') is not True: return self.reply(400, {'error':'Confirm that you have permission to download and analyze this recording.'})
-            import imageio_ffmpeg, requests
+            import requests
             canonical = 'https://open.spotify.com/track/'+match[1]
             with tempfile.TemporaryDirectory(prefix='aces-import-') as folder:
                 # spotDL and its caches must only write to ephemeral /tmp.
                 env = dict(os.environ, XDG_CACHE_HOME=folder, XDG_CONFIG_HOME=folder)
-                bootstrap = "import pathlib,runpy,sys; work=sys.argv.pop(1); pathlib.Path.home=classmethod(lambda cls:pathlib.Path(work)); sys.argv[0]='spotdl'; runpy.run_module('spotdl',run_name='__main__')"
-                command = [sys.executable,'-c',bootstrap,folder,'download',canonical,'--output',folder+'/{title}.{output-ext}', '--format','mp3','--bitrate','192k','--threads','1','--ffmpeg',imageio_ffmpeg.get_ffmpeg_exe(),'--no-cache']
+                bootstrap = "import pathlib,runpy,sys; work=sys.argv.pop(1); pathlib.Path.home=classmethod(lambda cls:pathlib.Path(work)); sys.argv[0]='spotdl'; from spotdl.utils.ffmpeg import download_ffmpeg; download_ffmpeg(); runpy.run_module('spotdl',run_name='__main__')"
+                command = [sys.executable,'-c',bootstrap,folder,'download',canonical,'--output',folder+'/{title}.{output-ext}', '--format','mp3','--bitrate','192k','--threads','1','--no-cache']
                 result = subprocess.run(command, cwd=folder, env=env, capture_output=True, timeout=210)
                 files = list(Path(folder).glob('*.mp3'))
                 if result.returncode or len(files) != 1:
