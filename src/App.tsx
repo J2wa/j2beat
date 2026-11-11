@@ -157,8 +157,9 @@ export default function App() {
   const [spotifyLink,setSpotifyLink]=useState('');
   const [importing,setImporting]=useState(false);
   const [rightsConfirmed,setRightsConfirmed]=useState(false);
+  const deletedAudioPaths=useRef(new Set<string>());
   const saveAnnotation = (text: string, audioFile = file, audioDuration = duration) => {
-    const next = [{id: crypto.randomUUID(), name: audioFile?.name || 'Untitled annotation', text, date: new Date().toISOString(), duration:audioDuration, audioPath:importedSource.current?.path, sourceUrl:importedSource.current?.sourceUrl}, ...archive].slice(0, 30);
+    const next = [{id: crypto.randomUUID(), name: audioFile?.name || 'Untitled annotation', text, date: new Date().toISOString(), duration:audioDuration, audioPath:importedSource.current?.path, sourceUrl:importedSource.current?.sourceUrl}, ...archive.map(item=>deletedAudioPaths.current.has(item.audioPath||'')?{...item,audioPath:undefined}:item)].slice(0, 30);
     try { localStorage.setItem('aces_music_archive_v1', JSON.stringify(next)); setArchive(next); }
     catch { setError('Analysis completed, but this browser could not save the archive. Download your result.'); }
   };
@@ -626,6 +627,15 @@ export default function App() {
       );
       setCredits((prev) => prev - GENERATE_COST);
       setResult(annotation);
+      const savedPath=importedSource.current?.path;
+      if(savedPath){
+        try{
+          const cleanup=await fetch('/api/audio?path='+encodeURIComponent(savedPath),{method:'DELETE'});
+          if(!cleanup.ok)throw new Error('cleanup');
+          importedSource.current=null;
+          deletedAudioPaths.current.add(savedPath);
+        }catch{setError('Annotation completed, but stored audio cleanup failed. Analyze again to retry cleanup.');}
+      }
       saveAnnotation(annotation, sourceFile, sourceDuration);
       parseSections(annotation);
       playNotificationSound();
@@ -860,7 +870,7 @@ export default function App() {
       {serviceReady === false && <details className="service-notice"><summary><span className="status-dot"/> AI offline <span className="muted">Setup required</span></summary><p>In Vercel → j2beat → Settings → Environment Variables, set GEMINI_API_KEY and/or OPENROUTER_API_KEY with OPENROUTER_MODEL (an audio-input model). Your selected model is tried first, followed by the other Gemini models and the configured OpenRouter model if needed. Redeploy to apply. Keys remain server-side.</p></details>}
       {error && <div role="alert" className="error-notice">{error}</div>}
       {view === 'guidelines' && <SectionContainer className="document-view"><p className="eyebrow"></p><h2>Annotation guidelines</h2><p>AI output is a draft. Listen to the track and verify instruments, timestamps, and descriptions before exporting.</p><div className="markdown-body"><ReactMarkdown remarkPlugins={[remarkGfm]}>{annotationSOP}</ReactMarkdown></div></SectionContainer>}
-      {view === 'archive' && <SectionContainer className="document-view"><p className="eyebrow"></p><h2>Saved annotations</h2><p>Annotations are saved in this browser. Imported recordings are stored privately for playback.</p>{archive.length === 0 ? <p className="archive-empty">No saved annotations yet.</p> : archive.map(item => <article className="archive-row" key={item.id}><div><h3>{item.name}</h3><p>{new Date(item.date).toLocaleString()}</p></div><div className="archive-actions"><Button disabled={isProcessing||isRefining||importing} onClick={()=>openSaved(item)}><FileAudio />{item.audioPath?'Open & play':'Open annotation'}</Button><Button onClick={async()=>{try{(await import('./utils/pdfGenerator')).exportSavedPDF(item.name,item.text,item.date);}catch{setError('PDF export failed. Please retry.');}}}><Download/>Export PDF</Button>{item.audioPath&&<a className="aces-button aces-button--secondary" href={'/api/audio?path='+encodeURIComponent(item.audioPath)} download={item.name}>Download audio</a>}</div></article>)}</SectionContainer>}
+      {view === 'archive' && <SectionContainer className="document-view"><p className="eyebrow"></p><h2>Saved annotations</h2><p>Annotations are saved in this browser. Imported audio is deleted from storage after successful analysis. Playback remains available in the current browser session.</p>{archive.length === 0 ? <p className="archive-empty">No saved annotations yet.</p> : archive.map(item => <article className="archive-row" key={item.id}><div><h3>{item.name}</h3><p>{new Date(item.date).toLocaleString()}</p></div><div className="archive-actions"><Button disabled={isProcessing||isRefining||importing} onClick={()=>openSaved(item)}><FileAudio />{item.audioPath?'Open & play':'Open annotation'}</Button><Button onClick={async()=>{try{(await import('./utils/pdfGenerator')).exportSavedPDF(item.name,item.text,item.date);}catch{setError('PDF export failed. Please retry.');}}}><Download/>Export PDF</Button>{item.audioPath&&<a className="aces-button aces-button--secondary" href={'/api/audio?path='+encodeURIComponent(item.audioPath)} download={item.name}>Download audio</a>}</div></article>)}</SectionContainer>}
       {view==='workspace'&&<section className="spotify-import"><div><h3>Import from Spotify</h3><p className="field-hint">Paste one track link. spotDL finds a matching YouTube recording, saves it privately, then starts AI analysis. Verify the recording version.</p></div><label htmlFor="spotify-link" className="sr-only">Spotify track link</label><input id="spotify-link" type="url" value={spotifyLink} placeholder="https://open.spotify.com/track/…" onChange={e=>setSpotifyLink(e.target.value)} disabled={importing||isProcessing||isRefining}/><label className="import-permission"><input type="checkbox" checked={rightsConfirmed} onChange={e=>setRightsConfirmed(e.target.checked)}/>I have permission to download and analyze this recording.</label><Button variant="primary" disabled={!spotifyLink.trim()||!rightsConfirmed||importing||isProcessing||isRefining} onClick={importSpotify}>{importing?'Finding and saving recording…':'Import & analyze'}</Button>{importing&&<p role="status">Downloading and saving audio. This can take a few minutes. The player remains available.</p>}</section>}
       {(isProcessing || isRefining) && <section className="analysis-progress-panel" aria-label="Annotation progress">
         <div className="analysis-progress-heading"><div><span className="analysis-pulse"/><strong>{isRefining ? 'Refining annotation' : 'Analyzing track'}</strong></div><time>{Math.floor(elapsedSeconds/60)}:{String(elapsedSeconds%60).padStart(2,'0')}</time></div>
