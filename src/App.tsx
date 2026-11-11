@@ -591,7 +591,7 @@ export default function App() {
   };
 
   const handleProcess = async () => {
-    if (!file) return;
+    if (!file || isProcessing || isRefining) return;
     if (credits < GENERATE_COST) {
       setError(
         "Insufficient credits. You need 10 credits for a new generation.",
@@ -631,7 +631,7 @@ export default function App() {
   };
 
   const handleRefine = async () => {
-    if (!file || !result || !userFeedback.trim()) return;
+    if (!file || !result || !userFeedback.trim() || isProcessing || isRefining) return;
     if (credits < REFINE_COST) {
       setError("Insufficient credits. You need 5 credits for refinement.");
       return;
@@ -811,73 +811,21 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <AnimatePresence>
-        {(isProcessing || isRefining) && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-bg-main/95 backdrop-blur-md"
-          >
-            <div className="max-w-md w-full px-6 flex flex-col items-center">
-              {/* Elegant, lightweight music loader */}
-              <div className="relative w-24 h-24 flex items-center justify-center mb-6">
-                <div className="absolute inset-0 rounded-full border border-accent/20 animate-ping" />
-                <div className="absolute inset-2 rounded-full border border-accent/30 animate-[spin_4s_linear_infinite]" style={{ borderStyle: 'dashed' }} />
-                <div className="absolute inset-4 rounded-full bg-accent/5 border border-accent/20 flex items-center justify-center">
-                  <Music className="w-6 h-6 text-accent animate-pulse" />
-                </div>
-              </div>
-
-              {/* Mini Equalizer animation */}
-              <div className="flex items-end gap-[3px] h-8 mb-6">
-                {Array.from({ length: 8 }).map((_, idx) => (
-                  <motion.div
-                    key={idx}
-                    className="w-[3px] bg-accent/80 rounded-full"
-                    animate={{
-                      height: ["8px", "28px", "4px", "20px", "8px"],
-                    }}
-                    transition={{
-                      duration: 0.8 + idx * 0.12,
-                      repeat: Infinity,
-                      ease: "easeInOut",
-                    }}
-                  />
-                ))}
-              </div>
-
-              <div className="flex items-center gap-4 mb-4">
-                <Activity className="w-6 h-6 animate-spin text-accent" />
-                <h2 className="text-sm font-black tracking-[0.2em] uppercase text-accent">
-                  {isProcessing
-                    ? "Processing Analysis..."
-                    : "Refining Annotation..."}
-                </h2>
-              </div>
-
-              <p className="text-sm text-dim font-mono uppercase tracking-wide">
-                {analysisStage}<br />Elapsed: {Math.floor(elapsedSeconds/60)}:{String(elapsedSeconds%60).padStart(2,'0')}
-              </p>
-              <p role="status" className="text-sm text-dim text-center mt-3">
-                {/upload|Reading audio|Preparing audio/i.test(analysisStage) ? 'The AI has not started yet. Upload permission has a 30-second timeout; file transfer has a 2-minute timeout.' : elapsedSeconds < 90 ? 'Audio analysis and writing can take around 1–2 minutes; this is an estimate.' : 'This is taking longer than expected. The server may still be processing or trying another model.'}
-              </p>
-              <p className="text-sm text-dim text-center mt-3">
-                Stages: Upload → Analyze → Write → Finish. Completion time varies; AI does not report a reliable percentage. AI processing is limited to 4 minutes. Upload time is additional. A failure will appear here when the request ends.
-              </p>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       <Header view={view} onNavigate={setView} onProfile={() => setIsProfileModalOpen(true)} />
       <div className="page-title"><h1>{view === 'workspace' ? 'Studio' : view === 'archive' ? 'Library' : 'Guide'}</h1>{view === 'workspace' && <span className="small muted">{sections.length ? `${sections.length} segments` : 'Music annotation'}</span>}</div>
       {serviceReady === false && <details className="service-notice"><summary><span className="status-dot"/> AI offline <span className="muted">Setup required</span></summary><p>In Vercel → j2beat → Settings → Environment Variables, set GEMINI_API_KEY and/or OPENROUTER_API_KEY with OPENROUTER_MODEL (an audio-input model). Your selected model is tried first, followed by the other Gemini models and the configured OpenRouter model if needed. Redeploy to apply. Keys remain server-side.</p></details>}
       {error && <div role="alert" className="error-notice">{error}</div>}
       {view === 'guidelines' && <SectionContainer className="document-view"><p className="eyebrow"></p><h2>Annotation guidelines</h2><p>AI output is a draft. Listen to the track and verify instruments, timestamps, and descriptions before exporting.</p><div className="markdown-body"><ReactMarkdown remarkPlugins={[remarkGfm]}>{annotationSOP}</ReactMarkdown></div></SectionContainer>}
       {view === 'archive' && <SectionContainer className="document-view"><p className="eyebrow"></p><h2>Saved annotations</h2><p>Saved in this browser. Audio files are not stored.</p>{archive.length === 0 ? <p className="archive-empty">No saved annotations yet.</p> : archive.map(item => <article className="archive-row" key={item.id}><div><h3>{item.name}</h3><p>{new Date(item.date).toLocaleString()}</p></div><Button onClick={() => {setResult(item.text); parseSections(item.text); setView('workspace'); setError(null);}}><FileAudio /> Open annotation</Button></article>)}</SectionContainer>}
+      {(isProcessing || isRefining) && <section className="analysis-progress-panel" aria-label="Annotation progress">
+        <div className="analysis-progress-heading"><div><span className="analysis-pulse"/><strong>{isRefining ? 'Refining annotation' : 'Analyzing track'}</strong></div><time>{Math.floor(elapsedSeconds/60)}:{String(elapsedSeconds%60).padStart(2,'0')}</time></div>
+        <p role="status" aria-live="polite">{analysisStage}</p>
+        <div className="analysis-stage-track" aria-label="Processing stages">{['Upload','Analyze','Research','Write'].map((label,i)=>{const stage=/Writing|Repairing/i.test(analysisStage)?3:/Searching/i.test(analysisStage)?2:/Analyzing|Retrying|Preparing AI|Rechecking/i.test(analysisStage)?1:0;return <span key={label} className={i<stage?'complete':i===stage?'active':''}>{i<stage?'✓':i+1} {label}</span>;})}</div>
+        <div className="analysis-meter" role="progressbar" aria-label="Current operation" aria-valuenow={/Uploading audio.*%/.test(analysisStage)?Number(analysisStage.match(/(\d+)%/)?.[1]):undefined} aria-valuemin={0} aria-valuemax={100} aria-valuetext={analysisStage}><span className={/Uploading audio.*%/.test(analysisStage)?'determinate':'indeterminate'} style={/Uploading audio.*%/.test(analysisStage)?{width:`${analysisStage.match(/(\d+)%/)?.[1]}%`}:undefined}/></div>
+        <small>{elapsedSeconds>90?'Taking longer than usual. Progress and retries appear above.':'You can listen, seek, and loop while the annotation runs.'} AI processing may take up to 4 minutes, plus upload time.</small>
+      </section>}
       <div className="player-section" hidden={view !== 'workspace'}>
-        <MusicPlayer file={file} audioUrl={audioUrl} audioRef={audioRef} currentTime={currentTime} duration={duration} isPlaying={isPlaying} volume={volume} onFile={handleFileSelection} onSeek={seekTo} onToggle={togglePlay} onVolume={setVolume} onReset={reset} onTimeUpdate={handleTimeUpdate} onLoadedMetadata={handleLoadedMetadata} onPlaying={setIsPlaying} onError={setError} segments={sections}/>
+        <MusicPlayer file={file} audioUrl={audioUrl} audioRef={audioRef} currentTime={currentTime} duration={duration} isPlaying={isPlaying} volume={volume} onFile={handleFileSelection} onSeek={seekTo} onToggle={togglePlay} onVolume={setVolume} onReset={reset} onTimeUpdate={handleTimeUpdate} onLoadedMetadata={handleLoadedMetadata} onPlaying={setIsPlaying} onError={setError} segments={sections} busy={isProcessing || isRefining}/>
       </div>
       <main id="workspace" hidden={view !== "workspace"} className="studio-grid">
         <section className="settings-panel" aria-labelledby="analysis-settings-title">
@@ -903,7 +851,7 @@ export default function App() {
           </div>
           <div className="settings-actions">
             <Button className="guidance-button" onClick={()=>setIsGenerateModalOpen(true)}><Settings/>Track details & guidance{generalGuidance.trim() || Object.values(accurateData).some(v=>v.trim()) ? <span className="status-dot"/>:null}</Button>
-            <Button variant="primary" className="generate-button" disabled={!file || isProcessing || serviceReady!==true} onClick={handleProcess}>{isProcessing?<Activity/>:<Play/>}{isProcessing?'Analyzing…':result?'Analyze again':'Analyze track'}</Button>
+            <Button variant="primary" className="generate-button" disabled={!file || isProcessing || isRefining || serviceReady!==true} onClick={handleProcess}>{isProcessing?<Activity/>:<Play/>}{isProcessing?'Analyzing…':result?'Analyze again':'Analyze track'}</Button>
             <p className="field-hint">Song research uses Google Search. Review sources alongside the audio.</p>
           </div>
           <details className="credit-details"><summary>{credits} local credits</summary><Button variant="text" onClick={handleResetCredits}><RotateCcw/>Reset credits</Button></details>
@@ -1253,7 +1201,7 @@ export default function App() {
                           <div className="correction-actions">
                             <Button
                               onClick={handleRefine}
-                              disabled={!userFeedback.trim() || isRefining}
+                              disabled={!userFeedback.trim() || isRefining || isProcessing}
                               className={cn(
                                 "py-2 px-4 rounded text-sm font-bold uppercase tracking-widest transition-all h-8 flex items-center gap-2",
                                 userFeedback.trim() && !isRefining

@@ -76,3 +76,10 @@ process.env.OPENROUTER_API_KEY='test';process.env.OPENROUTER_MODEL='audio-model'
 assert.equal((await generateWithFallback(request,{maxAttempts:1})).text,'router annotation');
 delete process.env.OPENROUTER_API_KEY;
 console.log('Passed deduplication and OpenRouter-only evidence fallback.');
+process.env.GEMINI_API_KEY='test';
+calls=[];responses=[good];
+await generateWithFallback(request,{metadataOnly:true});
+assert.ok(calls[0].config.httpOptions.timeout>50000);
+responses=[Object.assign(new Error('timeout'),{status:503}),...MODEL_OPTIONS.slice(1).map(()=>Object.assign(new Error('missing'),{status:404}))];
+await assert.rejects(generateWithFallback(request),error=>error.code==='AI_RETRIES_FAILED');
+console.log('Passed writing budget and mixed failure reporting.');

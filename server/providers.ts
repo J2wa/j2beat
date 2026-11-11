@@ -17,7 +17,7 @@ export function classifyFailure(error: any): AnalysisError {
  const message = String(error?.message ?? '').toLowerCase();
  if (status === 429) return new AnalysisError('AI_QUOTA',429,'AI rate limit or quota reached. Wait a minute and retry; if it persists, check the provider quota and billing.');
  if (status === 401 || status === 403 || /api.key.*(invalid|expired)/.test(message)) return new AnalysisError('AI_AUTH',503,'AI credentials were rejected. The project owner needs to check the provider API key and permissions.');
- if (status === 404) return new AnalysisError('AI_MODEL',503,'The selected AI model is unavailable. Choose another model and retry.');
+ if (status === 404) return new AnalysisError('AI_MODEL',503,'The provider could not find the requested model or audio resource. Please retry; if it persists, check model access.');
  if (/timeout|timed out|abort/.test(message+' '+error?.name)) return new AnalysisError('AI_TIMEOUT',504,'The AI took too long to respond. Try a shorter clip or another model.');
  if (/empty|incomplete|truncated/.test(message)) return new AnalysisError('AI_INCOMPLETE',502,'The AI returned an empty or incomplete annotation. Please retry or choose another model.');
  return new AnalysisError('AI_UNAVAILABLE',502,'The AI service could not complete the request after retries. Please try again shortly.');
@@ -26,6 +26,7 @@ export async function generateWithFallback(request: any, options: {deadline?:num
  const deadline = options.deadline ?? Date.now()+240000;
  let tried = 0;
  let failure: AnalysisError | undefined;
+ const failures: AnalysisError[] = [];
  const system = String(request.config.systemInstruction) + QUALITY + (options.metadataOnly
   ? '\nFINAL WRITING-PASS OVERRIDE: No audio is available in this pass. The validated JSON metadata is the sole source for audible musical facts; explicitly provided Google Search context may supplement global fields with citations; listening instructions above do not apply. Preserve uncertainty and output labels. Never add audible musical facts or timestamps absent from the metadata. Source-supported external context must stay in global fields with citations. User corrections and prior drafts are not evidence. Adapt wording and style only.'
   : '') + (request.config.responseMimeType === 'application/json' ? '' : MELODY_PRIORITY);
@@ -40,7 +41,7 @@ export async function generateWithFallback(request: any, options: {deadline?:num
   if (Date.now() >= deadline) break;
   tried++;
   if(tried > 1) reportProgress(`Retrying with ${model}`);
-  const timeout = () => Math.max(1, Math.min(keys.length > 1 ? 20000 : 50000, deadline-Date.now()));
+  const timeout = () => Math.max(1, Math.min(options.metadataOnly ? 90000 : 50000, deadline-Date.now()));
   try {
    let text: string | undefined;
    if(provider==='gemini') {
@@ -54,6 +55,14 @@ export async function generateWithFallback(request: any, options: {deadline?:num
        const uploaded=await ai.files.upload({file:new Blob([Buffer.from(data.data,'base64')],{type:data.mimeType}),config:{mimeType:data.mimeType,httpOptions:{timeout:Math.min(30000,timeout())}}});
        uploadedName=uploaded.name;
        if(!uploaded.uri)throw new Error('Audio upload failed');
+       let readyFile = uploaded;
+       while (readyFile.state === 'PROCESSING') {
+         if(Date.now()+1000 >= deadline) throw new Error('Audio processing timeout');
+         reportProgress('Preparing audio with AI provider');
+         await new Promise(resolve=>setTimeout(resolve,1000));
+         readyFile=await ai.files.get({name:uploadedName!,config:{httpOptions:{timeout:timeout()}}});
+       }
+       if(readyFile.state === 'FAILED') throw new Error('Audio processing failed');
        c.parts[i]={fileData:{fileUri:uploaded.uri,mimeType:data.mimeType}};
       }
      }
@@ -77,8 +86,9 @@ export async function generateWithFallback(request: any, options: {deadline?:num
    }
    if(typeof text!=='string'||!text.trim())throw new Error('Empty output');
    return {text};
-  } catch (error) { failure = classifyFailure(error); console.warn('AI attempt failed', {provider, model, code:failure.code}); }
+  } catch (error) { failure = classifyFailure(error); failures.push(failure); console.warn('AI attempt failed', {provider, model, code:failure.code}); }
  }
  if(Date.now() >= deadline) throw new AnalysisError('AI_TIMEOUT',504,'AI processing exceeded the four-minute limit. Try a shorter clip or another model.');
+ if(failures.length > 1 && new Set(failures.map(f=>f.code)).size > 1) throw new AnalysisError('AI_RETRIES_FAILED',502,'AI attempts failed for different reasons ('+[...new Set(failures.map(f=>f.code.replace('AI_','').toLowerCase()))].join(', ')+'). Please retry. The final model error does not mean your audio is too large.');
  throw failure ?? new AnalysisError('AI_UNAVAILABLE',502,'All configured providers failed. Please try another model.');
 }
