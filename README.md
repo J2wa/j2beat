@@ -49,3 +49,21 @@ The old melody phrase lists are removed from every runtime prompt. All profiles 
 Additional regression checks: `node --import tsx tests/songResearch.test.ts`.
 
 Full-duration validation now checks preliminary interval coverage and final timeline starts against the uploaded duration. Missing tails, gaps, omitted intervals, and segments over 60 seconds trigger bounded repair attempts. Incomplete listening notes cannot become the sole input to the writer; persistent invalid final timelines return an actionable error instead of a saved partial annotation. This validates structural coverage, not the correctness of AI listening.
+
+## Multiple Gemini API keys
+
+In Vercel → j2beat → Settings → Environment Variables, add server-only
+`GEMINI_API_KEY_1` through `GEMINI_API_KEY_10`, one key per variable.
+Alternatively use `GEMINI_API_KEYS` with comma-separated or newline-separated values.
+The existing `GEMINI_API_KEY` remains supported; duplicates and blanks are removed.
+Do not use a VITE_ prefix or put credentials in frontend code. Redeploy after saving.
+
+Each provider call starts at a random key to spread independent requests, then
+tries the remaining keys on the same model before moving to fallback models.
+This applies to listening, annotation/refinement, coverage repair, and Google
+Search research. Evidence-pass attempt limits still allow credential failover.
+All retries share the existing deadlines; slow failures can exhaust the budget
+before every key is tried. Search retains its 55-second total budget.
+Keys, provider error bodies, and credential indexes are never sent in progress messages.
+This is best-effort distribution, not a centralized queue or concurrency guarantee.
+Existing OpenRouter fallback is unchanged and uses its existing single key.

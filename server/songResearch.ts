@@ -1,3 +1,4 @@
+import { orderedGeminiKeys } from './apiKeys.js';
 import { GoogleGenAI } from '@google/genai';
 import { DEFAULT_MODEL } from '../shared/models.js';
 import { safeSourceUrl, splitResearch, type ResearchReport } from '../shared/research.js';
@@ -43,19 +44,19 @@ export function researchFromResponse(response: any): ResearchReport {
 }
 
 export async function researchSong(request: any, evidence: unknown, deadline: number, generate?: (request: any) => Promise<any>): Promise<ResearchReport> {
-  if (!generate && !process.env.GEMINI_API_KEY) return unavailableResearch('Google Search needs the server Gemini API key. Audio analysis remains available through the configured provider.');
-  const client = generate ? undefined : new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-  const run = generate ?? ((r: any) => client!.models.generateContent(r));
+  const keys = generate ? ['injected'] : orderedGeminiKeys();
+  if (!keys.length) return unavailableResearch('Google Search needs the server Gemini API key. Audio analysis remains available through the configured provider.');
   const clues = request.contents.flatMap((c: any) => c.parts).filter((p: any) => typeof p.text === 'string').map((p: any) => splitResearch(p.text).annotation).join('\n').slice(0, 18000);
   const searchDeadline = Math.min(deadline, Date.now() + 55000);
   const models = [...new Set([request.model ?? DEFAULT_MODEL, 'gemini-2.5-flash'])];
-  for (const model of models) {
+  for (const model of models) for (const apiKey of keys) {
+    const run = generate ?? ((r: any) => new GoogleGenAI({apiKey}).models.generateContent(r));
     if (Date.now() >= searchDeadline) break;
     try {
       const response = await run({
         model,
         contents: [{ parts: [{ text: JSON.stringify({ songClues: clues, listeningNotes: evidence ?? null }) }] }],
-        config: { systemInstruction: RESEARCH_PROMPT, tools: [{ googleSearch: {} }], httpOptions: { timeout: Math.max(1, Math.min(35000, searchDeadline - Date.now())) } },
+        config: { systemInstruction: RESEARCH_PROMPT, tools: [{ googleSearch: {} }], httpOptions: { timeout: Math.max(1, Math.min(keys.length > 1 ? 15000 : 35000, searchDeadline - Date.now())) } },
       });
       const result = researchFromResponse(response);
       if (result.status !== 'unavailable') return result;

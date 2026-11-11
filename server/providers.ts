@@ -1,3 +1,4 @@
+import { orderedGeminiKeys } from './apiKeys.js';
 import { MELODY_PRIORITY } from '../shared/melody.js';
 import { reportProgress } from './progress.js';
 import { DEFAULT_MODEL, isModelId, modelOrder } from '../shared/models.js';
@@ -30,18 +31,20 @@ export async function generateWithFallback(request: any, options: {deadline?:num
   : '') + (request.config.responseMimeType === 'application/json' ? '' : MELODY_PRIORITY);
  if (request.model !== undefined && !isModelId(request.model)) throw new Error('Invalid analysis model');
  const models = modelOrder(request.model ?? DEFAULT_MODEL);
- const attempts = [...models.map(model => ({provider: 'gemini', model})), {provider: 'openrouter', model: process.env.OPENROUTER_MODEL}];
- for (const {provider, model} of attempts) {
-  if(provider==='gemini' && !process.env.GEMINI_API_KEY)continue;
+ const keys = orderedGeminiKeys();
+ const attempts = [...models.slice(0, options.maxAttempts ?? models.length).flatMap(model => keys.map(apiKey => ({provider: 'gemini', model, apiKey}))),
+   ...((options.maxAttempts === undefined || (!keys.length && (options.maxAttempts ?? 1) > 0)) ? [{provider:'openrouter',model:process.env.OPENROUTER_MODEL,apiKey:undefined}] : [])];
+ for (const {provider, model, apiKey} of attempts) {
+  if(provider==='gemini' && !apiKey)continue;
   if(provider==='openrouter' && (!process.env.OPENROUTER_API_KEY || !process.env.OPENROUTER_MODEL))continue;
-  if (Date.now() >= deadline || tried >= (options.maxAttempts ?? Infinity)) break;
+  if (Date.now() >= deadline) break;
   tried++;
   if(tried > 1) reportProgress(`Retrying with ${model}`);
-  const timeout = () => Math.max(1, Math.min(50000, deadline-Date.now()));
+  const timeout = () => Math.max(1, Math.min(keys.length > 1 ? 20000 : 50000, deadline-Date.now()));
   try {
    let text: string | undefined;
    if(provider==='gemini') {
-    const ai=new GoogleGenAI({apiKey:process.env.GEMINI_API_KEY});
+    const ai=new GoogleGenAI({apiKey});
     let uploadedName: string | undefined;
     try {
      const contents=structuredClone(request.contents);
