@@ -15,6 +15,10 @@ export class AnalysisError extends Error {
 export function classifyFailure(error: any, operation = 'generation'): AnalysisError {
  const status = Number(error?.status ?? error?.statusCode);
  const message = String(error?.message ?? '').toLowerCase();
+ if (status === 402) return new AnalysisError('AI_CREDITS',503,'OpenRouter requires available credits or a billing configuration for this request. Check the OpenRouter account.');
+ if (status === 400 || status === 413 || status === 422) return new AnalysisError('AI_INPUT',502,'The provider rejected the audio or request format. Try a shorter MP3 clip or a Gemini model.');
+ if (status === 408 || status === 504) return new AnalysisError('AI_TIMEOUT',504,'The provider timed out while processing this track. Try a shorter clip or another model.');
+ if (status === 502 || status === 503) return new AnalysisError('AI_CAPACITY',503,'The selected provider is unavailable or has no capacity. Try again or choose another model.');
  if (status === 429) return new AnalysisError('AI_QUOTA',429,'AI rate limit or quota reached. Wait a minute and retry; if it persists, check the provider quota and billing.');
  if (status === 401 || status === 403 || /api.key.*(invalid|expired)/.test(message)) return new AnalysisError('AI_AUTH',503,'AI credentials were rejected. The project owner needs to check the provider API key and permissions.');
  if (status === 404 && operation === 'audio upload') return new AnalysisError('AI_AUDIO_UPLOAD',502,'The AI provider could not prepare the audio upload. Retry or use a smaller audio file. This is an upload failure, not a model-access error.');
@@ -91,9 +95,10 @@ export async function generateWithFallback(request: any, options: {deadline?:num
     } finally { if(uploadedName)await ai.files.delete({name:uploadedName,config:{httpOptions:{timeout:2000}}}).catch(()=>{}); }
    } else {
     const content=request.contents.flatMap((c:any)=>c.parts.map((p:any)=>p.text?{type:'text',text:p.text}:{type:'input_audio',input_audio:{data:p.inlineData.data,format:({'audio/mpeg':'mp3','audio/x-wav':'wav','audio/wave':'wav','audio/x-aiff':'aiff'} as Record<string,string>)[p.inlineData.mimeType] || p.inlineData.mimeType.split('/')[1]}}));
-    const response=await fetch('https://openrouter.ai/api/v1/chat/completions',{method:'POST',signal:AbortSignal.timeout(timeout()),headers:{Authorization:`Bearer ${process.env.OPENROUTER_API_KEY}`,'Content-Type':'application/json','X-Title':'ACES Music'},body:JSON.stringify({model,messages:[{role:'system',content:system},{role:'user',content}],temperature:0.2})});
+    const response=await fetch('https://openrouter.ai/api/v1/chat/completions',{method:'POST',signal:AbortSignal.timeout(timeout()),headers:{Authorization:`Bearer ${process.env.OPENROUTER_API_KEY}`,'Content-Type':'application/json','X-Title':'ACES Music'},body:JSON.stringify({model,messages:[{role:'system',content:system},{role:'user',content}],temperature:0.2,...(model === NEMOTRON_MODEL ? {max_tokens:8192,reasoning:{enabled:false}} : {})})});
     if(!response.ok)throw Object.assign(new Error('Provider request failed'), {status:response.status});
     const result=await response.json();
+    if(result.error)throw Object.assign(new Error('Provider returned an error'),{status:Number(result.error.code)||502});
     if(result.choices?.[0]?.finish_reason==='length')throw new Error('Truncated output');
     text=result.choices?.[0]?.message?.content;
    }
