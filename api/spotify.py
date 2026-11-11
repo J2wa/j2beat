@@ -22,6 +22,36 @@ def valid_session(headers):
     except Exception: return False
 
 
+def downloader_environment(folder):
+    # Vercel adds downloaded dependencies to sys.path in the parent process.
+    # A fresh Python subprocess does not inherit those additions automatically.
+    paths = [str(Path(path).resolve()) for path in sys.path if path and Path(path).is_dir()]
+    return dict(os.environ, PYTHONPATH=os.pathsep.join(paths), XDG_CACHE_HOME=folder, XDG_CONFIG_HOME=folder)
+
+
+def download_failure(result):
+    output=(result.stderr or b'').decode('utf-8', errors='replace')+'\n'+(result.stdout or b'').decode('utf-8', errors='replace')
+    if 'No module named' in output or 'ModuleNotFoundError' in output:
+        code='IMPORT_DEPENDENCY'
+        message='The download worker could not load a required component. Please retry; the project owner can check the worker logs.'
+    elif 'ACES_STAGE:download' not in output:
+        code='IMPORT_FFMPEG'
+        message='The download worker could not prepare FFmpeg. Please retry or upload your audio file.'
+    elif any(word in output.lower() for word in ['sign in to confirm','not a bot','http error 403','http error 429','login required']):
+        code='IMPORT_SOURCE_BLOCKED'
+        message='The music source rejected the server download. Please upload the recording instead.'
+    else:
+        code='IMPORT_DOWNLOAD'
+        message='The downloader could not retrieve this recording. Please retry or upload the audio file.'
+    # Keep diagnostics on the server and remove URLs, credentials and control codes.
+    safe=re.sub(r'\x1b\[[0-9;]*m','',output)
+    for key,value in os.environ.items():
+        if len(value)>7 and any(word in key.upper() for word in ['KEY','TOKEN','SECRET','PASSWORD']): safe=safe.replace(value,'[redacted]')
+    safe=re.sub(r'https?://[^\s]+','[url]',safe)
+    print('Spotify import diagnostic:',json.dumps({'code':code,'exitCode':result.returncode,'detail':safe[-2500:]}),flush=True)
+    return {'code':code,'error':message}
+
+
 class handler(BaseHTTPRequestHandler):
     def reply(self, status, data):
         self.send_response(status); self.send_header('Content-Type','application/json'); self.send_header('Cache-Control','no-store'); self.end_headers()
@@ -40,13 +70,13 @@ class handler(BaseHTTPRequestHandler):
             canonical = 'https://open.spotify.com/track/'+match[1]
             with tempfile.TemporaryDirectory(prefix='aces-import-') as folder:
                 # spotDL and its caches must only write to ephemeral /tmp.
-                env = dict(os.environ, XDG_CACHE_HOME=folder, XDG_CONFIG_HOME=folder)
-                bootstrap = "import pathlib,runpy,sys; work=sys.argv.pop(1); pathlib.Path.home=classmethod(lambda cls:pathlib.Path(work)); sys.argv[0]='spotdl'; from spotdl.utils.ffmpeg import download_ffmpeg; download_ffmpeg(); runpy.run_module('spotdl',run_name='__main__')"
+                env = downloader_environment(folder)
+                bootstrap = "import pathlib,runpy,sys; work=sys.argv.pop(1); pathlib.Path.home=classmethod(lambda cls:pathlib.Path(work)); sys.argv[0]='spotdl'; print('ACES_STAGE:dependencies',file=sys.stderr,flush=True); from spotdl.utils.ffmpeg import download_ffmpeg; print('ACES_STAGE:ffmpeg',file=sys.stderr,flush=True); ffmpeg=download_ffmpeg(); import subprocess; subprocess.run([str(ffmpeg),'-version'],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL); print('ACES_STAGE:download',file=sys.stderr,flush=True); runpy.run_module('spotdl',run_name='__main__')"
                 command = [sys.executable,'-c',bootstrap,folder,'download',canonical,'--output',folder+'/{title}.{output-ext}', '--format','mp3','--bitrate','192k','--threads','1','--no-cache']
                 result = subprocess.run(command, cwd=folder, env=env, capture_output=True, timeout=210)
                 files = list(Path(folder).glob('*.mp3'))
                 if result.returncode or len(files) != 1:
-                    return self.reply(502, {'error':'spotDL could not retrieve a matching recording. The source may be unavailable or blocking server downloads. Upload the audio file instead.'})
+                    return self.reply(502, download_failure(result))
                 audio = files[0]
                 if not 0 < audio.stat().st_size <= 100*1024*1024: return self.reply(413, {'error':'Imported audio exceeds 100 MB.'})
                 path = 'music/'+str(uuid.uuid4())+'.mp3'
