@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import ts from 'typescript';
 import { DEFAULT_MODEL, MODEL_OPTIONS, modelOrder } from '../shared/models.ts';
 let calls=[], responses=[], usedKeys=[];
-globalThis.MockGoogleGenAI=class { constructor(options){usedKeys.push(options.apiKey);} models={list:async()=>globalThis.modelCatalog ?? [],generateContent:async request=>{calls.push(request);const next=responses.shift();if(next instanceof Error)throw next;return next;}}; };
+globalThis.MockGoogleGenAI=class { constructor(options){usedKeys.push(options.apiKey);} files={upload:async()=>{globalThis.uploadCount++;if(globalThis.uploadError)throw globalThis.uploadError;return {name:"files/test",uri:"https://example.test/audio",state:"ACTIVE"};},delete:async()=>{globalThis.deleteCount++;}}; models={list:async()=>globalThis.modelCatalog ?? [],generateContent:async request=>{calls.push(request);const next=responses.shift();if(next instanceof Error)throw next;return next;}}; };
 const source=readFileSync(new URL('../server/providers.ts',import.meta.url),'utf8')
  .replace("'./apiKeys.js'",JSON.stringify(new URL('../server/apiKeys.ts',import.meta.url).href))
  .replace("'../shared/melody.js'",JSON.stringify(new URL('../shared/melody.ts',import.meta.url).href))
@@ -95,3 +95,30 @@ assert.equal(calls[1].model,'gemini-3.6-flash');
 assert.equal(calls.length,2);
 delete globalThis.modelCatalog;
 console.log('Passed API-discovered model recovery and incompatible-model filtering.');
+
+// Regression: 5 MB, the reported 9.3 MiB track, and 10 MiB stay inline.
+const audioRequest = bytes => ({...request, contents:[{parts:[{inlineData:{data:Buffer.alloc(bytes).toString('base64'),mimeType:'audio/mpeg'}}]}]});
+globalThis.uploadCount=0;globalThis.deleteCount=0;
+for (const bytes of [5*1024*1024,Math.ceil(9.3*1024*1024),10*1024*1024]) {
+ calls=[];responses=[good];
+ const input=audioRequest(bytes);
+ await generateWithFallback(input,{maxAttempts:1});
+ assert.equal(globalThis.uploadCount,0);
+ assert.equal(calls[0].contents[0].parts[0].inlineData.data,input.contents[0].parts[0].inlineData.data);
+}
+// Large payloads still use Files API and clean up after generation.
+calls=[];responses=[good];
+await generateWithFallback(audioRequest(14*1024*1024),{maxAttempts:1});
+assert.equal(globalThis.uploadCount,1);
+assert.equal(globalThis.deleteCount,1);
+assert.ok(calls[0].contents[0].parts[0].fileData);
+// Prompt bytes count too, including multi-byte UTF-8 text.
+calls=[];responses=[good];
+await generateWithFallback({...audioRequest(10*1024*1024),config:{systemInstruction:'音'.repeat(1_500_000)}},{maxAttempts:1});
+assert.equal(globalThis.uploadCount,2);
+// Upload 404s must not be reported as model errors or invoke generation.
+calls=[];globalThis.uploadError=Object.assign(new Error('private upload failure'),{status:404});
+await assert.rejects(generateWithFallback(audioRequest(14*1024*1024),{maxAttempts:1}),error=>error.code==='AI_AUDIO_UPLOAD' && !error.message.includes('private'));
+assert.equal(calls.length,0);
+delete globalThis.uploadError;
+console.log('Passed audio size routing, total UTF-8 request budget, cleanup and upload error regression tests.');

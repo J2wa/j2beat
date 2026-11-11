@@ -12,11 +12,12 @@ Describe only sounds within each segment. Match the instrument list to the narra
 export class AnalysisError extends Error {
  constructor(public code: string, public status: number, message: string) { super(message); }
 }
-export function classifyFailure(error: any): AnalysisError {
+export function classifyFailure(error: any, operation = 'generation'): AnalysisError {
  const status = Number(error?.status ?? error?.statusCode);
  const message = String(error?.message ?? '').toLowerCase();
  if (status === 429) return new AnalysisError('AI_QUOTA',429,'AI rate limit or quota reached. Wait a minute and retry; if it persists, check the provider quota and billing.');
  if (status === 401 || status === 403 || /api.key.*(invalid|expired)/.test(message)) return new AnalysisError('AI_AUTH',503,'AI credentials were rejected. The project owner needs to check the provider API key and permissions.');
+ if (status === 404 && operation === 'audio upload') return new AnalysisError('AI_AUDIO_UPLOAD',502,'The AI provider could not prepare the audio upload. Retry or use a smaller audio file. This is an upload failure, not a model-access error.');
  if (status === 404) return new AnalysisError('AI_MODEL',503,'The provider could not find the requested model or audio resource. Please retry; if it persists, check model access.');
  if (/timeout|timed out|abort/.test(message+' '+error?.name)) return new AnalysisError('AI_TIMEOUT',504,'The AI took too long to respond. Try a shorter clip or another model.');
  if (/empty|incomplete|truncated/.test(message)) return new AnalysisError('AI_INCOMPLETE',502,'The AI returned an empty or incomplete annotation. Please retry or choose another model.');
@@ -52,9 +53,13 @@ export async function generateWithFallback(request: any, options: {deadline?:num
     let uploadedName: string | undefined;
     try {
      const contents=structuredClone(request.contents);
+     // Budget the complete encoded request, including prompts and config. Leave
+     // 2 MB headroom below the conservative 20 MB audio request limit.
+     const useFilesApi = Buffer.byteLength(JSON.stringify({...request, model, contents,
+       config:{...request.config, systemInstruction:system}}), 'utf8') > 18_000_000;
      for(const c of contents)for(let i=0;i<c.parts.length;i++) {
       const data=c.parts[i].inlineData;
-      if(data?.data?.length>12*1024*1024) {
+      if(data?.data && useFilesApi) {
        operation = 'audio upload';
        const uploaded=await ai.files.upload({file:new Blob([Buffer.from(data.data,'base64')],{type:data.mimeType}),config:{mimeType:data.mimeType,httpOptions:{timeout:Math.min(30000,timeout())}}});
        uploadedName=uploaded.name;
@@ -92,7 +97,7 @@ export async function generateWithFallback(request: any, options: {deadline?:num
    if(typeof text!=='string'||!text.trim())throw new Error('Empty output');
    return {text};
   } catch (error) {
-   failure = classifyFailure(error); failures.push(failure);
+   failure = classifyFailure(error, operation); failures.push(failure);
    console.warn('AI attempt failed', {provider, model, operation, code:failure.code});
    // Model availability differs by API key/project and changes over time.
    // Discover only after generation returns 404, never for a missing audio file.
