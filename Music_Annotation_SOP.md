@@ -22,7 +22,7 @@ This workflow dictates the step-by-step process for performing a chronological, 
    - **Narrative Description:** Limit to exactly 1 or 2 sentences depending on configuration. Describe the transition and musical focus (DO NOT analyze lyrics). Do not refer to previous or other sections; make the description standalone for each segment.
    - **Instruments:** Provide a pure comma-separated list of active dominant instruments (e.g., *Drum kit, Synth bass, Acoustic guitar,*).
    - **Vibe Tags:** Provide a comma-separated list of mood and energy descriptors.
-   - **Melody:** [One sentence, 8 to 20 words, saying who carries the melodic idea in this segment and what it does: its direction, step or leap movement, rhythm, phrase length, and any repeating or answering. Include one audible detail that belongs to this recording only. Use only instruments from the Instruments field. Don't choose from a phrase list, don't open with a contour word like "Ascending" or "Arpeggiated", don't judge it (catchy, beautiful, emotional), and don't reuse another segment's sentence shape. Don't name pitches or keys unless certain. If there is no melody just leave it blank]
+   - **Melody:** [A short 3–7 word phrase naming the audible instrument or voice and gesture, e.g. electric guitar syncopated stabs. Use only instruments from the segment. Avoid full sentences and repeating the narrative. Leave blank without melodic evidence.]
 
 ---
 
@@ -157,7 +157,7 @@ The narrative descriptions MUST be constructed by selecting and following one of
 
 ### Melody Field Analysis
 
-**Melody:** [One sentence, 8 to 20 words, saying who carries the melodic idea in this segment and what it does: its direction, step or leap movement, rhythm, phrase length, and any repeating or answering. Include one audible detail that belongs to this recording only. Use only instruments from the Instruments field. Don't choose from a phrase list, don't open with a contour word like "Ascending" or "Arpeggiated", don't judge it (catchy, beautiful, emotional), and don't reuse another segment's sentence shape. Don't name pitches or keys unless certain. If there is no melody just leave it blank]
+**Melody:** [A short 3–7 word phrase naming the audible instrument or voice and gesture, e.g. electric guitar syncopated stabs. Use only instruments from the segment. Avoid full sentences and repeating the narrative. Leave blank without melodic evidence.]
 
 Melody wording must be composed from the audible evidence for each segment. If the evidence is insufficient, leave the field blank. No preset phrase list applies.
 

@@ -11,10 +11,12 @@ assert.ok(clean.uncertainties.some(s=>s.includes('4 invalid')));
 assert.throws(()=>cleanEvidence('not json',20));
 assert.throws(()=>cleanEvidence('{}',20));
 assert.equal(cleanEvidence('```json\n'+JSON.stringify({overview:'x',sections:[]})+'\n```',0).sections.length,0);
+const fullRaw = JSON.stringify({overview:'Piano',sections:[{...section,end:20}]});
+const finalText = '- **Start Time:** 00:00\nFinal annotation';
 const request = {model:'gemini-2.5-flash',contents:[{parts:[{text:'User notes'}, {inlineData:{data:'YQ==',mimeType:'audio/wav'}}]}],config:{systemInstruction:'Keep output labels'}};
 let calls:any[]=[];
-const generate = async (r:any, options:any) => {calls.push({r,options});return {text:calls.length===1?raw:'Final annotation'};};
-assert.equal(splitResearch((await generateMusicAnnotation(request,20,generate,noResearch)).text).annotation,'Final annotation');
+const generate = async (r:any, options:any) => {calls.push({r,options});return {text:calls.length===1?fullRaw:finalText};};
+assert.equal(splitResearch((await generateMusicAnnotation(request,20,generate,noResearch)).text).annotation,finalText);
 assert.equal(calls.length,2);
 assert.ok(calls[1].r.contents.every((c:any)=>c.parts.every((p:any)=>!p.inlineData)));
 assert.equal(calls[1].options.metadataOnly,true);
@@ -25,11 +27,50 @@ assert.ok(calls[1].r.config.systemInstruction.includes('Validated preliminary'))
 assert.ok(!calls[1].r.config.systemInstruction.includes('"end":25'));
 assert.equal(request.config.systemInstruction,'Keep output labels');
 calls=[];
-await generateMusicAnnotation(request,20,async(r:any)=>{calls.push(r);if(calls.length===1)throw Error('offline');return {text:'direct'};},noResearch);
+await generateMusicAnnotation(request,20,async(r:any)=>{calls.push(r);if(calls.length===1)throw Error('offline');return {text:'- **Start Time:** 00:00\ndirect'};},noResearch);
 assert.ok(calls[1].config.systemInstruction.includes('extraction was unavailable'));
 console.log('Passed evidence cleanup, duration/overlap rejection, two-stage audio flow and graceful fallback.');
 const {progressContext} = await import('../server/progress.ts');
 const stages:string[]=[];
-await progressContext.run(stage=>stages.push(stage),()=>generateMusicAnnotation(request,20,async(r:any)=>({text:r.config.responseMimeType?raw:'Final'}),noResearch));
+await progressContext.run(stage=>stages.push(stage),()=>generateMusicAnnotation(request,20,async(r:any)=>({text:r.config.responseMimeType?fullRaw:finalText}),noResearch));
 assert.deepEqual(stages,['Analyzing audio','Searching Google for song context','Writing annotation from analysis']);
 console.log('Passed actual pipeline progress events.');
+
+
+const {coverageIssues,timelineIssues} = await import('../server/musicPipeline.ts');
+const intervals = [0,45,90,127,170].map((start,i,a)=>({...section,start,end:a[i+1]??210}));
+const full210 = JSON.stringify({overview:'Guitar track',sections:intervals});
+const final210 = intervals.map(s=>'- **Start Time:** '+Math.floor(s.start/60)+':'+String(s.start%60).padStart(2,'0')+'\n- **Section Type:** section').join('\n\n');
+const short210 = intervals.slice(0,4).map(s=>'- **Start Time:** '+Math.floor(s.start/60)+':'+String(s.start%60).padStart(2,'0')).join('\n');
+assert.ok(coverageIssues([{start:0,end:60},{start:60,end:127}],210).length);
+assert.ok(coverageIssues([{start:0,end:60},{start:65,end:120},{start:120,end:170},{start:170,end:210}],210).length);
+assert.equal(coverageIssues(intervals,210).length,0);
+assert.ok(timelineIssues(short210,210).length);
+assert.equal(timelineIssues(final210,210,intervals.map(s=>s.start)).length,0);
+assert.ok(timelineIssues('- **Start Time:** 00:00\n- **Start Time:** 00:00',20).length);
+// An early ending triggers another audio pass, not a text-only guess.
+calls=[];
+await generateMusicAnnotation(request,210,async(r:any,o:any)=>{
+  calls.push({r,o});
+  return {text:calls.length===1 ? JSON.stringify({overview:'x',sections:intervals.slice(0,3)}) : calls.length===2 ? full210 : final210};
+},noResearch);
+assert.equal(calls.length,3);
+assert.ok(calls[1].r.contents[0].parts.some((p:any)=>p.inlineData));
+assert.equal(calls[2].o.metadataOnly,true);
+// Writer omissions are retried against the full listening evidence.
+calls=[];
+await generateMusicAnnotation(request,210,async(r:any,o:any)=>{
+  calls.push({r,o}); return {text:calls.length===1?full210:calls.length===2?short210:final210};
+},noResearch);
+assert.equal(calls.length,3);
+// Persistent truncation must never be returned as a successful annotation.
+let count=0;
+await assert.rejects(generateMusicAnnotation(request,210,async()=>({text:++count===1?full210:short210}),noResearch),/full recording/);
+// If both evidence passes miss the ending, final analysis keeps the original audio.
+calls=[];
+await generateMusicAnnotation(request,210,async(r:any,o:any)=>{
+  calls.push({r,o}); return {text:calls.length<=2?fullRaw:final210};
+},noResearch);
+assert.equal(calls[2].o.metadataOnly,false);
+assert.ok(calls[2].r.contents[0].parts.some((p:any)=>p.inlineData));
+console.log('Passed 3:30 coverage, missing tail/gap checks, audio recheck, writer repair and incomplete-result rejection.');

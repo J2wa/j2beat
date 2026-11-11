@@ -56,7 +56,7 @@ assert.equal(calls.length,0);
 calls=[];
 const final = await generateMusicAnnotation(request,20,async(r:any,o:any)=>{
   calls.push({r,o});
-  return {text:calls.length===1 ? JSON.stringify({overview:'Piano',sections:[{start:0,end:20,observations:'Piano repeats two clipped notes.'}],songClues:'one two three four five six seven eight nine ten eleven'}) : 'Final annotation'};
+  return {text:calls.length===1 ? JSON.stringify({overview:'Piano',sections:[{start:0,end:20,observations:'Piano repeats two clipped notes.'}],songClues:'one two three four five six seven eight nine ten eleven'}) : '- **Start Time:** 00:00\nFinal annotation'};
 },async()=>report);
 assert.equal(splitResearch(final.text).research?.status,'grounded');
 assert.ok(calls[1].r.config.systemInstruction.includes('example.com/credits'));
@@ -69,3 +69,6 @@ for (const prompt of [SYSTEM_PROMPT, KNOWLEDGE_BASE]) {
   assert.ok(!prompt.includes('Select exactly ONE of the standard melody phrases'));
 }
 console.log('Passed Google Search tool wiring, citation provenance, uncertain matches, fallback/deadline, draft persistence, evidence separation and melody prompt regression checks.');
+
+assert.ok(MELODY_INSTRUCTION.includes('3–7 word phrase'));
+assert.ok(!MELODY_INSTRUCTION.includes('8 to 20'));
