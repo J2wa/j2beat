@@ -1,4 +1,4 @@
-import { MELODY_INSTRUCTION } from '../shared/melody';
+import { MELODY_INSTRUCTION } from '../shared/melody.js';
 export const KNOWLEDGE_BASE = `
 # KNOWLEDGE BASE
 

@@ -2,6 +2,15 @@ import { DEFAULT_MODEL, type ModelId } from '../../shared/models';
 import { splitResearch } from '../../shared/research';
 import { put } from "@vercel/blob/client";
 const progress = (stage:string) => window.dispatchEvent(new CustomEvent('analysis-progress',{detail:stage}));
+
+function errorMessage(value: unknown, fallback: string): string {
+  if (typeof value === 'string' && value.trim()) return value;
+  if (value && typeof value === 'object' && 'message' in value) {
+    const message = (value as { message?: unknown }).message;
+    if (typeof message === 'string' && message.trim()) return message;
+  }
+  return fallback;
+}
 // Credentials and prompt assembly live exclusively in the server function.
 async function request(audioFile: File, options: Record<string, unknown>): Promise<string> {
   progress('Preparing audio upload');
@@ -17,7 +26,7 @@ async function request(audioFile: File, options: Record<string, unknown>): Promi
       tokenResponse = await fetch('/api/upload', {method:'POST', signal:AbortSignal.timeout(30000), headers:{'Content-Type':'application/json'}, body:JSON.stringify({type:'blob.generate-client-token',payload:{pathname,multipart:true,clientPayload:null}})});
     } catch { throw new Error('Upload permission request timed out or could not connect. The AI has not started. Check your connection and retry.'); }
     const tokenBody = await tokenResponse.json().catch(()=>({}));
-    if(!tokenResponse.ok || !tokenBody.clientToken) throw new Error(tokenBody.error || 'Could not authorize the audio upload. Sign in again and retry. The AI has not started.');
+    if(!tokenResponse.ok || !tokenBody.clientToken) throw new Error(errorMessage(tokenBody.error, 'Could not authorize the audio upload. Sign in again and retry. The AI has not started.'));
     progress('Uploading audio — 0%');
     let blob;
     try {
@@ -54,7 +63,7 @@ async function request(audioFile: File, options: Record<string, unknown>): Promi
         for(const line of lines) if(line.trim()) {
           const event = JSON.parse(line);
           if(event.stage) progress(event.stage);
-          if(event.error) throw new Error(event.error);
+          if(event.error) throw new Error(errorMessage(event.error, 'AI analysis failed. Your input is preserved. Please retry.'));
           if(event.text) text = event.text;
         }
         if(done) break;
@@ -67,7 +76,7 @@ async function request(audioFile: File, options: Record<string, unknown>): Promi
     progress('Finished'); return text;
   }
   const body = await response.json().catch(() => ({error: response.status === 504 ? 'The analysis server timed out. Try a shorter clip or another model.' : `Analysis server returned an unexpected response (HTTP ${response.status}). Please retry.`}));
-  if (!response.ok) throw new Error(body.error || 'Analysis failed. Please try again.');
+  if (!response.ok) throw new Error(errorMessage(body.error, `Analysis failed (HTTP ${response.status}). Your input is preserved. Please retry.`));
   if (!body.text) throw new Error('The server returned an empty annotation. Please retry.');
   return body.text;
 }

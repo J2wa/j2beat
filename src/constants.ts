@@ -1,4 +1,4 @@
-import { MELODY_INSTRUCTION } from '../shared/melody';
+import { MELODY_INSTRUCTION } from '../shared/melody.js';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0

@@ -24,3 +24,20 @@ await refineAnnotation(file,'draft\n\n<!-- ACES_RESEARCH_V1 {} -->','Update melo
 assert.equal(sent.previousResult,'draft');
 assert.equal(sent.songHint,'song.mp3');
 console.log('Passed filename clues and research-footer removal for refinement.');
+
+for (const [error, expected] of [
+  [{message:'Function failed to start'}, /Function failed to start/],
+  [{code:'FUNCTION_INVOCATION_FAILED'}, /Analysis failed \(HTTP 500\)/],
+]) {
+  globalThis.fetch=async url=>url==='/api/upload'
+    ? new Response(JSON.stringify({clientToken:'temporary-token'}))
+    : new Response(JSON.stringify({error}),{status:500});
+  await assert.rejects(annotateAudio(file), expected);
+}
+globalThis.fetch=async()=>new Response(JSON.stringify({error:{message:'Session expired'}}),{status:401});
+await assert.rejects(annotateAudio(file), /Session expired/);
+globalThis.fetch=async url=>url==='/api/upload'
+  ? new Response(JSON.stringify({clientToken:'temporary-token'}))
+  : new Response(JSON.stringify({error:{message:'Provider unavailable'}})+'\n',{headers:{'Content-Type':'application/x-ndjson'}});
+await assert.rejects(annotateAudio(file), /Provider unavailable/);
+console.log('Passed structured HTTP, upload and streaming error messages.');
