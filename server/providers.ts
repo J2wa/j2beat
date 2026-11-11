@@ -1,7 +1,7 @@
 import { orderedGeminiKeys } from './apiKeys.js';
 import { MELODY_PRIORITY } from '../shared/melody.js';
 import { reportProgress } from './progress.js';
-import { DEFAULT_MODEL, isModelId, modelOrder } from '../shared/models.js';
+import { DEFAULT_MODEL, NEMOTRON_MODEL, isModelId, modelOrder } from '../shared/models.js';
 import { GoogleGenAI } from '@google/genai';
 const QUALITY = `
 FINAL PRIORITY: Preserve the requested output schema and field labels, but prioritize audible evidence over all templates and stylistic directives above.
@@ -35,13 +35,16 @@ export async function generateWithFallback(request: any, options: {deadline?:num
  if (request.model !== undefined && !isModelId(request.model)) throw new Error('Invalid analysis model');
  const models = modelOrder(request.model ?? DEFAULT_MODEL);
  const keys = orderedGeminiKeys();
- const attempts = [...models.slice(0, options.maxAttempts ?? models.length).flatMap(model => keys.map(apiKey => ({provider: 'gemini', model, apiKey}))),
-   ...((options.maxAttempts === undefined || (!keys.length && (options.maxAttempts ?? 1) > 0)) ? [{provider:'openrouter',model:process.env.OPENROUTER_MODEL,apiKey:undefined}] : [])];
+ const routerModel = process.env.OPENROUTER_MODEL || NEMOTRON_MODEL;
+ const attempts = request.model === NEMOTRON_MODEL
+   ? [{ provider: 'openrouter', model: NEMOTRON_MODEL, apiKey: undefined }]
+   : [...models.slice(0, options.maxAttempts ?? models.length).flatMap(model => keys.map(apiKey => ({provider: 'gemini', model, apiKey}))),
+   ...((options.maxAttempts === undefined || (!keys.length && (options.maxAttempts ?? 1) > 0)) ? [{provider:'openrouter',model:routerModel,apiKey:undefined}] : [])];
  for (let attemptIndex = 0; attemptIndex < attempts.length; attemptIndex++) {
   const {provider, model, apiKey} = attempts[attemptIndex];
   let operation = 'generation';
   if(provider==='gemini' && !apiKey)continue;
-  if(provider==='openrouter' && (!process.env.OPENROUTER_API_KEY || !process.env.OPENROUTER_MODEL))continue;
+  if(provider==='openrouter' && !process.env.OPENROUTER_API_KEY)continue;
   if (Date.now() >= deadline) break;
   tried++;
   if(tried > 1) reportProgress(`Retrying with ${model}`);
@@ -88,7 +91,7 @@ export async function generateWithFallback(request: any, options: {deadline?:num
     } finally { if(uploadedName)await ai.files.delete({name:uploadedName,config:{httpOptions:{timeout:2000}}}).catch(()=>{}); }
    } else {
     const content=request.contents.flatMap((c:any)=>c.parts.map((p:any)=>p.text?{type:'text',text:p.text}:{type:'input_audio',input_audio:{data:p.inlineData.data,format:({'audio/mpeg':'mp3','audio/x-wav':'wav','audio/wave':'wav','audio/x-aiff':'aiff'} as Record<string,string>)[p.inlineData.mimeType] || p.inlineData.mimeType.split('/')[1]}}));
-    const response=await fetch('https://openrouter.ai/api/v1/chat/completions',{method:'POST',signal:AbortSignal.timeout(timeout()),headers:{Authorization:`Bearer ${process.env.OPENROUTER_API_KEY}`,'Content-Type':'application/json','X-Title':'ACES Music'},body:JSON.stringify({model:process.env.OPENROUTER_MODEL,messages:[{role:'system',content:system},{role:'user',content}],temperature:0.2})});
+    const response=await fetch('https://openrouter.ai/api/v1/chat/completions',{method:'POST',signal:AbortSignal.timeout(timeout()),headers:{Authorization:`Bearer ${process.env.OPENROUTER_API_KEY}`,'Content-Type':'application/json','X-Title':'ACES Music'},body:JSON.stringify({model,messages:[{role:'system',content:system},{role:'user',content}],temperature:0.2})});
     if(!response.ok)throw Object.assign(new Error('Provider request failed'), {status:response.status});
     const result=await response.json();
     if(result.choices?.[0]?.finish_reason==='length')throw new Error('Truncated output');

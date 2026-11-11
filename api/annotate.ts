@@ -1,7 +1,7 @@
 import { geminiApiKeys } from '../server/apiKeys.js';
 import { progressContext } from '../server/progress.js';
 import { AnalysisError } from '../server/providers.js';
-import { DEFAULT_MODEL, isModelId, type ModelId } from '../shared/models.js';
+import { DEFAULT_MODEL, NEMOTRON_MODEL, isModelId, type ModelId } from '../shared/models.js';
 import { requireSession } from '../server/auth.js';
 import { get, del } from '@vercel/blob';
 import { annotateAudio, refineAnnotation } from '../server/annotation.js';
@@ -10,8 +10,9 @@ export default async function handler(req: any, res: any) {
  if (!requireSession(req, res)) return;
  res.setHeader('Cache-Control', 'no-store');
  if (req.method !== 'POST') { res.setHeader('Allow','POST'); return res.status(405).json({error:'Use POST for analysis.'}); }
- if (!geminiApiKeys().length && !(process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_MODEL)) return res.status(503).json({error:'AI analysis is not configured. Configure Gemini or OpenRouter in Vercel.'});
+ if (!geminiApiKeys().length && !(process.env.OPENROUTER_API_KEY)) return res.status(503).json({error:'AI analysis is not configured. Configure Gemini or OpenRouter in Vercel.'});
  const b = req.body;
+ if (b?.model === NEMOTRON_MODEL && !process.env.OPENROUTER_API_KEY) return res.status(503).json({error:'Nemotron requires OPENROUTER_API_KEY. Choose a Gemini model or configure OpenRouter.'});
  if (b?.model !== undefined && !isModelId(b.model)) return res.status(400).json({error:'Choose a supported analysis model.'});
  if(b?.audio?.path) {
   const path=b.audio.path;

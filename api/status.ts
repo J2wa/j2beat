@@ -4,6 +4,6 @@ export default function handler(req: any, res: any) {
  if (!requireSession(req, res)) return;
  res.setHeader('Cache-Control', 'no-store');
  const gemini=geminiApiKeys().length > 0;
- const openrouter=Boolean(process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_MODEL);
+ const openrouter=Boolean(process.env.OPENROUTER_API_KEY);
  res.status(200).json({ready:gemini||openrouter,providers:{gemini,openrouter},primary:process.env.AI_PRIMARY_PROVIDER==='openrouter'?'openrouter':'gemini'});
 }

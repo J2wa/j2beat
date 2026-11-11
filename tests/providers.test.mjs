@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import ts from 'typescript';
-import { DEFAULT_MODEL, MODEL_OPTIONS, modelOrder } from '../shared/models.ts';
+import { DEFAULT_MODEL, GEMINI_OPTIONS as MODEL_OPTIONS, NEMOTRON_MODEL, modelOrder } from '../shared/models.ts';
 let calls=[], responses=[], usedKeys=[];
 globalThis.MockGoogleGenAI=class { constructor(options){usedKeys.push(options.apiKey);} files={upload:async()=>{globalThis.uploadCount++;if(globalThis.uploadError)throw globalThis.uploadError;return {name:"files/test",uri:"https://example.test/audio",state:"ACTIVE"};},delete:async()=>{globalThis.deleteCount++;}}; models={list:async()=>globalThis.modelCatalog ?? [],generateContent:async request=>{calls.push(request);const next=responses.shift();if(next instanceof Error)throw next;return next;}}; };
 const source=readFileSync(new URL('../server/providers.ts',import.meta.url),'utf8')
@@ -122,3 +122,12 @@ await assert.rejects(generateWithFallback(audioRequest(14*1024*1024),{maxAttempt
 assert.equal(calls.length,0);
 delete globalThis.uploadError;
 console.log('Passed audio size routing, total UTF-8 request budget, cleanup and upload error regression tests.');
+
+process.env.OPENROUTER_API_KEY='test';
+globalThis.fetch=async(url,options)=>{
+ const body=JSON.parse(options.body);
+ assert.equal(body.model,NEMOTRON_MODEL);
+ assert.equal(body.messages[1].content[0].input_audio.format,'mp3');
+ return {ok:true,json:async()=>({choices:[{message:{content:'heard audio'}}]})};
+};
+assert.equal((await generateWithFallback({...request,model:NEMOTRON_MODEL,contents:[{parts:[{inlineData:{data:'YQ==',mimeType:'audio/mpeg'}}]}]})).text,'heard audio');
