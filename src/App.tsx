@@ -1,3 +1,4 @@
+import { importedAudioExpiresAt } from "../shared/importExpiry";
 import { attachResearch, splitResearch, researchAsMarkdown, type ResearchReport } from "../shared/research";
 import { DEFAULT_MODEL, MODEL_OPTIONS, isModelId, type ModelId } from '../shared/models';
 /**
@@ -151,19 +152,38 @@ export default function App() {
     catch { return DEFAULT_MODEL; }
   });
   const [view, setView] = useState<'workspace' | 'guidelines' | 'archive'>('workspace');
-  const [archive, setArchive] = useState<Array<{id: string; name: string; text: string; date: string; audioPath?: string; sourceUrl?: string; duration?: number}>>(() => {
+  const [archive, setArchive] = useState<Array<{id: string; name: string; text: string; date: string; audioPath?: string; expiresAt?: number; sourceUrl?: string; duration?: number}>>(() => {
     try { return JSON.parse(localStorage.getItem('aces_music_archive_v1') || '[]'); } catch { return []; }
   });
+  useEffect(() => {
+    const expiration = (item: typeof archive[number]) =>
+      item.expiresAt ?? importedAudioExpiresAt(item.date);
+    const discardExpired = () => {
+      const now = Date.now();
+      const active = archive.flatMap(item => {
+        if (!item.audioPath || !(expiration(item) <= now)) return [item];
+        return item.text === IMPORTED_TRACK_NOTE ? [] : [{ ...item, audioPath: undefined }];
+      });
+      if (active.length !== archive.length || active.some((item, index) => item !== archive[index])) {
+        setArchive(active);
+        try { localStorage.setItem('aces_music_archive_v1', JSON.stringify(active)); } catch {}
+      }
+    };
+    const nextExpiry = Math.min(...archive.filter(item => item.audioPath).map(expiration));
+    if (!Number.isFinite(nextExpiry)) return;
+    const timer = window.setTimeout(discardExpired, Math.min(2_147_483_647, Math.max(0, nextExpiry - Date.now())));
+    return () => window.clearTimeout(timer);
+  }, [archive]);
   const [serviceReady, setServiceReady] = useState<boolean | null>(null);
   useEffect(() => { fetch('/api/status').then(r => r.json()).then(data => setServiceReady(data.ready)).catch(() => setServiceReady(false)); }, []);
-  const importedSource = useRef<{path:string;sourceUrl:string} | null>(null);
+  const importedSource = useRef<{path:string;sourceUrl:string;expiresAt?:number} | null>(null);
   const [spotifyLink,setSpotifyLink]=useState('');
   const [importing,setImporting]=useState(false);
   const [importProgress,setImportProgress]=useState<{stage:string;percent:number|null}>({stage:'Preparing import',percent:null});
   const [rightsConfirmed,setRightsConfirmed]=useState(false);
   const deletedAudioPaths=useRef(new Set<string>());
   const saveAnnotation = (text: string, audioFile = file, audioDuration = duration) => {
-    const next = [{id: crypto.randomUUID(), name: audioFile?.name || 'Untitled annotation', text, date: new Date().toISOString(), duration:audioDuration, audioPath:importedSource.current?.path, sourceUrl:importedSource.current?.sourceUrl}, ...archive.filter(item => item.text !== IMPORTED_TRACK_NOTE || !deletedAudioPaths.current.has(item.audioPath || ''))
+    const next = [{id: crypto.randomUUID(), name: audioFile?.name || 'Untitled annotation', text, date: new Date().toISOString(), duration:audioDuration, audioPath:importedSource.current?.path, expiresAt:importedSource.current?.expiresAt, sourceUrl:importedSource.current?.sourceUrl}, ...archive.filter(item => item.text !== IMPORTED_TRACK_NOTE || !deletedAudioPaths.current.has(item.audioPath || ''))
       .map(item=>deletedAudioPaths.current.has(item.audioPath||'')?{...item,audioPath:undefined}:item)].slice(0, 30);
     try { localStorage.setItem('aces_music_archive_v1', JSON.stringify(next)); setArchive(next); }
     catch { setError('Analysis completed, but this browser could not save the archive. Download your result.'); }
@@ -667,8 +687,10 @@ export default function App() {
 
   const loadStoredAudio = async (path:string,name:string) => {
     const response=await fetch('/api/audio?path='+encodeURIComponent(path));
-    if(!response.ok)throw new Error('Could not load the saved audio.');
-    return new File([await response.blob()],name,{type:'audio/mpeg'});
+    if (response.status === 410 || response.status === 404) throw new Error('This imported audio is no longer available. Import the track again.');
+    if (!response.ok) throw new Error('Could not load the saved audio.');
+    const expiresAt = Date.parse(response.headers.get('X-Audio-Expires-At') ?? '');
+    return { file: new File([await response.blob()], name, { type: 'audio/mpeg' }), expiresAt: Number.isFinite(expiresAt) ? expiresAt : undefined };
   };
   const importSpotify = async () => {
     if (!spotifyLink.trim() || !rightsConfirmed || importing || isProcessing || isRefining) return;
@@ -692,7 +714,7 @@ export default function App() {
       }
       if(!data?.path)throw new Error('Download connection ended before completion. Please retry.');
       setImportProgress({stage:'Loading audio into player',percent:null});
-      const downloaded=await loadStoredAudio(data.path,data.name);
+      const { file: downloaded, expiresAt } = await loadStoredAudio(data.path, data.name);
       const trackDuration=await new Promise<number>((resolve,reject)=>{
         const audio=new Audio();const url=URL.createObjectURL(downloaded);
         const cleanup=()=>{clearTimeout(timer);audio.removeAttribute('src');URL.revokeObjectURL(url);};
@@ -700,7 +722,7 @@ export default function App() {
         audio.onloadedmetadata=()=>{const value=audio.duration;cleanup();Number.isFinite(value)&&value>0?resolve(value):reject(new Error('Invalid imported duration.'));};
         audio.onerror=()=>{cleanup();reject(new Error('The downloaded recording could not be played.'));};audio.src=url;
       });
-      handleFileSelection(downloaded);importedSource.current={path:data.path,sourceUrl:data.sourceUrl};
+      handleFileSelection(downloaded);importedSource.current={path:data.path,sourceUrl:data.sourceUrl,expiresAt};
       setDuration(trackDuration);
       saveAnnotation(IMPORTED_TRACK_NOTE, downloaded, trackDuration);
       setSpotifyLink('');
@@ -711,7 +733,11 @@ export default function App() {
   const openSaved = async (item:typeof archive[number]) => {
     if(isProcessing || isRefining || importing)return;
     try {
-      if(item.audioPath){const audio=await loadStoredAudio(item.audioPath,item.name);handleFileSelection(audio);importedSource.current={path:item.audioPath,sourceUrl:item.sourceUrl||''};}
+      if (item.audioPath) {
+        const audio = await loadStoredAudio(item.audioPath, item.name);
+        handleFileSelection(audio.file);
+        importedSource.current = { path: item.audioPath, sourceUrl: item.sourceUrl || '', expiresAt: audio.expiresAt };
+      }
       else {audioRef.current?.pause();setFile(null);setAudioUrl(null);importedSource.current=null;setDuration(item.duration||0);setSections([]);}
       if (item.text === IMPORTED_TRACK_NOTE) {
         setResult(null);
@@ -912,7 +938,7 @@ export default function App() {
       {serviceReady === false && <details className="service-notice"><summary><span className="status-dot"/> AI offline <span className="muted">Setup required</span></summary><p>In Vercel → j2beat → Settings → Environment Variables, set GEMINI_API_KEY and/or OPENROUTER_API_KEY with OPENROUTER_MODEL (an audio-input model). Your selected model is tried first, followed by the other Gemini models and the configured OpenRouter model if needed. Redeploy to apply. Keys remain server-side.</p></details>}
       {error && <div role="alert" className="error-notice">{error}</div>}
       {view === 'guidelines' && <SectionContainer className="document-view"><p className="eyebrow"></p><h2>Annotation guidelines</h2><p>AI output is a draft. Listen to the track and verify instruments, timestamps, and descriptions before exporting.</p><div className="markdown-body"><ReactMarkdown remarkPlugins={[remarkGfm]}>{annotationSOP}</ReactMarkdown></div></SectionContainer>}
-      {view === 'archive' && <SectionContainer className="document-view"><p className="eyebrow"></p><h2>Saved annotations</h2><p>Annotations are saved in this browser. Imported audio is deleted from storage after successful analysis. Playback remains available in the current browser session.</p>{archive.length === 0 ? <p className="archive-empty">No saved annotations yet.</p> : archive.map(item => <article className="archive-row" key={item.id}><div><h3>{item.name}</h3><p>{new Date(item.date).toLocaleString()}</p></div><div className="archive-actions"><Button disabled={isProcessing||isRefining||importing} onClick={()=>openSaved(item)}><FileAudio />{item.audioPath?'Open & play':'Open annotation'}</Button>{item.text !== IMPORTED_TRACK_NOTE && <Button onClick={async()=>{try{(await import('./utils/pdfGenerator')).exportSavedPDF(item.name,item.text,item.date);}catch{setError('PDF export failed. Please retry.');}}}><Download/>Export PDF</Button>}{item.audioPath&&<a className="aces-button aces-button--secondary" href={'/api/audio?path='+encodeURIComponent(item.audioPath)} download={item.name}>Download audio</a>}</div></article>)}</SectionContainer>}
+      {view === 'archive' && <SectionContainer className="document-view"><p className="eyebrow"></p><h2>Saved annotations</h2><p>Annotations are saved in this browser. Unannotated imports expire after 24 hours. Successful analysis removes the stored audio and keeps the annotation.</p>{archive.length === 0 ? <p className="archive-empty">No saved annotations yet.</p> : archive.map(item => <article className="archive-row" key={item.id}><div><h3>{item.name}</h3><p>{new Date(item.date).toLocaleString()}</p>{item.audioPath && item.text === IMPORTED_TRACK_NOTE && <p>Expires {new Date(item.expiresAt ?? importedAudioExpiresAt(item.date)).toLocaleString()}</p>}</div><div className="archive-actions"><Button disabled={isProcessing||isRefining||importing} onClick={()=>openSaved(item)}><FileAudio />{item.audioPath?'Open & play':'Open annotation'}</Button>{item.text !== IMPORTED_TRACK_NOTE && <Button onClick={async()=>{try{(await import('./utils/pdfGenerator')).exportSavedPDF(item.name,item.text,item.date);}catch{setError('PDF export failed. Please retry.');}}}><Download/>Export PDF</Button>}{item.audioPath&&<a className="aces-button aces-button--secondary" href={'/api/audio?path='+encodeURIComponent(item.audioPath)} download={item.name}>Download audio</a>}</div></article>)}</SectionContainer>}
       {(isProcessing || isRefining) && <section className="analysis-progress-panel" aria-label="Annotation progress">
         <div className="analysis-progress-heading"><div><span className="analysis-pulse"/><strong>{isRefining ? 'Refining annotation' : 'Analyzing track'}</strong></div><time>{Math.floor(elapsedSeconds/60)}:{String(elapsedSeconds%60).padStart(2,'0')}</time></div>
         <p role="status" aria-live="polite">{analysisStage}</p>
@@ -928,7 +954,7 @@ export default function App() {
               <input id="spotify-link" type="url" value={spotifyLink} placeholder="https://open.spotify.com/track/…" onChange={event => setSpotifyLink(event.target.value)} disabled={importing || isProcessing || isRefining} required />
               <Button type="submit" disabled={!spotifyLink.trim() || !rightsConfirmed || importing || isProcessing || isRefining}>{importing ? 'Importing…' : 'Import track'}</Button>
             </div>
-            <p className="field-hint">Loads a matched recording into the player. Check the version before analyzing.</p>
+            <p className="field-hint">Loads a matched recording into the player. Check the version before analyzing. Unannotated imports expire after 24 hours.</p>
             <label className="import-permission"><input type="checkbox" checked={rightsConfirmed} disabled={importing || isProcessing || isRefining} onChange={event => setRightsConfirmed(event.target.checked)} />I have permission to download and analyze this recording.</label>
           </form>
         } importStatus={importing && <div className="track-import-status" role="status">
