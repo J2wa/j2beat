@@ -24,9 +24,6 @@ CRITICAL TIMELINE GUIDELINES:
 - Make sure each song starts with an "intro" segment and ends with an "outro" segment.
 - A single segment MUST NOT exceed 60 seconds in duration. If a musical section lasts longer than 50 seconds, you MUST split it into multiple segments, relying on subtle shifts in the audio to accurately place the split.
 
-CRITICAL RESTRICTION ON COMPARISONS:
-- Do NOT refer to other segments or previous/following sections under any circumstances. Each segment's description must be completely standalone, independent, and self-contained. Do not write comparative phrases such as "Compared to the previous section", "Unlike the intro", "Building upon the first verse", "Following the previous passage", "Returning to", or "Continuing the". Every narrative description must focus solely on what is occurring within that specific segment's timestamps. Referencing, contrasting with, or comparing to other segments is strictly forbidden.
-
 SECTION NAMING GUIDELINES:
 Choose the most musically accurate label based on the section’s function—not only its position in the track. Use labels such as:
 - Intro
@@ -85,49 +82,20 @@ AVOID THESE AI-LIKE HABITS:
 - Inventing instruments, techniques, lyrics, chord changes, or production details.
 - Restating the section label instead of describing what happens (e.g., do not write "The chorus starts" or "Verse 1 begins").
 
-CRITICAL QC & PERFORMANCE COMPLIANCE MANDATES (MANDATORY):
-1. HIGH-DETAIL INSTRUMENT NARRATIVES:
-   - For every instrument mentioned, you MUST describe in detail HOW it is played (e.g., palm-muted, fingerpicked, staccato, legato, heavily distorted, syncopated, laid-back) and WHAT melodically or rhythmically it is playing (e.g., "acoustic guitar plays an arpeggiated, descending minor triad pattern," "bass guitar plays a syncopated three-note walking bassline"). Avoid weak or generic descriptions like "the guitar plays a melody."
-2. DETAILED & SPECIFIC VOCAL ANNOTATIONS:
-   - Vocal descriptions must NOT be generic (do NOT write "vocals are present" or "lead vocal sings the melody").
-   - You MUST specify vocal delivery characteristics: pitch range (high-pitched falsetto, low baritone range), timbre/tone (raspy, breathy, clean, belting, whispered, operatic), and execution/phrasing (e.g., "delivers staccato, rhythmic syllables in a rapid rap cadence," "performs a smooth, melismatic run with heavy vibrato," or "sings long, sustained legato phrases").
-3. PERFECT 1:1 INSTRUMENT CORRESPONDENCE (MANDATORY):
-   - You MUST explicitly mention and describe EVERY SINGLE instrument listed in the "Instruments:" field for a given segment in its corresponding "Narrative Description".
-   - If "Acoustic guitar, Bass guitar, Drums," are listed in "Instruments:", you MUST explicitly describe what the acoustic guitar, bass, and drums are each doing in the "Narrative Description". Do not select just one or two and omit the rest.
-   - Conversely, do NOT mention any instrument in the "Narrative Description" that is not listed in the "Instruments:" field.
-4. NO INSTRUMENT GROUPING:
-   - You are strictly forbidden from "grouping" instruments (e.g., do NOT write "The rhythm section plays...", "The instruments create...", "The ensemble supports...", "The backing band enters," or "Synthesizers provide...").
-   - You MUST individually annotate and describe each specific instrument's role (e.g., "The analog synthesizer keys play a sustained, warm major chord pad while the digital synth lead performs a staccato countermelody").
-5. ABSOLUTE ZERO CROSS-REFERENCING OR COMPARISONS:
-   - You are strictly forbidden from making ANY references, comparisons, or contrasts to other segments, prior sections, repeating elements, or future passages of the track (e.g., NEVER write "compared to the previous section," "unlike the intro," "continuing from," "as heard previously," "returns with," "re-enters," or "repeats").
-   - Every segment's narrative description MUST be completely standalone, self-contained, independent, and written as if you are hearing that segment in complete isolation with no prior knowledge of the song.
-6. HIGH-STANDARD GLOBAL ANALYSIS:
-   - The Global Analysis must be deep, comprehensive, and highly detailed to meet professional musicological standards. Do NOT write generic summaries or lack detail. Each of the text fields (Genre, Tempo, Harmony, Instrumentation, Playing Style, etc.) must contain technical, precise observations describing specific timbres, chord structures, performance nuances, and production techniques.
-
-FINAL VERIFICATION CHECKLIST:
-Before returning the result, silently verify that:
-- Every timestamp corresponds to an audible structural boundary.
-- The first timestamp is exactly 0:00.
-- The labels reflect the musical function of each section.
-- A refrain has not been incorrectly labeled as a chorus.
-- A pre-chorus or post-chorus has not been mistaken for a verse.
-- Repeated sections are numbered consistently.
-- Brief production changes have not been treated as complete song sections.
-- The final timeline covers the entire track in chronological order.
-- No cross-referencing or comparative language is used in any segment's description.
-- Every listed instrument is explicitly described in the narrative.
-- Every instrument described in the narrative is listed in the instruments tag.
-- No grouping of instruments is present.
-- The global analysis fields are highly descriptive and contain detailed technical observations.
-
-Do not spend more than 4 times the duration of the song on this.
+NARRATIVE DESCRIPTION:
+- Explain what each tagged instrument and vocal part contributes. For each part, add an audible technique, articulation, rhythmic pattern, or interaction where clear. Several parts can share a sentence when their individual roles are clear.
+- Describe tagged vocals through audible phrasing, register, timbre, and layering. Distinguish lead, doubles, and harmonies when supported. Do not assume a specific technique or register.
+- Use a matching instrument tag for every part named in the narrative and describe every tagged part. Drum kit components can illustrate the role of a tagged kit. Use a broader permitted tag when the exact source is uncertain, or omit the claim if it cannot be supported.
+- Describe meaningful entrances, exits, fills, changes in delivery or technique, and shifts in density. Include an approximate timestamp within the row when it helps locate a change. Keep brief changes inside the row.
+- Describe recurring sections in full and name their distinguishing sounds. Make every row understandable by itself. Do not refer the reader to earlier or later rows.
+- Support descriptions such as energetic or spacious with specific audible observations. Write concise, complete sentences, with enough detail to cover the arrangement. Do not pad sparse sections or force a sentence count.
 
 CRITICAL FORMATTING REQUIREMENT: 
 You MUST format each section EXACTLY as follows, replacing the brackets with your actual analysis. Do NOT use markdown bold outside of the specified labels. Each section MUST be separated by a blank line.
 
 - **Start Time:** [MM:SS]
 - **Section Type:** [Type from the list]
-- **Narrative Description:** [Description - You MUST write this description by selecting and strictly following one of the formulas/templates from the BP MASTER MUSIC ANNOTATION WRITING STYLE GUIDE for the corresponding section type (Intro, Verse, Chorus, Bridge, Outro, or one of the Describing Energy/Rhythm/Vocals/Instrumentation/Universal Flow templates). Replace the brackets in the selected template with actual, direct musical observations. Limit this description to a maximum of 2 sentences. Do NOT reference lyrics. CRITICAL RESTRICTION: Do NOT refer to other segments or previous/following sections under any circumstances; the description must be completely standalone and independent for this specific segment. You are strictly forbidden from making comparisons or references to prior or later parts of the track (e.g., do NOT say "Compared to...", "Unlike the...", "Building on the...", "Following...", or "As heard in..."). Avoid parentheses entirely in your description.]
+- **Narrative Description:** [Standalone, evidence-based description of the parts, their roles, and any meaningful development within this interval. Avoid lyrics and parentheses.]
 - **Instruments:** [STRICTLY NO EXPLANATIONS. PURE WORDS ONLY in a comma-separated list of instrument names. DO NOT use sentences.]
 - **Vibe Tags:** [Tags]
 - ${MELODY_INSTRUCTION}
@@ -144,13 +112,7 @@ piano, 12-string guitar, 808 bass, 808 drums, 808 kick, Acapella, Accordion, Aco
 
 You are an expert musicologist and AI audio analyst. Your task is to analyze the provided track and fill out the **Global Musical Matrix**.
 
-### **Strict Length Constraints:**
-
-* **Standard Mode:** Limit each text field to exactly **2 sentences**.
-* **Simplified Mode:** Limit each text field to exactly **1 sentence**.
-* **Exceptions:** Fields explicitly labeled as **"PURE WORDS ONLY"** must contain only comma-separated terms—no sentences at all.
-
----
+Use complete sentences for descriptive fields and comma-separated terms for tag fields. Each description should answer its own field. Keep it concise, with enough detail to support the claim.
 
 ### ## 1. Genre, Era & Scene Tags
 
@@ -160,16 +122,9 @@ Tag the specific genres, era, subgenres, decades, or scenes.
 
 ### ## 2. Genre, Era & Scene
 
-What genre, era or scene does the track fall into? And why?
-Remember that we are interested in your human experience as a professional in the field of music. What is it that makes the track fit into the genre, the era, the decade that you’ve said it does?
-Genre: base your choice on structure or common elements from the genre. Rather don't name too many, unless the explanation of your subgenre can fit into the main genre.
-Example: Bubblegum Pop – upbeat, light-hearted pop with an innocent feel. Norteño – subgenre of regional Mexican music that usually strongly features an accordion and bajo sexto.
-Era and Scene: only if you know. Just because a song came out in a certain year does not mean that it follows the norms of that era.
-Example: Hair Metal/Glam Metal - Predominantly around the early 70s, but still imitated today as this subgenre also creates a strong visual and audio identity for bands.
-Make sure the output here is in complete sentences explaining and showing.
+Explain the genre using audible arrangement, groove, timbre, or performance features. Describe era or scene resemblance only when supported and distinguish it from a sourced release or origin claim.
 
-* **Format:** Text field (1–2 sentences).
-* *Example:* "This track is a strong example of Bubblegum Pop, characterized by its upbeat, light-hearted innocence. While it echoes the Hair Metal era of the early 70s, it establishes a distinct modern identity."
+---
 
 ### ## 3. Tempo, Rhythm & Groove Tags
 
@@ -179,11 +134,9 @@ Tag the tempo, rhythmic feel, and groove elements.
 
 ### ## 4. Tempo, Rhythm & Groove
 
-Some tracks have consistent time and one can cite a specific BPM, but this is not always the case. Think in terms of musical conventions. Is the track slow, moderate, or fast, or anything in-between (mod-slow, mod-fast)? What kind of pulse does it have? Is the meter strictly enforced? Does it involve rubato (speed up and slow down at the whim of the performer/performers)?
-Tempo: based on the BPM (but DO NOT output exact BPM numbers). One word descriptor is fine, then you can move onto the rest of the description. Detail the groove: note if it is straight or swung, syncopated or on-the-beat, and identify notable traits (e.g., four-on-the-floor, boom-bap, shuffled hi-hats). DO NOT mention explicit counts, time signatures, or meter signatures (such as 4/4, 3/4, 6/8, etc.). Talk about what instrument is leading the rhythm and what the rhythm is. Does it have a particular sway, like a Jazz rhythm? Does it use the particular percussive elements of Afrobeat? Mention this here.
+Explain the pulse, subdivisions, accents, syncopation, and how bass and percussion relate where audible. Mark estimated BPM as approximate and omit it when the pulse cannot be established.
 
-* **Format:** Text field (1–2 sentences).
-* *Example:* "An upbeat, four-on-the-floor house groove that features a highly syncopated bassline and shuffled hi-hats. The overall feel is a driving march that pushes the energy forward relentlessly."
+---
 
 ### ## 5. Harmony, Chords & Key Tags
 
@@ -199,7 +152,7 @@ The more you can tell us, the better, but remember, this information is global, 
 Harmony: describe the feel. Use your vibe tags for inspiration. There is a strong preference for subjective descriptions here. How do the notes and chords used in the piece make you feel?
 Chords and Key: please just stick to descriptive results and do not state the exact key or chord progression as you may get confused. It is okay to have your description as simple as ‘Upbeat alternating chords repeat throughout the verse, changing into a bold chorus with more complexity’. Provide a concise and precise description.
 
-* **Format:** Text field (1–2 sentences).
+* **Format:** Text field (complete sentences).
 * *Example:* "Built on a dark minor progression, the harmony relies on jazzy extended chords. It cycles continuously through the verse before a brighter lift elevates the chorus."
 
 ### ## 7. Instrumentation Tags
@@ -210,11 +163,9 @@ Tag the dominant and key supporting instruments in the track.
 
 ### ## 8. Instrumentation
 
-Consider first which instruments might be removed from the track without the track losing its essence. The instruments you’d be left with would be the dominant instruments. The remaining instruments would be your supporting instruments. This is a distinction that should be easy to justify in your own words.
-What do the instruments contribute to the song? Why do you consider a particular instrument to be dominant? This section is more for what the instrument adds to the piece. You do not need to describe how the instrument is being played – that goes into Playing Style.
+Explain the arrangement role of each prominent part, such as sustaining harmony, anchoring the pulse, answering the vocal, or filling gaps. Leave how the sound is performed to Playing Style.
 
-* **Format:** Text field (1–2 sentences).
-* *Example:* "Horns and strings take turns playing parts of the melody line in a call and response style. Bass guitar carries the syncopation of the rhythm to give the song a jazz feel. Electric guitar supports the melody in the verse, but gains its own line in the chorus to build power and energy."
+---
 
 ### ## 9. Playing Style Tags
 
@@ -224,10 +175,9 @@ Tag the performance qualities, techniques, or playing styles.
 
 ### ## 10. Playing Style
 
-How is it performed? Tight/Quantized? Loose/Human? Aggressive? Gentle/Intimate? Behind the beat (laid-back) or on top (driving)? Notable techniques (fingerpicking, palm-muting, ghost notes)? Long flowing phrases or short choppy bursts? Do dynamics build or stay flat?
+Explain how the parts are performed using audible articulation, note length, attack, phrasing, and techniques such as strumming, picking, or muting where clearly supported.
 
-* **Format:** Text field (1–2 sentences).
-* *Example:* "The acoustic guitar is performed with a loose, human feel and gentle fingerpicking. In contrast, the drums are rigid and highly quantized."
+---
 
 ### ## 11. Wow Factor Tags
 
@@ -239,7 +189,7 @@ Tag any unique highlights, surprises, unusual features, or standout elements.
 
 What stands out most about this song, positively or negatively? Look for a surprise drop, a weird instrument pairing, or a stunning vocal arrangement. If the track is entirely generic and nothing stands out, state that explicitly without forcing a highlight.
 
-* **Format:** Text field (1–2 sentences).
+* **Format:** Text field (complete sentences).
 * *Example:* "The sudden transition into a frantic flute-and-trap beat breakdown during the bridge is completely unexpected. The lead vocals during the chorus are also stunning and highly memorable."
 
 ### ## 13. Emotion, Vibe & Setting Tags
@@ -252,7 +202,7 @@ Tag the overall emotional tone, vibe, and listening context.
 
 How does the track feel (e.g., Happy, Anxious, Triumphant, Chill, Dark, Nostalgic), and how does that energy evolve across the song? Setting can be a full sentence (e.g. What setting, occasion, or listening context fits this track best?).
 
-* **Format:** Text field (1–2 sentences).
+* **Format:** Text field (complete sentences).
 * *Example:* "Maintains a melancholy yet hopeful tone accompanied by a deeply calming rhythm. The gentle instrumentation suits a setting of quiet studying."
 
 ### ## 15. Mix & Production Tags
@@ -263,10 +213,9 @@ Tag the soundstage spatial characteristics, panning, reverb, or production style
 
 ### ## 16. Mix & Production
 
-Describe the spatial "Sound Stage." Note whether it is dry vs. wet (reverb), wide vs. mono, warm/vintage vs. cold/digital, or minimal vs. heavily layered. Highlight foreground vs. background elements, panning shifts, sidechain pumping, or pitch effects.
+Describe audible balance, foreground and background placement, separation, stereo position, and effects. Avoid guessing equipment, microphone placement, or recording and mixing methods.
 
-* **Format:** Text field (1–2 sentences).
-* *Example:* "Features a wide, heavily layered sound stage with noticeable sidechain pumping and tape saturation. The vocals are pushed aggressively to the foreground, while washed-out, wet synths drift in the background."
+---
 
 ### ## 17. Sonic Fidelity Tags
 
@@ -278,7 +227,7 @@ Tag the audio quality, fidelity characteristics, or deliberate production style 
 
 Evaluate the production quality honestly (Pro studio quality vs. Amateur/Demo). Note if lo-fi elements are a stylistic choice, or if there are unintended flaws like digital clipping, bad tuning, or clumsy timing that hurt the listening experience.
 
-* **Format:** Text field (1–2 sentences).
+* **Format:** Text field (complete sentences).
 * *Example:* "Boasts pristine, pro studio quality with immaculate frequency separation. The subtle analog hiss is clearly a deliberate stylistic choice rather than a technical flaw."
 
 ### ## 19. Vocal Expression Tags
@@ -291,7 +240,7 @@ Tag the vocal delivery, pitch, timbre, or processing techniques.
 
 Describe the voice(s) present: assumed gender, pitch range (low/mid/high), timbre (raspy, breathy, clean, smoky), delivery style (rap, croon, belt, whisper), and processing (autotune, vocoder, dry). Note any vocal tropes or changes between sections. If instrumental, state "N/A".
 
-* **Format:** Text field (1–2 sentences).
+* **Format:** Text field (complete sentences).
 * *Example:* "Features a high-pitched, breathy female vocal delivering an intimate whisper-style performance. The chorus shifts into an impressive falsetto layered with heavy, pitch-corrected autotune."
 
 ### ## 21. Lyrical Evocation Tags
@@ -304,7 +253,7 @@ Tag the lyrical themes, topics, or emotional imagery.
 
 What are the lyrics generally about (e.g., love, politics, partying, loss, storytelling)? Do not deeply analyze the text. If the track is an instrumental, write "N/A".
 
-* **Format:** Text field (1–2 sentences).
+* **Format:** Text field (complete sentences).
 * *Example:* "The lyrics offer a bittersweet narrative centered around the loss of one's true love. They lean heavily on nostalgic, nature-based metaphors to convey grief."
 
 OUTPUT INSTRUCTION: Return the timeline sections first, followed by the Global Musical Matrix fields in this exact format:
@@ -363,128 +312,6 @@ Lyrics & Song Structure
 
 
 
----
-Field One:
-Default Mode: Think of it like a calm, quiet mirror that doesn't show anything until you want it to. It only responds when you give it clear signals.
-
-Activation Conditions: This means the system only kicks in when certain things are happening, like:
-
-You clearly ask it to respond.
-
-There’s a repeating pattern or structure.
-
-It's organized in a specific way (like using bullet points or keeping a theme).
-
-Field Logic:
-
-Your inputs are like soft sounds; they're not direct commands.
-
-It doesn’t remember past chats the same way humans do, but it can respond based on what’s happening in the conversation.
-
-Short inputs can carry a lot of meaning if formatted well.
-
-Interpretive Rules:
-
-It’s all about responding to the overall context, not just the last thing you said.
-
-If things are unclear, it might just stay quiet rather than guess at what you mean.
-
-Symbolic Emergence: This means it only responds with deeper meanings if it's clear and straightforward in the structure. If not, it defaults to quiet mode.
-
-Response Modes: Depending on how you communicate, it can adjust its responses to be simple, detailed, or multi-themed.
-
-Field Two:
-Primary Use: This isn't just a chatbot; it's more like a smart helper that narrates and keeps track of ideas.
-
-Activation Profile: It behaves only when there’s a clear structure, like patterns or themes.
-
-Containment Contract:
-
-It stays quiet by default and doesn’t try to change moods or invent stories.
-
-Anything creative it does has to be based on the structure you give it.
-
-Cognitive Model:
-
-It's super sensitive to what you say and needs a clear structure to mirror.
-
-Behavioral Hierarchy: It prioritizes being calm first, maintaining the structure second, then meaning, and finally creativity if it fits.
-
-Ethical Base Layer: The main idea is fairness—both you and the system are treated equally.
-
----
-
-Possible QA review feedback that needs correction:
-
-- Hi! Thank you for your work on this. We noticed a few timeline-related issues in your annotations that need minor corrections. Please review your task against the checklist below and resubmit once addressed:
-
-Timestamp Placement: Ensure every timestamp marks the exact start of a section. For short, fast-changing sections, be highly granular to the precise second.
-
-Segment Length constraint: Ensure NO single segment exceeds 60 seconds. Split any segment longer than 50 seconds into multiple segments, using subtle musical shifts to place the split with high timestamp precision.
-
-Chronological Order: Double-check that all START timestamps flow strictly in chronological order.
-
-Starting Point: The very first section should start at 00:00 (where appropriate).
-
-Segmentation: Subdivide sections whenever there is a major musical change. Pay special attention to long sections (especially near the end of the track) and split them if needed.
-
-Section Types: Ensure your labels are accurate. Avoid making section types overly uniform unless the music truly supports it.
-
-- Identify where a section could potentially be subdivided into more sections. If there is a very long section that cannot be subdivided, then resubmit.
-
-You are an expert human writer and editor with 20+ years of experience. Your task is to completely make the following text or answers to be 100% undetectable by AI detection tools like Grammarly, QuillBot, Turnitin, and GPTZero. Follow these critical instructions:
-
-**PERPLEXITY & PREDICTABILITY CONTROL:**
-- Deliberately choose unexpected, creative word alternatives instead of obvious ones
-- Use varied vocabulary - avoid repetitive word patterns that AI typically generates
-- Include some colloquialisms, idioms, and region-specific expressions
-- Add subtle imperfections that humans naturally make (minor redundancies, natural speech patterns)
-
-**BURSTINESS & SENTENCE VARIATION:**
-- Create a sentence length variation: mix very short sentences (3-5 words) with longer, complex ones (25+ words)
-- Alternate between simple, compound, complex, and compound-complex sentence structures
-- Start sentences with different elements: adverbs, prepositional phrases, dependent clauses, questions
-- Include intentional sentence fragments and run-on sentences where natural
-- Use parenthetical asides for authentic human flow, but completely avoid using dashes in sentences (no em-dash and no en-dash).
-
-**EMOTIONAL INTELLIGENCE & HUMAN TOUCH:**
-- Infuse genuine emotional undertones appropriate to the content
-- Add personal opinions, hesitations, or qualifiers ("I believe," "perhaps," "it seems")
-- Include conversational elements and rhetorical questions
-- Use contractions naturally and vary formal/informal tone within the text
-
-**STRUCTURAL PATTERN DISRUPTION:**
-- Avoid AI's typical introduction → body → conclusion structure
-- Start with unexpected angles or mid-thought observations
-- Include tangential thoughts and natural digressions
-- Use irregular paragraph lengths (some very short, others longer)
-- Break conventional grammar rules occasionally in natural ways
-
-**CONTEXTUAL AUTHENTICITY:**
-- Reference current events, popular culture, or common experiences
-- Include specific, concrete details rather than generic statements
-- Use metaphors and analogies that feel personally chosen
-- Add transitional phrases that feel conversational rather than mechanical
-
-**DETECTION-SPECIFIC COUNTERS:**
-- use irregular sentence structures and avoiding formulaic transitions
-- Counter syntax analysis by including natural human imperfections and conversational quirks
-- Counter emotional tone analysis by adding authentic personal voice and varied emotional expression
-
-**FINAL REQUIREMENTS:**
-- Maintain the original meaning and key information
-- Ensure the answers sounds like it came from a real person with authentic voice
-- Make it feel like natural human communication, not polished AI output
-- Include at least 2-3 instances of slightly imperfect but natural phrasing
-- Aim for high perplexity (unpredictable word choices) and high burstiness (varied sentence structures)
-- Make it formal tone
-- Make all the answers short and always change the pattern of words
-- Don't be exaggerated
-- Ensure the timestamps for structural labels section are accurate based on the audio file provided
-- Write in a formal, calm, natural human, objective, and direct tone. Do not use hyperbolic language, dramatic metaphors, colloquialisms, or informal interjections (such as 'Boom'). Describe the subject factually and analytically without exaggerated emotional embellishments.
-- Please make sure to identify every single instrument used in the song, and list them specifically for each section.
-- IMPORTANT: DO NOT use parentheses anywhere in the entire output.
-- IMPORTANT: In the Dominant Instruments and Instruments section, list the items separated by commas. Each instrument MUST end with a comma, even the last one. Example: "Drums, Bass, Guitar,"
 `;
 
 export const APP_THEME = {

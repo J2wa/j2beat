@@ -266,7 +266,7 @@ export default function App() {
     vocals: "",
   });
   const [result, setResult] = useState<string | null>(null);
-  const { annotation: annotationText, research } = useMemo(() => splitResearch(result || ""), [result]);
+  const { annotation: annotationText, research, audioQaIncomplete } = useMemo(() => splitResearch(result || ""), [result]);
   const [globalMetadata, setGlobalMetadata] = useState<{
     genreEraSceneTags?: string;
     genreEraScene?: string;
@@ -357,7 +357,7 @@ export default function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
 
-  const cleanMelodyType = (text: string, instruments: string) => {
+  const cleanMelodyType = (text: string) => {
     if (!text) return "";
     const cleaned = text.trim();
     const lower = cleaned.toLowerCase().replace(/\.$/, ""); // remove trailing period for check
@@ -374,11 +374,7 @@ export default function App() {
     ) {
       return "";
     }
-    // Older annotations included the source at the start of the phrase.
-    const sources = instruments.split(/[,;\n]/).map(source => source.trim().replace(/^[-*\s]+|[*\s]+$/g, ""))
-      .filter(Boolean).sort((a, b) => b.length - a.length);
-    const prefix = sources.find(source => lower.startsWith(source.toLowerCase() + " "));
-    return prefix ? cleaned.slice(prefix.length).trim() : cleaned;
+    return cleaned;
   };
 
   const parseSections = (text: string) => {
@@ -437,7 +433,7 @@ export default function App() {
         extractSectionField(item, "Vibe Tags") ||
         extractSectionField(item, "Vibe");
       const melodyRaw = extractSectionField(item, "Melody");
-      const melody = cleanMelodyType(melodyRaw, instruments);
+      const melody = cleanMelodyType(melodyRaw);
 
       // Heuristic for uncertainty: search for question marks or specific keywords
       const isUnsure =
@@ -536,7 +532,7 @@ export default function App() {
     text += `21. Lyrical Evocation Tags: ${currentMetadata.lyricsTags || ""}\n`;
     text += `22. Lyrical Evocation: ${currentMetadata.lyrics || ""}\n`;
 
-    return attachResearch(text.trim(), research);
+    return attachResearch(text.trim(), research, audioQaIncomplete);
   };
 
   const handleToggleEditing = () => {
@@ -942,7 +938,7 @@ export default function App() {
       {(isProcessing || isRefining) && <section className="analysis-progress-panel" aria-label="Annotation progress">
         <div className="analysis-progress-heading"><div><span className="analysis-pulse"/><strong>{isRefining ? 'Refining annotation' : 'Analyzing track'}</strong></div><time>{Math.floor(elapsedSeconds/60)}:{String(elapsedSeconds%60).padStart(2,'0')}</time></div>
         <p role="status" aria-live="polite">{analysisStage}</p>
-        <div className="analysis-stage-track" aria-label="Processing stages">{['Upload','Analyze','Research','Write'].map((label,i)=>{const stage=/Writing|Repairing/i.test(analysisStage)?3:/Searching/i.test(analysisStage)?2:/Analyzing|Retrying|Preparing AI|Rechecking/i.test(analysisStage)?1:0;return <span key={label} className={i<stage?'complete':i===stage?'active':''}>{i<stage?'✓':i+1} {label}</span>;})}</div>
+        <div className="analysis-stage-track" aria-label="Processing stages">{['Upload','Analyze','Research','Write','Review'].map((label,i)=>{const stage=/Reviewing/i.test(analysisStage)?4:/Writing|Repairing/i.test(analysisStage)?3:/Searching/i.test(analysisStage)?2:/Analyzing|Retrying|Preparing AI|Rechecking/i.test(analysisStage)?1:0;return <span key={label} className={i<stage?'complete':i===stage?'active':''}>{i<stage?'✓':i+1} {label}</span>;})}</div>
         <div className="analysis-meter" role="progressbar" aria-label="Current operation" aria-valuenow={/Uploading audio.*%/.test(analysisStage)?Number(analysisStage.match(/(\d+)%/)?.[1]):undefined} aria-valuemin={0} aria-valuemax={100} aria-valuetext={analysisStage}><span className={/Uploading audio.*%/.test(analysisStage)?'determinate':'indeterminate'} style={/Uploading audio.*%/.test(analysisStage)?{width:`${analysisStage.match(/(\d+)%/)?.[1]}%`}:undefined}/></div>
         <small>{elapsedSeconds>90?'Taking longer than usual. Progress and retries appear above.':'You can listen, seek, and loop while the annotation runs.'} AI processing may take up to 4 minutes, plus upload time.</small>
       </section>}
@@ -1058,6 +1054,9 @@ export default function App() {
             </div>
 
             <div className="annotation-content flex-1 relative">
+              {audioQaIncomplete && !isProcessing && (
+                <p className="small muted mb-4" role="status">Draft · audio QA incomplete</p>
+              )}
               <AnimatePresence mode="wait">
                 {isProcessing ? (
                   <motion.div
@@ -1140,7 +1139,7 @@ export default function App() {
                           <textarea
                             aria-label="Raw annotation"
                             value={annotationText}
-                            onChange={(e) => setResult(attachResearch(e.target.value, research))}
+                            onChange={(e) => setResult(attachResearch(e.target.value, research, audioQaIncomplete))}
                             className="w-full h-full min-h-[400px] bg-transparent text-primary p-0 focus:outline-none mono text-sm resize-none"
                             spellCheck={false}
                           />
@@ -1852,7 +1851,7 @@ export default function App() {
                       
                       <div className="mt-1 pt-2 border-t border-border-dim w-full">
                         <span className="text-sm uppercase tracking-widest font-black text-accent/70 block mb-0.5">
-                          SOP Section Formula
+                          Suggested listening order
                         </span>
                         <span className="text-sm font-mono text-primary block truncate leading-normal">
                           {profile.formula}
@@ -1925,7 +1924,7 @@ export default function App() {
                       )}
                     </div>
                     <p className="text-sm text-dim leading-relaxed font-medium">
-                      Standard detailed outputs based on the specific annotation formulas and musicology template per account.
+                      Detailed annotations with an emphasis based on the selected profile.
                     </p>
                   </Button>
 
@@ -1949,7 +1948,7 @@ export default function App() {
                       )}
                     </div>
                     <p className="text-sm text-dim leading-relaxed font-medium">
-                      Forces outputs to have a more human, conversational tone, removes AI slop phrases, and strictly limits fields to short, simple sentences.
+                      Uses short, direct sentences and plain musical terms while covering the tagged parts.
                     </p>
                   </Button>
                 </div>

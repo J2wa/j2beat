@@ -70,5 +70,5 @@ for (const prompt of [SYSTEM_PROMPT, KNOWLEDGE_BASE]) {
 }
 console.log('Passed Google Search tool wiring, citation provenance, uncertain matches, fallback/deadline, draft persistence, evidence separation and melody prompt regression checks.');
 
-assert.ok(MELODY_INSTRUCTION.includes('Omit instrument names and vocal descriptions'));
+assert.ok(MELODY_INSTRUCTION.includes('3–7 word phrase naming the audible instrument or voice'));
 assert.ok(!MELODY_INSTRUCTION.includes('8 to 20'));

@@ -17,9 +17,13 @@ const request = {model:'gemini-2.5-flash',contents:[{parts:[{text:'User notes'},
 let calls:any[]=[];
 const generate = async (r:any, options:any) => {calls.push({r,options});return {text:calls.length===1?fullRaw:finalText};};
 assert.equal(splitResearch((await generateMusicAnnotation(request,20,generate,noResearch)).text).annotation,finalText);
-assert.equal(calls.length,2);
+assert.equal(calls.length,3);
 assert.ok(calls[1].r.contents.every((c:any)=>c.parts.every((p:any)=>!p.inlineData)));
 assert.equal(calls[1].options.metadataOnly,true);
+assert.ok(calls[2].r.config.systemInstruction.includes('AUDIO QA'));
+assert.ok(calls[2].r.contents[0].parts.some((part:any)=>part.inlineData?.data==='YQ=='));
+assert.ok(calls[2].r.contents[0].parts[0].text.includes(finalText));
+assert.ok(calls[2].options.deadline > calls[1].options.deadline);
 assert.equal(calls[0].options.maxAttempts,1);
 assert.equal(calls[0].r.model,request.model);
 assert.equal(calls[0].r.contents[0].parts.find((p:any)=>p.inlineData).inlineData.data,'YQ==');
@@ -33,7 +37,7 @@ console.log('Passed evidence cleanup, duration/overlap rejection, two-stage audi
 const {progressContext} = await import('../server/progress.ts');
 const stages:string[]=[];
 await progressContext.run(stage=>stages.push(stage),()=>generateMusicAnnotation(request,20,async(r:any)=>({text:r.config.responseMimeType?fullRaw:finalText}),noResearch));
-assert.deepEqual(stages,['Analyzing audio','Searching Google for song context','Writing annotation from analysis']);
+assert.deepEqual(stages,['Analyzing audio','Searching Google for song context','Writing annotation from analysis','Reviewing draft against audio']);
 console.log('Passed actual pipeline progress events.');
 
 
@@ -54,7 +58,7 @@ await generateMusicAnnotation(request,210,async(r:any,o:any)=>{
   calls.push({r,o});
   return {text:calls.length===1 ? JSON.stringify({overview:'x',sections:intervals.slice(0,3)}) : calls.length===2 ? full210 : final210};
 },noResearch);
-assert.equal(calls.length,3);
+assert.equal(calls.length,4);
 assert.ok(calls[1].r.contents[0].parts.some((p:any)=>p.inlineData));
 assert.equal(calls[2].o.metadataOnly,true);
 // Writer omissions are retried against the full listening evidence.
@@ -62,7 +66,7 @@ calls=[];
 await generateMusicAnnotation(request,210,async(r:any,o:any)=>{
   calls.push({r,o}); return {text:calls.length===1?full210:calls.length===2?short210:final210};
 },noResearch);
-assert.equal(calls.length,3);
+assert.equal(calls.length,4);
 // Persistent truncation must never be returned as a successful annotation.
 let count=0;
 await assert.rejects(generateMusicAnnotation(request,210,async()=>({text:++count===1?full210:short210}),noResearch),/full recording/);
@@ -74,3 +78,23 @@ await generateMusicAnnotation(request,210,async(r:any,o:any)=>{
 assert.equal(calls[2].o.metadataOnly,false);
 assert.ok(calls[2].r.contents[0].parts.some((p:any)=>p.inlineData));
 console.log('Passed 3:30 coverage, missing tail/gap checks, audio recheck, writer repair and incomplete-result rejection.');
+
+const completeDraft = 'Timeline Sections\n- **Start Time:** 0:00\n- **Section Type:** intro\n- **Narrative Description:** Piano plays.\n- **Instruments:** Piano\n- **Vibe Tags:** Calm\n- **Melody:** Piano clipped notes\n\nGlobal Musical Matrix\n8. Instrumentation: Piano supplies harmony.';
+const correctedDraft = completeDraft.replace('Piano plays.', 'Piano anchors the harmony with clipped chords.');
+const review = async (output: string | Error) => splitResearch((await generateMusicAnnotation(request,20,async(r:any)=>{
+  if (r.config.responseMimeType) return {text:fullRaw};
+  if (r.config.systemInstruction.includes('AUDIO QA')) {
+    if (output instanceof Error) throw output;
+    return {text:output};
+  }
+  return {text:completeDraft};
+},noResearch)).text);
+const reviewed = await review(correctedDraft);
+assert.equal(reviewed.annotation,correctedDraft);
+assert.equal(reviewed.audioQaIncomplete,false);
+for (const invalidReview of [new Error('provider offline'), correctedDraft.replace('0:00','0:01'), correctedDraft.split('\n8. Instrumentation')[0]]) {
+  const fallback = await review(invalidReview);
+  assert.equal(fallback.annotation,completeDraft);
+  assert.equal(fallback.audioQaIncomplete,true);
+}
+console.log('Passed audio QA corrections, malformed review rejection, and incomplete QA status.');

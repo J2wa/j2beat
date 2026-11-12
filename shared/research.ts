@@ -17,7 +17,7 @@ export function safeSourceUrl(value: unknown): string | undefined {
 }
 
 // Keep provenance with browser-local drafts without changing the annotation schema.
-export function splitResearch(text: string): { annotation: string; research?: ResearchReport } {
+export function splitResearch(text: string): { annotation: string; research?: ResearchReport; audioQaIncomplete?: boolean } {
   const index = text.indexOf(MARKER);
   if (index < 0) return { annotation: text };
   const annotation = text.slice(0, index).trimEnd();
@@ -25,7 +25,7 @@ export function splitResearch(text: string): { annotation: string; research?: Re
     const json = text.slice(index + MARKER.length).replace(/\s*-->\s*$/, '');
     const data = JSON.parse(json);
     if (!['grounded', 'unverified', 'unavailable'].includes(data.status) || typeof data.message !== 'string' || typeof data.summary !== 'string' || !Array.isArray(data.sources) || !Array.isArray(data.queries)) return { annotation };
-    return { annotation, research: {
+    return { annotation, audioQaIncomplete: data.audioQaIncomplete === true, research: {
       status: data.status, message: data.message.slice(0, 1000), summary: data.summary.slice(0, 20000),
       sources: data.sources.filter((s: any) => s && Number.isInteger(s.id) && typeof s.title === 'string' && safeSourceUrl(s.url)).slice(0, 30),
       queries: data.queries.filter((q: unknown) => typeof q === 'string').slice(0, 20),
@@ -34,11 +34,11 @@ export function splitResearch(text: string): { annotation: string; research?: Re
   } catch { return { annotation }; }
 }
 
-export function attachResearch(annotation: string, research?: ResearchReport): string {
+export function attachResearch(annotation: string, research?: ResearchReport, audioQaIncomplete?: boolean): string {
   const clean = splitResearch(annotation).annotation.trimEnd();
   if (!research) return clean;
   // Escape HTML delimiters even inside Google's suggestion markup.
-  const json = JSON.stringify(research).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
+  const json = JSON.stringify({...research, ...(audioQaIncomplete ? {audioQaIncomplete} : {})}).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
   return `${clean}${MARKER}${json} -->`;
 }
 

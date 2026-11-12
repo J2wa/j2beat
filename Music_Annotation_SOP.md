@@ -22,7 +22,7 @@ This workflow dictates the step-by-step process for performing a chronological, 
    - **Narrative Description:** Limit to exactly 1 or 2 sentences depending on configuration. Describe the transition and musical focus (DO NOT analyze lyrics). Do not refer to previous or other sections; make the description standalone for each segment.
    - **Instruments:** Provide a pure comma-separated list of active dominant instruments (e.g., *Drum kit, Synth bass, Acoustic guitar,*).
    - **Vibe Tags:** Provide a comma-separated list of mood and energy descriptors.
-   - **Melody:** [A short 2–6 word phrase describing only the audible gesture, e.g. syncopated melody, funk chops, or staccato phrases. Omit instrument and vocal names. Avoid full sentences and repeating the narrative. Leave blank without melodic evidence.]
+   - **Melody:** [A short 3–7 word phrase naming the tagged instrument or voice and its audible gesture, e.g. electric guitar syncopated stabs. Avoid full sentences and repeating the narrative. Leave blank without melodic evidence.]
 
 ---
 
@@ -157,7 +157,7 @@ The narrative descriptions MUST be constructed by selecting and following one of
 
 ### Melody Field Analysis
 
-**Melody:** [A short 2–6 word phrase describing only the audible gesture, e.g. syncopated melody, funk chops, or staccato phrases. Omit instrument and vocal names. Avoid full sentences and repeating the narrative. Leave blank without melodic evidence.]
+**Melody:** [A short 3–7 word phrase naming the tagged instrument or voice and its audible gesture, e.g. electric guitar syncopated stabs. Avoid full sentences and repeating the narrative. Leave blank without melodic evidence.]
 
 Melody wording must be composed from the audible evidence for each segment. If the evidence is insufficient, leave the field blank. No preset phrase list applies.
 

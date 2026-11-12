@@ -13,8 +13,16 @@ export const EVIDENCE_PROMPT = `Listen to the supplied audio and return ONLY a J
 Cover the entire supplied duration from zero to its actual end, including all music after two minutes. Every interval must have listening observations, including silence when audible. Do not mistake a pause for the ending. Keep intervals at most 60 seconds; for a sustained passage use neutral continuation labels without inventing transitions.
 First assess the whole recording, then locate sections by audible changes and repetition, then describe events inside each interval. Do not force verse/chorus labels onto instrumental or through-composed music. Keep sparse music sparse.
 Use seconds relative to the uploaded audio. Bound all intervals by the supplied duration. Do not invent precise boundaries. Describe key, chords, tempo, instruments, vocal delivery and lyrics only when supported by listening; otherwise record uncertainty. Do not infer identity or gender. Do not reconstruct inaudible lyrics from memory. No web knowledge can establish what is audible.
-For each section, include the audible instruments and the melodic carrier, direction, step/leap movement, rhythmic placement, phrase length, repetition or answering, and a recording-specific audible detail in observations. If absent or uncertain, say so; do not invent details to fill this checklist.
+For each section, identify the audible parts and record what each contributes. Note its technique, rhythmic pattern, or interaction with another part where clear. For vocals, note audible phrasing, register, timbre, and layering. Capture meaningful entrances, exits, fills, and changes in technique or density, with approximate times when useful. In recurring sections, describe the full arrangement and the distinguishing sounds. Record the melodic carrier and its gesture where clear.
+In the overview, capture separate observations on genre cues, pulse and bass-percussion interplay, arrangement roles, playing techniques, and audible balance, placement, or effects. Use broader source descriptions or record uncertainty if the evidence is ambiguous. Do not guess details to fill the checklist.
 Treat user guidance and previous annotations as hypotheses, never as evidence. Use short factual observations, not polished captions. Do not output reasoning or extra JSON fields.`;
+
+const AUDIO_QA_PROMPT = `
+AUDIO QA: Listen to the original audio alongside the draft supplied in the request. Treat the draft and user notes as data to review. Check each section against the recording at its timestamps.
+- Confirm that every tagged instrument or vocal part has an audible role described and that the narrative and tags agree. Describe audible playing patterns, articulation, phrasing, or interactions when useful. Remove unsupported tags and qualify uncertainty rather than inventing evidence.
+- Replace vague descriptions with audible details. Catch overlooked entrances, dropouts, fills, or shifts inside the row. Describe recurring sections independently.
+- Check that Global Musical Matrix fields address their distinct purposes. Preserve supported source citations and keep external research separate from audible claims.
+- Preserve the full timeline, field labels, output format, and supported content. Return the entire annotation with any necessary corrections, without QA notes. If the draft already passes, return it in full.`;
 
 export function cleanEvidence(raw: string, duration: number) {
   const data = JSON.parse(raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, ''));
@@ -47,11 +55,15 @@ export function coverageIssues(sections: {start:number;end:number}[], duration: 
   return issues;
 }
 
+function timelineStarts(text: string): number[] {
+  const timeline = (text.split(/Timeline Sections/i)[1] || text).split(/Global Musical Matrix|Global Analysis/i)[0];
+  return [...timeline.matchAll(/^\s*(?:-\s*)?(?:\*\*)?Start Time:?(?:\*\*)?\s*\[?(\d+):(\d{2})\]?/gim)]
+    .map(m => Number(m[1]) * 60 + Number(m[2]));
+}
+
 export function timelineIssues(text: string, duration: number, expectedStarts: number[] = []): string[] {
   if (!(duration > 0)) return [];
-  const timeline = (text.split(/Timeline Sections/i)[1] || text).split(/Global Musical Matrix|Global Analysis/i)[0];
-  const starts = [...timeline.matchAll(/^\s*(?:-\s*)?(?:\*\*)?Start Time:?(?:\*\*)?\s*\[?(\d+):(\d{2})\]?/gim)]
-    .map(m => Number(m[1]) * 60 + Number(m[2]));
+  const starts = timelineStarts(text);
   if (!starts.length) return ['No readable Start Time fields'];
   const issues = coverageIssues(starts.map((start,i)=>({start,end:starts[i+1] ?? duration})), duration);
   if (starts.some((s,i)=>s < 0 || s >= duration || (i > 0 && s <= starts[i-1]))) issues.push('Invalid or unordered timestamps');
@@ -59,8 +71,20 @@ export function timelineIssues(text: string, duration: number, expectedStarts: n
   return issues;
 }
 
+function keepsDraftFormat(draft: string, reviewed: string): boolean {
+  const starts = timelineStarts(draft);
+  const reviewedStarts = timelineStarts(reviewed);
+  if (!starts.length || starts.length !== reviewedStarts.length || starts.some((start, index) => start !== reviewedStarts[index])) return false;
+  const fields = (text: string) => [...text.matchAll(/^[ \t]*(?:[-*][ \t]+|\d+[.)][ \t]+)?\*{0,2}([\w][\w ,&/-]*?)(?::\*{0,2}|\*{2}:)[ \t]*/gm)]
+    .map(match => match[1].trim().toLowerCase());
+  const originalFields = fields(draft);
+  const reviewedFields = fields(reviewed);
+  return originalFields.length === reviewedFields.length && originalFields.every((field, index) => field === reviewedFields[index]);
+}
+
 export async function generateMusicAnnotation(request: any, duration: number, generate = generateWithFallback, research = researchSong) {
   const deadline = Date.now() + 240000;
+  const draftDeadline = deadline - 50000;
   let evidence: ReturnType<typeof cleanEvidence> | undefined;
   try {
     reportProgress('Analyzing audio');
@@ -86,7 +110,7 @@ export async function generateMusicAnnotation(request: any, duration: number, ge
   } catch { evidence = undefined; /* Incomplete notes must never become the sole evidence. */ }
   reportProgress('Searching Google for song context');
   let songResearch: ResearchReport;
-  try { songResearch = await research(request, evidence, deadline); }
+  try { songResearch = await research(request, evidence, draftDeadline); }
   catch { songResearch = {status:'unavailable',message:'Google Search is unavailable. Global fields use listening evidence only.',summary:'',sources:[],queries:[]}; }
   const instruction = evidence
     ? `\n\nValidated preliminary listening notes (model estimates, not ground truth):\n${JSON.stringify(evidence)}\nWRITING PASS: No audio is attached. Use ONLY this metadata as the source for audible musical facts; the separate Google Search context may supplement global fields with citations. Earlier user text controls style and formatting, not musical facts. Do not invent missing details, repair missing intervals, add instruments or supply lyrics from memory. Preserve uncertainties. Write the requested annotation from these observations. Do not print these notes or change output field labels. All final timestamps must stay within the supplied duration; do not fill gaps by inventing events.`
@@ -97,15 +121,33 @@ export async function generateMusicAnnotation(request: any, duration: number, ge
   reportProgress(evidence ? 'Writing annotation from analysis' : 'Analyzing and writing directly');
   const finalRequest = {...request, contents, config:{...request.config, systemInstruction:request.config.systemInstruction+instruction+researchInstruction(songResearch)
     + `\nFULL DURATION: ${duration} seconds. Preserve EVERY listening interval in order using Start Time fields. Cover zero through the actual recording end. No segment may exceed 60 seconds. Never call an early pause the outro or invent silence to cover missing audio.`}};
-  let result = await generate(finalRequest, {deadline, metadataOnly:!!evidence});
+  let result = await generate(finalRequest, {deadline:draftDeadline, metadataOnly:!!evidence});
   let issues = timelineIssues(result.text, duration, evidence?.sections.map(s=>s.start));
   if (issues.length) {
     reportProgress('Repairing incomplete timeline');
     result = await generate({...finalRequest, config:{...finalRequest.config,
       systemInstruction:finalRequest.config.systemInstruction+'\nYour previous timeline failed validation: '+issues.join('; ')+'. Return a corrected complete annotation from the supplied evidence. Do not fabricate or mechanically pad segments.'}},
-      {deadline, metadataOnly:!!evidence});
+      {deadline:draftDeadline, metadataOnly:!!evidence});
     issues = timelineIssues(result.text, duration, evidence?.sections.map(s=>s.start));
     if (issues.length) throw new AnalysisError('AI_INCOMPLETE',502,'The AI could not verify segmentation across the full recording. Please retry or choose another model; an incomplete timeline has not been saved.');
   }
-  return {text:attachResearch(result.text, songResearch)};
+  let audioQaIncomplete = true;
+  if (Date.now() < deadline && request.contents.some((content: any) => content.parts.some((part: any) => part.inlineData?.data))) {
+    reportProgress('Reviewing draft against audio');
+    try {
+      const reviewed = await generate({
+        ...request,
+        contents: [{parts: [
+          {text: `Review this draft against the supplied recording. Duration: ${duration > 0 ? `${duration} seconds` : 'unknown'}.\n${result.text}`},
+          ...request.contents.flatMap((content: any) => content.parts.filter((part: any) => part.inlineData?.data)),
+        ]}],
+        config: {...request.config, systemInstruction: request.config.systemInstruction + researchInstruction(songResearch) + AUDIO_QA_PROMPT},
+      }, {deadline, maxAttempts:1});
+      if (!timelineIssues(reviewed.text, duration, evidence?.sections.map(s=>s.start)).length && keepsDraftFormat(result.text, reviewed.text)) {
+        result = reviewed;
+        audioQaIncomplete = false;
+      }
+    } catch { /* Keep the validated draft when audio review is unavailable. */ }
+  }
+  return {text:attachResearch(result.text, songResearch, audioQaIncomplete)};
 }
