@@ -40,7 +40,6 @@ import { annotateAudio, refineAnnotation } from "./services/geminiService";
 import { Button, Input, Header, SectionContainer } from "./components/BrandSystem";
 import { GuidanceDialog } from "./components/GuidanceDialog";
 import { MusicPlayer, formatTime } from "./components/MusicPlayer";
-import annotationSOP from "../Music_Annotation_SOP.md?raw";
 
 /** Utility for Tailwind class merging */
 function cn(...inputs: ClassValue[]) {
@@ -933,7 +932,47 @@ export default function App() {
       <div className="page-title"><h1>{view === 'workspace' ? 'Studio' : view === 'archive' ? 'Library' : 'Guide'}</h1>{view === 'workspace' && <span className="small muted">{sections.length ? `${sections.length} segments` : 'Music annotation'}</span>}</div>
       {serviceReady === false && <details className="service-notice"><summary><span className="status-dot"/> AI offline <span className="muted">Setup required</span></summary><p>In Vercel → j2beat → Settings → Environment Variables, set GEMINI_API_KEY and/or OPENROUTER_API_KEY with OPENROUTER_MODEL (an audio-input model). Your selected model is tried first, followed by the other Gemini models and the configured OpenRouter model if needed. Redeploy to apply. Keys remain server-side.</p></details>}
       {error && <div role="alert" className="error-notice">{error}</div>}
-      {view === 'guidelines' && <SectionContainer className="document-view"><p className="eyebrow"></p><h2>Annotation guidelines</h2><p>AI output is a draft. Listen to the track and verify instruments, timestamps, and descriptions before exporting.</p><div className="markdown-body"><ReactMarkdown remarkPlugins={[remarkGfm]}>{annotationSOP}</ReactMarkdown></div></SectionContainer>}
+      {view === "guidelines" && (
+        <SectionContainer className="document-view">
+          <h2>How to annotate a track</h2>
+          <ol className="list-decimal space-y-6 pl-6 marker:font-bold marker:text-accent">
+            <li className="space-y-2 pl-2">
+              <h3>Add the track</h3>
+              <p className="muted">
+                In <strong>Studio</strong>, select <strong>Upload audio</strong> to choose a file, or select{" "}
+                <strong>Import from Spotify</strong>, paste the track link, confirm permission, and click{" "}
+                <strong>Import track</strong>. Play the imported audio to check that it’s the right version.
+              </p>
+            </li>
+            <li className="space-y-2 pl-2">
+              <h3>Mark section starts and add guidance</h3>
+              <p className="muted">
+                Listen and seek on the waveform. Click <strong>Mark split</strong> at the start of each new
+                musical section. When you’re done, click <strong>Use in specific timestamps</strong> to copy the
+                markers into <strong>Timestamps to check</strong>. The app adds <strong>0:00</strong> for you.
+              </p>
+              <p className="muted">
+                List the instruments you can hear in <strong>Instruments to verify</strong>. Use{" "}
+                <strong>Song details and listening notes</strong> to say where they enter, if you know.
+                Click <strong>Save guidance</strong>, then <strong>Analyze track</strong>.
+              </p>
+            </li>
+            <li className="space-y-2 pl-2">
+              <h3>Review and correct the AI draft</h3>
+              <p className="muted">
+                Replay each section and check the start time, section label, instrument tags, and description
+                against the audio. Under <strong>Refine the annotation</strong>, enter the timestamp and what
+                should change in <strong>Correction instructions</strong>, then click <strong>Apply Correction</strong>.
+              </p>
+              <p className="muted">
+                Example: “The chorus starts at 0:42, and a shaker enters at 0:47.” Check the revised draft
+                against the track before copying or exporting it.
+              </p>
+            </li>
+          </ol>
+          <Button className="mt-6" variant="primary" onClick={() => setView("workspace")}>Open Studio</Button>
+        </SectionContainer>
+      )}
       {view === 'archive' && <SectionContainer className="document-view"><p className="eyebrow"></p><h2>Saved annotations</h2><p>Annotations are saved in this browser. Unannotated imports expire after 24 hours. Successful analysis removes the stored audio and keeps the annotation.</p>{archive.length === 0 ? <p className="archive-empty">No saved annotations yet.</p> : archive.map(item => <article className="archive-row" key={item.id}><div><h3>{item.name}</h3><p>{new Date(item.date).toLocaleString()}</p>{item.audioPath && item.text === IMPORTED_TRACK_NOTE && <p>Expires {new Date(item.expiresAt ?? importedAudioExpiresAt(item.date)).toLocaleString()}</p>}</div><div className="archive-actions"><Button disabled={isProcessing||isRefining||importing} onClick={()=>openSaved(item)}><FileAudio />{item.audioPath?'Open & play':'Open annotation'}</Button>{item.text !== IMPORTED_TRACK_NOTE && <Button onClick={async()=>{try{(await import('./utils/pdfGenerator')).exportSavedPDF(item.name,item.text,item.date);}catch{setError('PDF export failed. Please retry.');}}}><Download/>Export PDF</Button>}{item.audioPath&&<a className="aces-button aces-button--secondary" href={'/api/audio?path='+encodeURIComponent(item.audioPath)} download={item.name}>Download audio</a>}</div></article>)}</SectionContainer>}
       {(isProcessing || isRefining) && <section className="analysis-progress-panel" aria-label="Annotation progress">
         <div className="analysis-progress-heading"><div><span className="analysis-pulse"/><strong>{isRefining ? 'Refining annotation' : 'Analyzing track'}</strong></div><time>{Math.floor(elapsedSeconds/60)}:{String(elapsedSeconds%60).padStart(2,'0')}</time></div>
