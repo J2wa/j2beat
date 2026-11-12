@@ -11,7 +11,6 @@ import {
   Music,
   FileAudio,
   Settings,
-  Link2,
   Play,
   Pause,
   Activity,
@@ -923,18 +922,15 @@ export default function App() {
       </section>}
       <div className="player-section" hidden={view !== 'workspace'}>
         <MusicPlayer linkImport={
-          <details className="track-link-import">
-            <summary><Link2 size={17} /> Import from Spotify</summary>
-            <form onSubmit={event => { event.preventDefault(); void importSpotify(); }}>
-              <label htmlFor="spotify-link">Spotify track link</label>
-              <div className="track-link-controls">
-                <input id="spotify-link" type="url" value={spotifyLink} placeholder="https://open.spotify.com/track/…" onChange={event => setSpotifyLink(event.target.value)} disabled={importing || isProcessing || isRefining} required />
-                <Button type="submit" disabled={!spotifyLink.trim() || !rightsConfirmed || importing || isProcessing || isRefining}>{importing ? 'Importing…' : 'Import track'}</Button>
-              </div>
-              <p className="field-hint">Loads a matched recording into the player. Check the version before analyzing.</p>
-              <label className="import-permission"><input type="checkbox" checked={rightsConfirmed} disabled={importing || isProcessing || isRefining} onChange={event => setRightsConfirmed(event.target.checked)} />I have permission to download and analyze this recording.</label>
-            </form>
-          </details>
+          <form onSubmit={event => { event.preventDefault(); void importSpotify(); }}>
+            <label htmlFor="spotify-link">Spotify track link</label>
+            <div className="track-link-controls">
+              <input id="spotify-link" type="url" value={spotifyLink} placeholder="https://open.spotify.com/track/…" onChange={event => setSpotifyLink(event.target.value)} disabled={importing || isProcessing || isRefining} required />
+              <Button type="submit" disabled={!spotifyLink.trim() || !rightsConfirmed || importing || isProcessing || isRefining}>{importing ? 'Importing…' : 'Import track'}</Button>
+            </div>
+            <p className="field-hint">Loads a matched recording into the player. Check the version before analyzing.</p>
+            <label className="import-permission"><input type="checkbox" checked={rightsConfirmed} disabled={importing || isProcessing || isRefining} onChange={event => setRightsConfirmed(event.target.checked)} />I have permission to download and analyze this recording.</label>
+          </form>
         } importStatus={importing && <div className="track-import-status" role="status">
           <p>{importProgress.stage}{importProgress.percent !== null ? ` · ${importProgress.percent}%` : '…'}</p>
           <progress aria-label={importProgress.stage} max={100} value={importProgress.percent ?? undefined} />
