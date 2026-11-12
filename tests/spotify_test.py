@@ -18,11 +18,11 @@ class ImportTests(unittest.TestCase):
   self.assertEqual(self.call({'url':'https://open.spotify.com/playlist/'+'a'*22,'rightsConfirmed':True})[0],400)
   self.assertEqual(self.call({'url':'https://open.spotify.com/track/'+'a'*22})[0],400)
  def test_download_and_private_persistence(self):
-  def download(command,**kwargs):
-   self.assertIn('--threads',command);self.assertEqual(command[5],'https://open.spotify.com/track/'+'a'*22)
-   Path(kwargs['cwd'],'Test song.mp3').write_bytes(b'fake audio');return types.SimpleNamespace(returncode=0,stdout=b'',stderr=b'')
+  def download(command,folder,env,notify):
+   self.assertIn('--threads',command);self.assertEqual(command[6],'https://open.spotify.com/track/'+'a'*22)
+   Path(folder,'Test song.mp3').write_bytes(b'fake audio');return types.SimpleNamespace(returncode=0,stdout=b'',stderr=b'')
   requests=types.SimpleNamespace(put=lambda url,**kwargs:types.SimpleNamespace(ok=kwargs['headers']['x-vercel-blob-access']=='private'))
-  with patch.dict(sys.modules,{'requests':requests,'imageio_ffmpeg':types.SimpleNamespace(get_ffmpeg_exe=lambda:'/ffmpeg')}),patch.object(module.subprocess,'run',side_effect=download):
+  with patch.dict(sys.modules,{'requests':requests,'imageio_ffmpeg':types.SimpleNamespace(get_ffmpeg_exe=lambda:'/ffmpeg')}),patch.object(module,'run_download',side_effect=download):
    status,data=self.call({'url':'https://open.spotify.com/track/'+'a'*22,'rightsConfirmed':True})
   self.assertEqual(status,200);self.assertTrue(data['path'].startswith('music/'));self.assertNotIn('test-blob',json.dumps(data))
  def test_dynamic_dependency_paths_reach_child(self):
@@ -34,6 +34,13 @@ class ImportTests(unittest.TestCase):
     result=subprocess.run([sys.executable,'-c','import aces_runtime_dependency; print(aces_runtime_dependency.VALUE)'],cwd='/tmp',env=module.downloader_environment(folder),capture_output=True)
     self.assertEqual(result.returncode,0,result.stderr);self.assertIn(b'42',result.stdout)
    finally:sys.path.remove(folder)
+ def test_streamed_download_progress(self):
+  import tempfile
+  events=[]
+  with tempfile.TemporaryDirectory() as folder:
+   result=module.run_download([sys.executable,'-c','print(\'ACES_PROGRESS:{"stage":"Downloading audio","percent":42}\'); print("diagnostic")'],folder,os.environ.copy(),events.append)
+  self.assertEqual(events,[{'stage':'Downloading audio','percent':42}])
+  self.assertEqual(result.returncode,0);self.assertIn(b'diagnostic',result.stdout)
  def test_error_classification(self):
   missing=types.SimpleNamespace(returncode=1,stderr=b"ModuleNotFoundError: No module named 'spotdl'",stdout=b'')
   self.assertEqual(module.download_failure(missing)['code'],'IMPORT_DEPENDENCY')

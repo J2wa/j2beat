@@ -1,7 +1,7 @@
 """Single-track spotDL import. Audio is persisted privately, never in a response body."""
 from http.server import BaseHTTPRequestHandler
 from http.cookies import SimpleCookie
-import base64, hashlib, hmac, json, os, re, subprocess, sys, tempfile, time, uuid
+import base64, hashlib, hmac, json, os, re, subprocess, sys, tempfile, time, uuid, queue, threading
 from pathlib import Path
 from urllib.parse import urlparse, quote
 
@@ -52,10 +52,80 @@ def download_failure(result):
     return {'code':code,'error':message}
 
 
+BOOTSTRAP = r"""
+import pathlib, runpy, sys, json
+work = sys.argv.pop(1)
+pathlib.Path.home = classmethod(lambda cls: pathlib.Path(work))
+sys.argv[0] = 'spotdl'
+def event(stage, percent=None):
+    print('ACES_PROGRESS:' + json.dumps({'stage':stage,'percent':percent}), flush=True)
+event('Preparing audio converter')
+print('ACES_STAGE:dependencies', file=sys.stderr, flush=True)
+from spotdl.utils.ffmpeg import download_ffmpeg
+ffmpeg = download_ffmpeg()
+import subprocess
+subprocess.run([str(ffmpeg), '-version'], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+event('Preparing YouTube runtime')
+from spotdl.utils.deno import download_deno
+download_deno()
+import yt_dlp
+original_init = yt_dlp.YoutubeDL.__init__
+def progress(data):
+    if data.get('status') == 'downloading':
+        total = data.get('total_bytes') or data.get('total_bytes_estimate')
+        event('Downloading audio', min(100, round(data.get('downloaded_bytes',0)*100/total)) if total else None)
+    elif data.get('status') == 'finished':
+        event('Converting audio', None)
+def init(self, params=None, *args, **kwargs):
+    params = dict(params or {})
+    params['progress_hooks'] = list(params.get('progress_hooks',[])) + [progress]
+    params['remote_components'] = ['ejs:github']
+    original_init(self, params, *args, **kwargs)
+yt_dlp.YoutubeDL.__init__ = init
+event('Finding matching recording')
+print('ACES_STAGE:download', file=sys.stderr, flush=True)
+runpy.run_module('spotdl', run_name='__main__')
+"""
+
+def run_download(command, folder, env, notify):
+    lines = queue.Queue()
+    output = []
+    with subprocess.Popen(command, cwd=folder, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT) as process:
+        def read():
+            for line in process.stdout:
+                lines.put(line)
+            lines.put(None)
+        threading.Thread(target=read, daemon=True).start()
+        deadline = time.monotonic() + 210
+        try:
+            while True:
+                if time.monotonic() >= deadline:
+                    raise subprocess.TimeoutExpired(command,210)
+                try: line = lines.get(timeout=1)
+                except queue.Empty: continue
+                if line is None: break
+                if line.startswith(b'ACES_PROGRESS:'):
+                    try: notify(json.loads(line[len(b'ACES_PROGRESS:'):]))
+                    except (ValueError, TypeError): pass
+                else:
+                    output.append(line)
+                    if len(output)>1000: output.pop(0)
+            process.wait(timeout=max(1,deadline-time.monotonic()))
+        finally:
+            if process.poll() is None:
+                process.kill(); process.wait()
+    return subprocess.CompletedProcess(command,process.returncode,b''.join(output),b'')
+
+
 class handler(BaseHTTPRequestHandler):
     def reply(self, status, data):
+        if getattr(self,'streaming',False):
+            return self.event({'type':'result' if status<400 else 'error',**data})
         self.send_response(status); self.send_header('Content-Type','application/json'); self.send_header('Cache-Control','no-store'); self.end_headers()
         self.wfile.write(json.dumps(data).encode())
+
+    def event(self, data):
+        self.wfile.write((json.dumps(data)+'\n').encode()); self.wfile.flush()
 
     def do_POST(self):
         if not valid_session(self.headers): return self.reply(401, {'error':'Please sign in to import music.'})
@@ -71,14 +141,19 @@ class handler(BaseHTTPRequestHandler):
             with tempfile.TemporaryDirectory(prefix='aces-import-') as folder:
                 # spotDL and its caches must only write to ephemeral /tmp.
                 env = downloader_environment(folder)
-                bootstrap = "import pathlib,runpy,sys; work=sys.argv.pop(1); pathlib.Path.home=classmethod(lambda cls:pathlib.Path(work)); sys.argv[0]='spotdl'; print('ACES_STAGE:dependencies',file=sys.stderr,flush=True); from spotdl.utils.ffmpeg import download_ffmpeg; print('ACES_STAGE:ffmpeg',file=sys.stderr,flush=True); ffmpeg=download_ffmpeg(); import subprocess; subprocess.run([str(ffmpeg),'-version'],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL); from spotdl.utils.deno import download_deno; download_deno(); print('ACES_STAGE:download',file=sys.stderr,flush=True); runpy.run_module('spotdl',run_name='__main__')"
-                command = [sys.executable,'-c',bootstrap,folder,'download',canonical,'--output',folder+'/{title}.{output-ext}', '--format','mp3','--bitrate','192k','--threads','1','--no-cache']
-                result = subprocess.run(command, cwd=folder, env=env, capture_output=True, timeout=210)
+                streaming = 'application/x-ndjson' in self.headers.get('Accept','')
+                if streaming:
+                    self.send_response(200); self.send_header('Content-Type','application/x-ndjson'); self.send_header('Cache-Control','no-store'); self.end_headers()
+                    self.streaming=True
+                notify = lambda event: self.event({'type':'progress',**event}) if streaming else None
+                command = [sys.executable,'-u','-c',BOOTSTRAP,folder,'download',canonical,'--output',folder+'/{title}.{output-ext}', '--format','mp3','--bitrate','192k','--threads','1','--no-cache','--audio','youtube','youtube-music','--log-level','DEBUG']
+                result = run_download(command, folder, env, notify)
                 files = list(Path(folder).glob('*.mp3'))
                 if result.returncode or len(files) != 1:
                     return self.reply(502, download_failure(result))
                 audio = files[0]
                 if not 0 < audio.stat().st_size <= 100*1024*1024: return self.reply(413, {'error':'Imported audio exceeds 100 MB.'})
+                notify({'stage':'Saving private audio','percent':None})
                 path = 'music/'+str(uuid.uuid4())+'.mp3'
                 token = os.environ.get('BLOB_READ_WRITE_TOKEN') or os.environ.get('VERCEL_OIDC_TOKEN')
                 if not token: return self.reply(503, {'error':'Private audio storage is not configured.'})

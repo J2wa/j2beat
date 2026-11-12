@@ -156,6 +156,7 @@ export default function App() {
   const importedSource = useRef<{path:string;sourceUrl:string} | null>(null);
   const [spotifyLink,setSpotifyLink]=useState('');
   const [importing,setImporting]=useState(false);
+  const [importProgress,setImportProgress]=useState<{stage:string;percent:number|null}>({stage:'Preparing import',percent:null});
   const [rightsConfirmed,setRightsConfirmed]=useState(false);
   const deletedAudioPaths=useRef(new Set<string>());
   const saveAnnotation = (text: string, audioFile = file, audioDuration = duration) => {
@@ -655,11 +656,26 @@ export default function App() {
   const importSpotify = async () => {
     if(importing || isProcessing || isRefining)return;
     if(credits<GENERATE_COST){setError('You need 10 local credits to import and analyze.');return;}
-    setImporting(true);setError(null);setView('workspace');
+    setImporting(true);setImportProgress({stage:'Connecting to downloader',percent:null});setError(null);setView('workspace');
     try {
-      const response=await fetch('/api/spotify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:spotifyLink.trim(),rightsConfirmed}),signal:AbortSignal.timeout(290000)});
-      const data=await response.json();
-      if(!response.ok)throw new Error(typeof data.error==='string'?data.error:'Music import failed.');
+      const response=await fetch('/api/spotify',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/x-ndjson'},body:JSON.stringify({url:spotifyLink.trim(),rightsConfirmed}),signal:AbortSignal.timeout(290000)});
+      if(!response.ok){const error=await response.json();throw new Error(error.error||'Music import failed.');}
+      if(!response.body)throw new Error('Download connection was interrupted.');
+      const reader=response.body.getReader();const decoder=new TextDecoder();let buffer='';
+      let data:{path:string;name:string;sourceUrl:string}|undefined;
+      while(true){
+        const chunk=await reader.read();buffer+=decoder.decode(chunk.value,{stream:!chunk.done});
+        const lines=buffer.split('\n');buffer=lines.pop()||'';
+        for(const line of lines){
+          if(!line.trim())continue;const event=JSON.parse(line);
+          if(event.type==='error')throw new Error(event.error||'Music import failed.');
+          if(event.type==='progress')setImportProgress({stage:event.stage,percent:event.percent??null});
+          if(event.type==='result')data=event;
+        }
+        if(chunk.done)break;
+      }
+      if(!data?.path)throw new Error('Download connection ended before completion. Please retry.');
+      setImportProgress({stage:'Loading audio into player',percent:null});
       const downloaded=await loadStoredAudio(data.path,data.name);
       const trackDuration=await new Promise<number>((resolve,reject)=>{
         const audio=new Audio();const url=URL.createObjectURL(downloaded);
@@ -871,7 +887,7 @@ export default function App() {
       {error && <div role="alert" className="error-notice">{error}</div>}
       {view === 'guidelines' && <SectionContainer className="document-view"><p className="eyebrow"></p><h2>Annotation guidelines</h2><p>AI output is a draft. Listen to the track and verify instruments, timestamps, and descriptions before exporting.</p><div className="markdown-body"><ReactMarkdown remarkPlugins={[remarkGfm]}>{annotationSOP}</ReactMarkdown></div></SectionContainer>}
       {view === 'archive' && <SectionContainer className="document-view"><p className="eyebrow"></p><h2>Saved annotations</h2><p>Annotations are saved in this browser. Imported audio is deleted from storage after successful analysis. Playback remains available in the current browser session.</p>{archive.length === 0 ? <p className="archive-empty">No saved annotations yet.</p> : archive.map(item => <article className="archive-row" key={item.id}><div><h3>{item.name}</h3><p>{new Date(item.date).toLocaleString()}</p></div><div className="archive-actions"><Button disabled={isProcessing||isRefining||importing} onClick={()=>openSaved(item)}><FileAudio />{item.audioPath?'Open & play':'Open annotation'}</Button><Button onClick={async()=>{try{(await import('./utils/pdfGenerator')).exportSavedPDF(item.name,item.text,item.date);}catch{setError('PDF export failed. Please retry.');}}}><Download/>Export PDF</Button>{item.audioPath&&<a className="aces-button aces-button--secondary" href={'/api/audio?path='+encodeURIComponent(item.audioPath)} download={item.name}>Download audio</a>}</div></article>)}</SectionContainer>}
-      {view==='workspace'&&<section className="spotify-import"><div><h3>Import from Spotify</h3><p className="field-hint">Paste one track link. spotDL finds a matching YouTube recording, saves it privately, then starts AI analysis. Verify the recording version.</p></div><label htmlFor="spotify-link" className="sr-only">Spotify track link</label><input id="spotify-link" type="url" value={spotifyLink} placeholder="https://open.spotify.com/track/…" onChange={e=>setSpotifyLink(e.target.value)} disabled={importing||isProcessing||isRefining}/><label className="import-permission"><input type="checkbox" checked={rightsConfirmed} onChange={e=>setRightsConfirmed(e.target.checked)}/>I have permission to download and analyze this recording.</label><Button variant="primary" disabled={!spotifyLink.trim()||!rightsConfirmed||importing||isProcessing||isRefining} onClick={importSpotify}>{importing?'Finding and saving recording…':'Import & analyze'}</Button>{importing&&<p role="status">Downloading and saving audio. This can take a few minutes. The player remains available.</p>}</section>}
+      {view==='workspace'&&<section className="spotify-import"><div><h3>Import from Spotify</h3><p className="field-hint">Paste one track link. spotDL finds a matching YouTube recording, saves it privately, then starts AI analysis. Verify the recording version.</p></div><label htmlFor="spotify-link" className="sr-only">Spotify track link</label><input id="spotify-link" type="url" value={spotifyLink} placeholder="https://open.spotify.com/track/…" onChange={e=>setSpotifyLink(e.target.value)} disabled={importing||isProcessing||isRefining}/><label className="import-permission"><input type="checkbox" checked={rightsConfirmed} onChange={e=>setRightsConfirmed(e.target.checked)}/>I have permission to download and analyze this recording.</label><Button variant="primary" disabled={!spotifyLink.trim()||!rightsConfirmed||importing||isProcessing||isRefining} onClick={importSpotify}>{importing?'Finding and saving recording…':'Import & analyze'}</Button>{importing&&<div role="status" aria-live="polite"><p>{importProgress.stage}{importProgress.percent!==null?` — ${importProgress.percent}%`: '…'}</p><progress aria-label={importProgress.stage} max={100} value={importProgress.percent??undefined} style={{width:'100%',accentColor:'#527fff'}}/><p className="field-hint">Download percentage appears when the source reports its size. Preparation, matching and conversion have no measurable percentage. The player remains available.</p></div>}</section>}
       {(isProcessing || isRefining) && <section className="analysis-progress-panel" aria-label="Annotation progress">
         <div className="analysis-progress-heading"><div><span className="analysis-pulse"/><strong>{isRefining ? 'Refining annotation' : 'Analyzing track'}</strong></div><time>{Math.floor(elapsedSeconds/60)}:{String(elapsedSeconds%60).padStart(2,'0')}</time></div>
         <p role="status" aria-live="polite">{analysisStage}</p>
