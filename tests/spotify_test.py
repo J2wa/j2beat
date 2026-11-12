@@ -41,6 +41,37 @@ class ImportTests(unittest.TestCase):
    result=module.run_download([sys.executable,'-c','print(\'ACES_PROGRESS:{"stage":"Downloading audio","percent":42}\'); print("diagnostic")'],folder,os.environ.copy(),events.append)
   self.assertEqual(events,[{'stage':'Downloading audio','percent':42}])
   self.assertEqual(result.returncode,0);self.assertIn(b'diagnostic',result.stdout)
+ def test_optional_cookies_validation_permissions_and_cleanup(self):
+  import tempfile, stat
+  raw='# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t0\tSID\tprivate-value\n.example.com\tTRUE\t/\tTRUE\t0\tSID\tunrelated-value\n'
+  with patch.dict(os.environ,{'YOUTUBE_COOKIES_BASE64':''}),tempfile.TemporaryDirectory() as folder:
+   self.assertIsNone(module.prepare_cookie_file(folder))
+  with patch.dict(os.environ,{'YOUTUBE_COOKIES_BASE64':base64.b64encode(raw.encode()).decode()}):
+   with tempfile.TemporaryDirectory() as folder:
+    path=Path(module.prepare_cookie_file(folder))
+    self.assertEqual(stat.S_IMODE(path.stat().st_mode),0o600)
+    self.assertNotIn('unrelated-value',path.read_text())
+    self.assertNotIn('YOUTUBE_COOKIES_BASE64',module.downloader_environment(folder))
+   self.assertFalse(path.exists())
+  for invalid in ['bad!',base64.b64encode(b'not a cookie file').decode()]:
+   with patch.dict(os.environ,{'YOUTUBE_COOKIES_BASE64':invalid}),tempfile.TemporaryDirectory() as folder:
+    with self.assertRaises(module.CookieConfigurationError):module.prepare_cookie_file(folder)
+ def test_cookie_diagnostics_do_not_log_session_data(self):
+  result=types.SimpleNamespace(returncode=1,stderr=b'ACES_STAGE:download not a bot private-value',stdout=b'')
+  output=io.StringIO()
+  from contextlib import redirect_stdout
+  with redirect_stdout(output):module.download_failure(result,using_cookies=True)
+  self.assertNotIn('private-value',output.getvalue())
+ def test_cookies_passed_to_worker_and_removed_on_failure(self):
+  raw='# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t0\tSID\tprivate-value\n'
+  captured=[]
+  def fail(command,folder,env,notify):
+   path=Path(command[command.index('--cookie-file')+1]);captured.append(path)
+   self.assertTrue(path.exists());self.assertNotIn('YOUTUBE_COOKIES_BASE64',env)
+   raise RuntimeError('worker failed')
+  with patch.dict(os.environ,{'YOUTUBE_COOKIES_BASE64':base64.b64encode(raw.encode()).decode()}),patch.dict(sys.modules,{'requests':types.SimpleNamespace()}),patch.object(module,'run_download',side_effect=fail):
+   self.assertEqual(self.call({'url':'https://open.spotify.com/track/'+'a'*22,'rightsConfirmed':True})[0],502)
+  self.assertFalse(captured[0].exists())
  def test_error_classification(self):
   missing=types.SimpleNamespace(returncode=1,stderr=b"ModuleNotFoundError: No module named 'spotdl'",stdout=b'')
   self.assertEqual(module.download_failure(missing)['code'],'IMPORT_DEPENDENCY')

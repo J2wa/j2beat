@@ -78,3 +78,20 @@ The signed-in Spotify import accepts one track URL and uses spotDL 4.6.0 with FF
 Audio is stored in the existing private Vercel Blob store using BLOB_READ_WRITE_TOKEN or Vercel OIDC credentials plus BLOB_STORE_ID. Browser Library entries retain the private pathname and source link, allowing Open & play and Download audio after refresh. Library metadata still resides in this browser; it is not a shared cross-device catalog. Audio import creates a Library entry before analysis, so a failed AI call does not hide the saved track. Existing uploads without a saved audio reference remain annotation-only entries. All signed-in users share the existing app access model. Blob audio persists until removed from storage; no automatic retention deletion is configured.
 
 Validation: npm run lint, npm run build, python tests/spotify_test.py, and generated-PDF text inspection. Downloader execution and external matching require source-site availability; mocked integration tests do not establish live download success.
+
+
+### Optional YouTube session cookies
+
+Set `YOUTUBE_COOKIES_BASE64` as a sensitive, server-only Vercel environment variable for Production, then redeploy. Leave it unset to use anonymous downloads. Never prefix it with `VITE_` or commit cookie files.
+
+Export a Netscape-format `cookies.txt` containing YouTube cookies. On Windows, copy its base64 encoding to your clipboard without printing it:
+
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes((Resolve-Path .\cookies.txt))) | Set-Clipboard
+```
+
+Paste the clipboard into the Vercel variable value. Base64 is encoding, not encryption. Treat the value as a login credential and do not share it in chat or logs.
+
+The worker validates the export, retains only youtube.com domains, writes a request-specific file with owner-only permissions, and passes its path through spotDL's `--cookie-file`. The temporary directory is removed when the request exits, including failures. Cookie-enabled failures log only an error category, never downloader output. The environment variable itself remains configured until you remove or replace it.
+
+Cookies can expire and do not guarantee that YouTube accepts the hosting network. Replace the variable and redeploy to refresh; remove it and redeploy to disable.

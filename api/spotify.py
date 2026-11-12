@@ -22,14 +22,56 @@ def valid_session(headers):
     except Exception: return False
 
 
+class CookieConfigurationError(ValueError):
+    pass
+
+
+def prepare_cookie_file(folder):
+    """Optional secret, restricted to YouTube domains and this request's temp directory."""
+    encoded = os.environ.get('YOUTUBE_COOKIES_BASE64', '').strip()
+    if not encoded:
+        return None
+    try:
+        if len(encoded) > 65536:
+            raise ValueError('too large')
+        content = base64.b64decode(''.join(encoded.split()), validate=True).decode('utf-8-sig')
+        lines = content.splitlines()
+        if not lines or lines[0] not in ('# Netscape HTTP Cookie File', '# HTTP Cookie File'):
+            raise ValueError('header')
+        accepted = ['# Netscape HTTP Cookie File']
+        for line in lines[1:]:
+            if not line.strip() or (line.startswith('#') and not line.startswith('#HttpOnly_')):
+                continue
+            fields = line.split('\t')
+            if len(fields) != 7:
+                raise ValueError('columns')
+            domain = fields[0].removeprefix('#HttpOnly_').lstrip('.').lower()
+            if domain != 'youtube.com' and not domain.endswith('.youtube.com'):
+                continue
+            if fields[1] not in ('TRUE', 'FALSE') or fields[3] not in ('TRUE', 'FALSE') or not fields[4].isdigit() or not fields[5]:
+                raise ValueError('format')
+            accepted.append(line)
+        if len(accepted) == 1:
+            raise ValueError('no YouTube cookies')
+        path = Path(folder) / 'youtube-cookies.txt'
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, 'w', encoding='utf-8') as output:
+            output.write('\n'.join(accepted) + '\n')
+        return str(path)
+    except (ValueError, UnicodeError) as error:
+        raise CookieConfigurationError('Invalid server YouTube cookie configuration. Set YOUTUBE_COOKIES_BASE64 to a base64-encoded Netscape cookies.txt export containing YouTube cookies, or remove it.') from None
+
+
 def downloader_environment(folder):
     # Vercel adds downloaded dependencies to sys.path in the parent process.
     # A fresh Python subprocess does not inherit those additions automatically.
     paths = [str(Path(path).resolve()) for path in sys.path if path and Path(path).is_dir()]
-    return dict(os.environ, PYTHONPATH=os.pathsep.join(paths), XDG_CACHE_HOME=folder, XDG_CONFIG_HOME=folder)
+    env = dict(os.environ, PYTHONPATH=os.pathsep.join(paths), XDG_CACHE_HOME=folder, XDG_CONFIG_HOME=folder)
+    env.pop('YOUTUBE_COOKIES_BASE64', None)
+    return env
 
 
-def download_failure(result):
+def download_failure(result, using_cookies=False):
     output=(result.stderr or b'').decode('utf-8', errors='replace')+'\n'+(result.stdout or b'').decode('utf-8', errors='replace')
     if 'No module named' in output or 'ModuleNotFoundError' in output:
         code='IMPORT_DEPENDENCY'
@@ -43,10 +85,16 @@ def download_failure(result):
     else:
         code='IMPORT_DOWNLOAD'
         message='The downloader could not retrieve this recording. Please retry or upload the audio file.'
+    if using_cookies:
+        # Downloader exceptions may contain decoded session data. Never log raw output.
+        print('Spotify import diagnostic:', json.dumps({'code':code,'exitCode':result.returncode,'cookiesEnabled':True}), flush=True)
+        if code == 'IMPORT_SOURCE_BLOCKED':
+            message = 'YouTube rejected the download with server cookies enabled. The owner can refresh the cookies; upload the recording if the block continues.'
+        return {'code':code,'error':message}
     # Keep diagnostics on the server and remove URLs, credentials and control codes.
     safe=re.sub(r'\x1b\[[0-9;]*m','',output)
     for key,value in os.environ.items():
-        if len(value)>7 and any(word in key.upper() for word in ['KEY','TOKEN','SECRET','PASSWORD']): safe=safe.replace(value,'[redacted]')
+        if len(value)>7 and any(word in key.upper() for word in ['KEY','TOKEN','SECRET','PASSWORD','COOKIE']): safe=safe.replace(value,'[redacted]')
     safe=re.sub(r'https?://[^\s]+','[url]',safe)
     print('Spotify import diagnostic:',json.dumps({'code':code,'exitCode':result.returncode,'detail':safe[-2500:]}),flush=True)
     return {'code':code,'error':message}
@@ -140,17 +188,20 @@ class handler(BaseHTTPRequestHandler):
             canonical = 'https://open.spotify.com/track/'+match[1]
             with tempfile.TemporaryDirectory(prefix='aces-import-') as folder:
                 # spotDL and its caches must only write to ephemeral /tmp.
+                cookie_file = prepare_cookie_file(folder)
                 env = downloader_environment(folder)
                 streaming = 'application/x-ndjson' in self.headers.get('Accept','')
                 if streaming:
                     self.send_response(200); self.send_header('Content-Type','application/x-ndjson'); self.send_header('Cache-Control','no-store'); self.end_headers()
                     self.streaming=True
                 notify = lambda event: self.event({'type':'progress',**event}) if streaming else None
-                command = [sys.executable,'-u','-c',BOOTSTRAP,folder,'download',canonical,'--output',folder+'/{title}.{output-ext}', '--format','mp3','--bitrate','192k','--threads','1','--no-cache','--audio','youtube','youtube-music','--log-level','DEBUG']
+                command = [sys.executable,'-u','-c',BOOTSTRAP,folder,'download',canonical,'--output',folder+'/{title}.{output-ext}', '--format','mp3','--bitrate','192k','--threads','1','--no-cache','--audio','youtube','youtube-music','--log-level','INFO' if cookie_file else 'DEBUG']
+                if cookie_file:
+                    command.extend(['--cookie-file', cookie_file])
                 result = run_download(command, folder, env, notify)
                 files = list(Path(folder).glob('*.mp3'))
                 if result.returncode or len(files) != 1:
-                    return self.reply(502, download_failure(result))
+                    return self.reply(502, download_failure(result, using_cookies=bool(cookie_file)))
                 audio = files[0]
                 if not 0 < audio.stat().st_size <= 100*1024*1024: return self.reply(413, {'error':'Imported audio exceeds 100 MB.'})
                 notify({'stage':'Saving private audio','percent':None})
@@ -162,6 +213,7 @@ class handler(BaseHTTPRequestHandler):
                     response = requests.put('https://vercel.com/api/blob/?pathname='+quote(path,safe=''),data=body,headers=headers,timeout=45)
                 if not response.ok: return self.reply(502, {'error':'The download completed but private storage failed. Please retry.'})
                 return self.reply(200, {'path':path,'name':audio.name,'sourceUrl':canonical,'source':'spotDL / matched YouTube recording'})
+        except CookieConfigurationError as error: self.reply(503, {'code':'IMPORT_COOKIE_CONFIG','error':str(error)})
         except subprocess.TimeoutExpired: self.reply(504, {'error':'Music import timed out. Try again or upload your audio file.'})
         except Exception as error:
             print('Spotify import failed:', type(error).__name__)
