@@ -45,7 +45,7 @@ calls=[];
 await assert.rejects(generateWithFallback(request,{deadline:Date.now()-1}),/could not complete|All configured providers failed|four-minute/g);
 assert.equal(calls.length,0);
 console.log('Passed single-attempt evidence budget and expired deadline.');
-for(const [status,code] of [[429,'AI_QUOTA'],[401,'AI_AUTH'],[404,'AI_MODEL'],[503,'AI_UNAVAILABLE']]) {
+for(const [status,code] of [[429,'AI_QUOTA'],[401,'AI_AUTH'],[404,'AI_MODEL'],[503,'AI_CAPACITY']]) {
  responses=[Object.assign(new Error('private provider details'),{status})];
  await assert.rejects(generateWithFallback(request,{maxAttempts:1}), e=>e.code===code && !e.message.includes('private provider details'));
 }

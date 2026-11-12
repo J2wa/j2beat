@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { AudioLines, Upload, Play, Pause, RotateCcw, RotateCw, Repeat2, Volume2, VolumeX, X, Headphones } from 'lucide-react';
 import { Button } from './BrandSystem';
 export const formatTime = (value: number) => { const s = Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0; return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 type Props = {
  busy?: boolean;
+ linkImport?: ReactNode;
+ importStatus?: ReactNode;
  file: File | null; audioUrl: string | null; audioRef: RefObject<HTMLAudioElement | null>; currentTime: number; duration: number; isPlaying: boolean; volume: number;
  onFile: (file: File) => void; onSeek: (time: number) => void; onToggle: () => void; onVolume: (v: number) => void; onReset: () => void;
  onTimeUpdate: () => void; onLoadedMetadata: () => void; onPlaying: (playing: boolean) => void; onError: (message: string) => void;
@@ -40,7 +42,7 @@ export function MusicPlayer(p: Props) {
  useEffect(()=>{
    const onKey=(e:KeyboardEvent)=>{
      const target=e.target as HTMLElement;
-     if(!p.audioUrl || document.querySelector('[role="dialog"]') || target.closest('input,textarea,select,button,a,[contenteditable="true"]'))return;
+     if(!p.audioUrl || document.querySelector('[role="dialog"], dialog[open]') || target.closest('input,textarea,select,button,a,[contenteditable="true"]'))return;
      if(e.code==='KeyM' && !e.repeat){e.preventDefault();p.onMark(p.audioRef.current?.currentTime ?? p.currentTime);}
      if(e.code==='Space'){e.preventDefault();p.onToggle();}
      if(e.code==='ArrowLeft'){e.preventDefault();p.onSeek(p.currentTime-5);}
@@ -79,6 +81,8 @@ export function MusicPlayer(p: Props) {
    {p.segments.length>0&&<div className="segment-chips" aria-label="Jump to segment">{p.segments.map((s,i)=><button key={i} onClick={()=>{const parts=s.startTime.replace(/[\[\]]/g,'').split(':').map(Number);p.onSeek(parts[0]*60+parts[1]);}}>{s.startTime} <span>{s.type||s.sectionType||`Segment ${i+1}`}</span></button>)}</div>}
    <div className="loop-controls"><span className="muted small">Loop selection</span><Button aria-pressed={loopStart!==null} disabled={!p.duration} onClick={()=>{setLoopStart(p.currentTime);setLoopEnd(null);p.onSeek(p.currentTime);}}>A {loopStart!==null?formatTime(loopStart):'Start'}</Button><Button aria-pressed={loopEnd!==null} disabled={loopStart===null || p.currentTime<=loopStart+.1} onClick={()=>setLoopEnd(p.currentTime)}>B {loopEnd!==null?formatTime(loopEnd):'End'}</Button>{loopStart!==null&&<Button variant="text" aria-label="Clear loop selection" onClick={()=>{setLoopStart(null);setLoopEnd(null);}}><X/></Button>}<span className="loop-state">{looped?'Loop active':''}</span><Button className="remove-track" disabled={p.busy} variant="text" onClick={p.onReset}><X/>Remove</Button></div>
    </> : <div className="empty-upload"><div className="upload-orbit"><Headphones size={36}/></div><p>Drop an audio file here</p><span className="muted small">MP3, WAV, AIFF · Analysis up to 100 MB</span><Button variant="text" onClick={()=>picker.current?.click()}>Browse files</Button></div>}
+   {p.linkImport}
+   {p.importStatus}
  </section>
  <footer className="player-dock" aria-label="Playback controls">
   <div className="dock-track"><span className="dock-art"><AudioLines/></span><div><strong>{p.file?.name||'No track selected'}</strong><span>{p.isPlaying?'Playing':p.file?'Paused':'Upload audio to begin'}</span></div></div>

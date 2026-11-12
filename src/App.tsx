@@ -11,6 +11,7 @@ import {
   Music,
   FileAudio,
   Settings,
+  Link2,
   Play,
   Pause,
   Activity,
@@ -37,6 +38,7 @@ import { annotateAudio, refineAnnotation } from "./services/geminiService";
 
 
 import { Button, Input, Header, SectionContainer } from "./components/BrandSystem";
+import { GuidanceDialog } from "./components/GuidanceDialog";
 import { MusicPlayer, formatTime } from "./components/MusicPlayer";
 import annotationSOP from "../Music_Annotation_SOP.md?raw";
 
@@ -58,6 +60,8 @@ function ResearchContext({ research }: { research?: ResearchReport }) {
     <p className="field-hint">Sources support the generated song context. Review manual edits against those sources and verify recording-specific details by listening.</p>
   </aside>;
 }
+
+const IMPORTED_TRACK_NOTE = "Audio imported. Analyze this track to generate its annotation.";
 
 const PROFILES = [
   {
@@ -160,7 +164,8 @@ export default function App() {
   const [rightsConfirmed,setRightsConfirmed]=useState(false);
   const deletedAudioPaths=useRef(new Set<string>());
   const saveAnnotation = (text: string, audioFile = file, audioDuration = duration) => {
-    const next = [{id: crypto.randomUUID(), name: audioFile?.name || 'Untitled annotation', text, date: new Date().toISOString(), duration:audioDuration, audioPath:importedSource.current?.path, sourceUrl:importedSource.current?.sourceUrl}, ...archive.map(item=>deletedAudioPaths.current.has(item.audioPath||'')?{...item,audioPath:undefined}:item)].slice(0, 30);
+    const next = [{id: crypto.randomUUID(), name: audioFile?.name || 'Untitled annotation', text, date: new Date().toISOString(), duration:audioDuration, audioPath:importedSource.current?.path, sourceUrl:importedSource.current?.sourceUrl}, ...archive.filter(item => item.text !== IMPORTED_TRACK_NOTE || !deletedAudioPaths.current.has(item.audioPath || ''))
+      .map(item=>deletedAudioPaths.current.has(item.audioPath||'')?{...item,audioPath:undefined}:item)].slice(0, 30);
     try { localStorage.setItem('aces_music_archive_v1', JSON.stringify(next)); setArchive(next); }
     catch { setError('Analysis completed, but this browser could not save the archive. Download your result.'); }
   };
@@ -191,7 +196,7 @@ export default function App() {
   });
   const [annotationProfile, setAnnotationProfile] = useState<"default" | "brief">(() => (localStorage.getItem("annotation_profile") as "default" | "brief") || "default");
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-  const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
+  const [guidanceDialog, setGuidanceDialog] = useState<"form" | "confirm" | null>(null);
 
   // Modal temporary wizard states
   const [tempProfile, setTempProfile] = useState<string>("");
@@ -201,13 +206,13 @@ export default function App() {
 
 
   useEffect(() => {
-    if (!isProfileModalOpen && !isGenerateModalOpen) return;
+    if (!isProfileModalOpen) return;
     const previous = document.activeElement as HTMLElement | null;
     const dialog = document.querySelector('[role="dialog"]');
     const focusable = () => Array.from(dialog?.querySelectorAll<HTMLElement>('button:not(:disabled), input, textarea, select, [tabindex="0"]') || []);
     focusable()[0]?.focus();
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { setIsProfileModalOpen(false); setIsGenerateModalOpen(false); }
+      if (e.key === 'Escape') setIsProfileModalOpen(false);
       if (e.key === 'Tab') {
         const nodes = focusable(); const first = nodes[0]; const last = nodes[nodes.length - 1];
         if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); }
@@ -216,7 +221,7 @@ export default function App() {
     };
     document.addEventListener('keydown',onKey);
     return () => { document.removeEventListener('keydown',onKey); previous?.focus(); };
-  }, [isProfileModalOpen, isGenerateModalOpen]);
+  }, [isProfileModalOpen]);
 
   // Sync temp wizard state whenever modal is opened
   useEffect(() => {
@@ -333,7 +338,7 @@ export default function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
 
-  const cleanMelodyType = (text: string) => {
+  const cleanMelodyType = (text: string, instruments: string) => {
     if (!text) return "";
     const cleaned = text.trim();
     const lower = cleaned.toLowerCase().replace(/\.$/, ""); // remove trailing period for check
@@ -350,7 +355,11 @@ export default function App() {
     ) {
       return "";
     }
-    return cleaned;
+    // Older annotations included the source at the start of the phrase.
+    const sources = instruments.split(/[,;\n]/).map(source => source.trim().replace(/^[-*\s]+|[*\s]+$/g, ""))
+      .filter(Boolean).sort((a, b) => b.length - a.length);
+    const prefix = sources.find(source => lower.startsWith(source.toLowerCase() + " "));
+    return prefix ? cleaned.slice(prefix.length).trim() : cleaned;
   };
 
   const parseSections = (text: string) => {
@@ -409,7 +418,7 @@ export default function App() {
         extractSectionField(item, "Vibe Tags") ||
         extractSectionField(item, "Vibe");
       const melodyRaw = extractSectionField(item, "Melody");
-      const melody = cleanMelodyType(melodyRaw);
+      const melody = cleanMelodyType(melodyRaw, instruments);
 
       // Heuristic for uncertainty: search for question marks or specific keywords
       const isUnsure =
@@ -599,8 +608,11 @@ export default function App() {
     return items.join("\n");
   };
 
-  const handleProcess = async (sourceFile = file, sourceDuration = duration) => {
-    if (!sourceFile || isProcessing || isRefining) return;
+  const hasGuidance = Boolean(generalGuidance.trim() || Object.values(accurateData).some(value => value.trim()));
+  const canAnalyze = Boolean(file && !importing && !isProcessing && !isRefining && serviceReady === true);
+
+  const handleProcess = async (allowEmptyGuidance = false) => {
+    if (!file || !canAnalyze) return;
     if (credits < GENERATE_COST) {
       setError(
         "Insufficient credits. You need 10 credits for a new generation.",
@@ -609,6 +621,12 @@ export default function App() {
     }
 
     const compiledGuidance = compileCreativeGuidance();
+    if (!compiledGuidance && !allowEmptyGuidance) {
+      setGuidanceDialog("confirm");
+      return;
+    }
+
+    setGuidanceDialog(null);
     setCreativeGuidance(compiledGuidance);
 
     setIsProcessing(true);
@@ -617,11 +635,11 @@ export default function App() {
     setError(null);
     try {
       const annotation = await annotateAudio(
-        sourceFile,
+        file,
         isSimplified,
         isHighAccuracy,
         compiledGuidance,
-        sourceDuration,
+        duration,
         activeProfile || "PRODUCER",
         annotationProfile,
         selectedModel,
@@ -637,7 +655,7 @@ export default function App() {
           deletedAudioPaths.current.add(savedPath);
         }catch{setError('Annotation completed, but stored audio cleanup failed. Analyze again to retry cleanup.');}
       }
-      saveAnnotation(annotation, sourceFile, sourceDuration);
+      saveAnnotation(annotation);
       parseSections(annotation);
       playNotificationSound();
     } catch (err) {
@@ -654,8 +672,7 @@ export default function App() {
     return new File([await response.blob()],name,{type:'audio/mpeg'});
   };
   const importSpotify = async () => {
-    if(importing || isProcessing || isRefining)return;
-    if(credits<GENERATE_COST){setError('You need 10 local credits to import and analyze.');return;}
+    if (!spotifyLink.trim() || !rightsConfirmed || importing || isProcessing || isRefining) return;
     setImporting(true);setImportProgress({stage:'Connecting to downloader',percent:null});setError(null);setView('workspace');
     try {
       const response=await fetch('/api/spotify',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/x-ndjson'},body:JSON.stringify({url:spotifyLink.trim(),rightsConfirmed}),signal:AbortSignal.timeout(290000)});
@@ -685,8 +702,10 @@ export default function App() {
         audio.onerror=()=>{cleanup();reject(new Error('The downloaded recording could not be played.'));};audio.src=url;
       });
       handleFileSelection(downloaded);importedSource.current={path:data.path,sourceUrl:data.sourceUrl};
-      setDuration(trackDuration);saveAnnotation('Audio imported. Analyze this track to generate its annotation.',downloaded,trackDuration);setImporting(false);
-      await handleProcess(downloaded,trackDuration);
+      setDuration(trackDuration);
+      saveAnnotation(IMPORTED_TRACK_NOTE, downloaded, trackDuration);
+      setSpotifyLink('');
+      setRightsConfirmed(false);
     }catch(error){setError(error instanceof Error?error.message:'Music import failed.');}
     finally{setImporting(false);}
   };
@@ -695,7 +714,14 @@ export default function App() {
     try {
       if(item.audioPath){const audio=await loadStoredAudio(item.audioPath,item.name);handleFileSelection(audio);importedSource.current={path:item.audioPath,sourceUrl:item.sourceUrl||''};}
       else {audioRef.current?.pause();setFile(null);setAudioUrl(null);importedSource.current=null;setDuration(item.duration||0);setSections([]);}
-      setResult(item.text);parseSections(item.text);setView('workspace');setError(null);
+      if (item.text === IMPORTED_TRACK_NOTE) {
+        setResult(null);
+        setSections([]);
+      } else {
+        setResult(item.text);
+        parseSections(item.text);
+      }
+      setView('workspace');setError(null);
     }catch(error){setError(error instanceof Error?error.message:'Could not open saved audio.');}
   };
 
@@ -783,6 +809,7 @@ export default function App() {
   };
 
   const reset = () => {
+    importedSource.current = null;
     audioRef.current?.pause();
     if(audioUrl) URL.revokeObjectURL(audioUrl);
     setCurrentTime(0); setDuration(0); setIsPlaying(false); setActiveSegment(null);
@@ -886,8 +913,7 @@ export default function App() {
       {serviceReady === false && <details className="service-notice"><summary><span className="status-dot"/> AI offline <span className="muted">Setup required</span></summary><p>In Vercel → j2beat → Settings → Environment Variables, set GEMINI_API_KEY and/or OPENROUTER_API_KEY with OPENROUTER_MODEL (an audio-input model). Your selected model is tried first, followed by the other Gemini models and the configured OpenRouter model if needed. Redeploy to apply. Keys remain server-side.</p></details>}
       {error && <div role="alert" className="error-notice">{error}</div>}
       {view === 'guidelines' && <SectionContainer className="document-view"><p className="eyebrow"></p><h2>Annotation guidelines</h2><p>AI output is a draft. Listen to the track and verify instruments, timestamps, and descriptions before exporting.</p><div className="markdown-body"><ReactMarkdown remarkPlugins={[remarkGfm]}>{annotationSOP}</ReactMarkdown></div></SectionContainer>}
-      {view === 'archive' && <SectionContainer className="document-view"><p className="eyebrow"></p><h2>Saved annotations</h2><p>Annotations are saved in this browser. Imported audio is deleted from storage after successful analysis. Playback remains available in the current browser session.</p>{archive.length === 0 ? <p className="archive-empty">No saved annotations yet.</p> : archive.map(item => <article className="archive-row" key={item.id}><div><h3>{item.name}</h3><p>{new Date(item.date).toLocaleString()}</p></div><div className="archive-actions"><Button disabled={isProcessing||isRefining||importing} onClick={()=>openSaved(item)}><FileAudio />{item.audioPath?'Open & play':'Open annotation'}</Button><Button onClick={async()=>{try{(await import('./utils/pdfGenerator')).exportSavedPDF(item.name,item.text,item.date);}catch{setError('PDF export failed. Please retry.');}}}><Download/>Export PDF</Button>{item.audioPath&&<a className="aces-button aces-button--secondary" href={'/api/audio?path='+encodeURIComponent(item.audioPath)} download={item.name}>Download audio</a>}</div></article>)}</SectionContainer>}
-      {view==='workspace'&&<section className="spotify-import"><div><h3>Import from Spotify</h3><p className="field-hint">Paste one track link. spotDL finds a matching YouTube recording, saves it privately, then starts AI analysis. Verify the recording version.</p></div><label htmlFor="spotify-link" className="sr-only">Spotify track link</label><input id="spotify-link" type="url" value={spotifyLink} placeholder="https://open.spotify.com/track/…" onChange={e=>setSpotifyLink(e.target.value)} disabled={importing||isProcessing||isRefining}/><label className="import-permission"><input type="checkbox" checked={rightsConfirmed} onChange={e=>setRightsConfirmed(e.target.checked)}/>I have permission to download and analyze this recording.</label><Button variant="primary" disabled={!spotifyLink.trim()||!rightsConfirmed||importing||isProcessing||isRefining} onClick={importSpotify}>{importing?'Finding and saving recording…':'Import & analyze'}</Button>{importing&&<div role="status" aria-live="polite"><p>{importProgress.stage}{importProgress.percent!==null?` — ${importProgress.percent}%`: '…'}</p><progress aria-label={importProgress.stage} max={100} value={importProgress.percent??undefined} style={{width:'100%',accentColor:'#527fff'}}/><p className="field-hint">Download percentage appears when the source reports its size. Preparation, matching and conversion have no measurable percentage. The player remains available.</p></div>}</section>}
+      {view === 'archive' && <SectionContainer className="document-view"><p className="eyebrow"></p><h2>Saved annotations</h2><p>Annotations are saved in this browser. Imported audio is deleted from storage after successful analysis. Playback remains available in the current browser session.</p>{archive.length === 0 ? <p className="archive-empty">No saved annotations yet.</p> : archive.map(item => <article className="archive-row" key={item.id}><div><h3>{item.name}</h3><p>{new Date(item.date).toLocaleString()}</p></div><div className="archive-actions"><Button disabled={isProcessing||isRefining||importing} onClick={()=>openSaved(item)}><FileAudio />{item.audioPath?'Open & play':'Open annotation'}</Button>{item.text !== IMPORTED_TRACK_NOTE && <Button onClick={async()=>{try{(await import('./utils/pdfGenerator')).exportSavedPDF(item.name,item.text,item.date);}catch{setError('PDF export failed. Please retry.');}}}><Download/>Export PDF</Button>}{item.audioPath&&<a className="aces-button aces-button--secondary" href={'/api/audio?path='+encodeURIComponent(item.audioPath)} download={item.name}>Download audio</a>}</div></article>)}</SectionContainer>}
       {(isProcessing || isRefining) && <section className="analysis-progress-panel" aria-label="Annotation progress">
         <div className="analysis-progress-heading"><div><span className="analysis-pulse"/><strong>{isRefining ? 'Refining annotation' : 'Analyzing track'}</strong></div><time>{Math.floor(elapsedSeconds/60)}:{String(elapsedSeconds%60).padStart(2,'0')}</time></div>
         <p role="status" aria-live="polite">{analysisStage}</p>
@@ -896,7 +922,23 @@ export default function App() {
         <small>{elapsedSeconds>90?'Taking longer than usual. Progress and retries appear above.':'You can listen, seek, and loop while the annotation runs.'} AI processing may take up to 4 minutes, plus upload time.</small>
       </section>}
       <div className="player-section" hidden={view !== 'workspace'}>
-        <MusicPlayer markers={splitMarkers} onMark={time=>{
+        <MusicPlayer linkImport={
+          <details className="track-link-import">
+            <summary><Link2 size={17} /> Import from Spotify</summary>
+            <form onSubmit={event => { event.preventDefault(); void importSpotify(); }}>
+              <label htmlFor="spotify-link">Spotify track link</label>
+              <div className="track-link-controls">
+                <input id="spotify-link" type="url" value={spotifyLink} placeholder="https://open.spotify.com/track/…" onChange={event => setSpotifyLink(event.target.value)} disabled={importing || isProcessing || isRefining} required />
+                <Button type="submit" disabled={!spotifyLink.trim() || !rightsConfirmed || importing || isProcessing || isRefining}>{importing ? 'Importing…' : 'Import track'}</Button>
+              </div>
+              <p className="field-hint">Loads a matched recording into the player. Check the version before analyzing.</p>
+              <label className="import-permission"><input type="checkbox" checked={rightsConfirmed} disabled={importing || isProcessing || isRefining} onChange={event => setRightsConfirmed(event.target.checked)} />I have permission to download and analyze this recording.</label>
+            </form>
+          </details>
+        } importStatus={importing && <div className="track-import-status" role="status">
+          <p>{importProgress.stage}{importProgress.percent !== null ? ` · ${importProgress.percent}%` : '…'}</p>
+          <progress aria-label={importProgress.stage} max={100} value={importProgress.percent ?? undefined} />
+        </div>} markers={splitMarkers} onMark={time=>{
           if (!Number.isFinite(time) || !duration || time < 0 || time >= duration) return;
           const second = Math.floor(time);
           setSplitMarkers(previous=>[...new Set([...previous,second])].sort((a,b)=>a-b));
@@ -908,7 +950,7 @@ export default function App() {
             const added=times.filter(time=>!present.has(time));
             return {...previous,timestamps:existing+(existing && added.length ? ', ' : '')+added.join(', ')};
           });
-          setIsGenerateModalOpen(true);
+          setGuidanceDialog("form");
         }} file={file} audioUrl={audioUrl} audioRef={audioRef} currentTime={currentTime} duration={duration} isPlaying={isPlaying} volume={volume} onFile={handleFileSelection} onSeek={seekTo} onToggle={togglePlay} onVolume={setVolume} onReset={reset} onTimeUpdate={handleTimeUpdate} onLoadedMetadata={handleLoadedMetadata} onPlaying={setIsPlaying} onError={setError} segments={sections} busy={isProcessing || isRefining || importing}/>
       </div>
       <main id="workspace" hidden={view !== "workspace"} className="studio-grid">
@@ -934,8 +976,9 @@ export default function App() {
             <label className="toggle-row"><span>Detailed segmentation</span><input type="checkbox" checked={isHighAccuracy} onChange={e=>setIsHighAccuracy(e.target.checked)}/></label>
           </div>
           <div className="settings-actions">
-            <Button className="guidance-button" onClick={()=>setIsGenerateModalOpen(true)}><Settings/>Track details & guidance{generalGuidance.trim() || Object.values(accurateData).some(v=>v.trim()) ? <span className="status-dot"/>:null}</Button>
-            <Button variant="primary" className="generate-button" disabled={!file || importing || isProcessing || isRefining || serviceReady!==true} onClick={()=>handleProcess()}>{isProcessing?<Activity/>:<Play/>}{isProcessing?'Analyzing…':result?'Analyze again':'Analyze track'}</Button>
+            <Button className="guidance-button" onClick={()=>setGuidanceDialog("form")}><Settings/>{hasGuidance ? 'Edit guidance' : 'Add guidance'}{hasGuidance && <span className="status-dot"/>}</Button>
+            <p className="field-hint">{hasGuidance ? 'Your notes will be used for the next analysis.' : 'A timestamp or listening note helps the AI focus on the details you care about.'}</p>
+            <Button variant="primary" className="generate-button" disabled={!canAnalyze} onClick={() => void handleProcess()}>{isProcessing?<Activity/>:<Play/>}{isProcessing?'Analyzing…':result?'Analyze again':'Analyze track'}</Button>
             <p className="field-hint">Song research uses Google Search. Review sources alongside the audio.</p>
           </div>
           <details className="credit-details"><summary>{credits} local credits</summary><Button variant="text" onClick={handleResetCredits}><RotateCcw/>Reset credits</Button></details>
@@ -1708,148 +1751,16 @@ export default function App() {
         </section>
       </main>
 
-      {isGenerateModalOpen && (
-        <div role="dialog" aria-modal="true" aria-label="Annotation guidance" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in">
-          <div className="bg-bg-panel border border-border-dim rounded-xl p-6 w-full max-w-lg shadow-2xl relative max-h-[90vh] overflow-y-auto">
-            <Button
-              aria-label="Close guidance settings" onClick={() => setIsGenerateModalOpen(false)}
-              className="absolute top-4 right-4 text-dim hover:text-primary transition-colors cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </Button>
-            
-            <div className="mb-4">
-              <h3 className="text-sm font-bold text-primary uppercase tracking-widest flex items-center gap-2">
-                <Settings className="w-4 h-4 text-accent" />
-                Guidance
-              </h3>
-              <p className="text-sm text-dim uppercase tracking-wider mt-1">
-                Add the song title, artist, and recording version here to help Google Search identify the right song.
-              </p>
-            </div>
-            
-            <div className="space-y-4">
-              {/* General Guidance Section */}
-              <div className="flex flex-col gap-1.5 border-b border-border-dim pb-4">
-                <label className="text-sm text-accent uppercase tracking-wider font-semibold">
-                  Song details & listening guidance
-                </label>
-                <span className="text-sm text-dim uppercase tracking-wide">
-                  Include the track identity and any audible details you want checked.
-                </span>
-                <textarea
-                  aria-label="Creative guidance" value={generalGuidance}
-                  onChange={(e) => setGeneralGuidance(e.target.value)}
-                  placeholder="e.g., Focus heavily on the atmospheric synth layers, keep the narrative description highly mysterious, and analyze the low-end sub-bass frequencies carefully."
-                  className="w-full bg-bg-main/50 border border-border-dim rounded p-2.5 text-xs text-primary placeholder-white/20 focus:outline-none focus:border-accent/50 min-h-[70px] resize-none mt-1"
-                />
-              </div>
-
-              {/* Structured Template Inputs */}
-              <div>
-                <label className="text-sm text-accent uppercase tracking-wider font-semibold block mb-1">
-                  Track details
-                </label>
-                <span className="text-sm text-dim uppercase tracking-wide block mb-3">
-                  
-                </span>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-sm text-primary uppercase tracking-wider font-semibold">
-                      Target Segments Count
-                    </label>
-                    <Input
-                      type="text"
-                      aria-label="Target segment count" value={accurateData.segmentsCount}
-                      onChange={(e) => setAccurateData({ ...accurateData, segmentsCount: e.target.value })}
-                      placeholder="e.g. 8"
-                      className="w-full bg-bg-main/50 border border-border-dim rounded p-2 text-xs text-primary placeholder-white/20 focus:outline-none focus:border-accent/50"
-                    />
-                  </div>
-
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-sm text-primary uppercase tracking-wider font-semibold">
-                      Vocals Profile
-                    </label>
-                    <Input
-                      type="text"
-                      aria-label="Vocal profile" value={accurateData.vocals}
-                      onChange={(e) => setAccurateData({ ...accurateData, vocals: e.target.value })}
-                      placeholder="e.g. Instrumental, Male rap, Female..."
-                      className="w-full bg-bg-main/50 border border-border-dim rounded p-2 text-xs text-primary placeholder-white/20 focus:outline-none focus:border-accent/50"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-1.5 mt-3.5">
-                  <label className="text-sm text-primary uppercase tracking-wider font-semibold">
-                    Specific Time Stamps
-                  </label>
-                  <textarea
-                    aria-label="Specific timestamps" value={accurateData.timestamps}
-                    onChange={(e) => setAccurateData({ ...accurateData, timestamps: e.target.value })}
-                    placeholder="e.g. 0:00, 0:30, 1:15, 1:45, 2:30"
-                    className="w-full bg-bg-main/50 border border-border-dim rounded p-2 text-xs text-primary placeholder-white/20 focus:outline-none focus:border-accent/50 min-h-[50px] resize-none"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1.5 mt-3.5">
-                  <label className="text-sm text-primary uppercase tracking-wider font-semibold">
-                    Instruments Present (Comma Separated)
-                  </label>
-                  <Input
-                    type="text"
-                    aria-label="Instruments present" value={accurateData.instruments}
-                    onChange={(e) => setAccurateData({ ...accurateData, instruments: e.target.value })}
-                    placeholder="e.g. Acoustic Guitar, Lead Vocal, Synth Bass, Shaker"
-                    className="w-full bg-bg-main/50 border border-border-dim rounded p-2 text-xs text-primary placeholder-white/20 focus:outline-none focus:border-accent/50"
-                  />
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-3 pt-4 border-t border-border-dim mt-4">
-                <Button
-                  aria-label="Close guidance settings" onClick={() => setIsGenerateModalOpen(false)}
-                  className="flex-1 py-3 bg-bg-card border border-border-dim text-primary font-bold text-sm uppercase tracking-[0.15em] rounded hover:bg-bg-card transition-colors cursor-pointer"
-                >
-                  Close
-                </Button>
-                {file ? (
-                  <Button
-                    onClick={() => {
-                      setIsGenerateModalOpen(false);
-                      handleProcess();
-                    }}
-                    disabled={isProcessing}
-                    className="flex-1 py-3 bg-accent text-bg-main font-bold text-sm uppercase tracking-[0.15em] rounded hover:bg-accent/90 transition-colors cursor-pointer flex items-center justify-center gap-1.5 shadow-[0_0_15px_rgba(215,183,139,0.15)]"
-                  >
-                    Analyze track ({GENERATE_COST} CR)
-                  </Button>
-                ) : (
-                  <Button
-                    onClick={() => {
-                      const compiled = compileCreativeGuidance();
-                      setCreativeGuidance(compiled);
-                      setIsGenerateModalOpen(false);
-                    }}
-                    className="flex-1 py-3 bg-bg-card hover:bg-bg-card text-primary border border-border-dim font-bold text-sm uppercase tracking-[0.15em] rounded transition-colors cursor-pointer"
-                  >
-                    Save guidance
-                  </Button>
-                )}
-              </div>
-              
-              {!file && (
-                <p className="text-sm text-dim text-center uppercase tracking-wider opacity-60">
-                  Note: Upload an audio track to directly execute analysis.
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      {guidanceDialog && <GuidanceDialog
+        mode={guidanceDialog}
+        notes={generalGuidance}
+        onNotesChange={setGeneralGuidance}
+        details={accurateData}
+        onDetailChange={(field, value) => setAccurateData(previous => ({ ...previous, [field]: value }))}
+        onClose={() => setGuidanceDialog(null)}
+        onAddGuidance={() => setGuidanceDialog("form")}
+        onProceed={() => void handleProcess(true)}
+      />}
 
       {isProfileModalOpen && (
         <div role="dialog" aria-modal="true" aria-label="Analysis profile settings" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
