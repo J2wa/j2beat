@@ -77,3 +77,5 @@ assert.equal((await invoke({method:'POST',headers:{...headers,origin:'https://ot
 assert.equal((await invoke({method:'GET',headers})).statusCode,405);
 for (const body of [{text:''},{text:'x'.repeat(120001)},{text:source,model:'invalid'}]) assert.equal((await invoke({method:'POST',headers,body})).statusCode,400);
 console.log('Passed music prose extraction, locked bytes, research retention, unsafe edit rejection, text-only generation, failure preservation, authentication and request validation.');
+for (const body of [{text:source,fieldId:'f999'},{text:source,fieldId:1},{text:source,instruction:'x'.repeat(2001)},{text:source,instruction:[]}]) assert.equal((await invoke({method:'POST',headers,body})).statusCode,400);
+console.log('Passed field-selection and revision-instruction request validation.');

@@ -149,3 +149,29 @@ particular detector score. Review the resulting prose and musical accuracy.
 Regression checks: `node --import tsx tests/naturalMusicWriting.test.ts` and
 `node --import tsx tests/annotationSettings.test.mjs`, plus the existing humanizer,
 pipeline, provider, upload, native-runtime, TypeScript and production-build checks.
+
+## Automatic humanization and description revisions
+
+After each new analysis or audio correction, Studio automatically requests a separate
+text-only humanization pass and applies validated wording edits before saving the final
+result. Progress includes a Humanize stage. The completed draft is checkpointed first;
+a timeout, provider error or validation failure preserves that draft and shows a notice.
+The extra pass uses the selected model and existing fallback, has its own bounded
+request budget and can incur provider charges. It does not re-upload audio or extend
+the analysis function's deadline. Saved annotations are not automatically rewritten on open.
+
+Every timeline description and Global Musical Matrix description has **Revise description**.
+Add optional wording instructions, generate a suggestion, compare Original/Suggested,
+and apply or discard it. Undo is available until that applied source changes. In Form
+Editor, revisions update only that draft description; other unsaved fields are retained,
+and Save changes commits the form. Empty/unknown descriptions cannot be expanded by
+this text-only tool. Use the existing audio-correction control for new musical evidence.
+
+`/api/humanize` now accepts a validated optional fieldId and revision instructions
+(up to 2,000 characters). The server sends only the selected field for a local revision
+and rejects edits to any other ID. Server and client verify locked content, field
+structure, numbers/citations and uncertainty/negation before applying a revision.
+
+Checks: `node --import tsx tests/automaticWording.test.ts` covers automatic success,
+no-op and fallback, selected-field isolation, unsafe-response rejection and rendered
+revision controls, alongside the existing app build and regression checks.

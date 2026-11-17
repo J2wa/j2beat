@@ -1,3 +1,4 @@
+import {requestMusicWording} from '../services/humanizerService';
 import {useEffect, useRef, useState} from 'react';
 import {Button} from './BrandSystem';
 import {musicProseFields} from '../../shared/musicHumanizer';
@@ -20,19 +21,17 @@ export function MusicHumanizer({text,model,disabled,onBusy,onApply}: Props) {
     const abort = new AbortController(); controller.current = abort;
     const timer = setTimeout(() => abort.abort(), 125000);
     try {
-      const response = await fetch('/api/humanize', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:base,model}),signal:abort.signal});
-      const body = await response.json().catch(()=>({}));
-      if (!response.ok || typeof body.text !== 'string' || !body.text.trim()) throw new Error(typeof body.error === 'string' ? body.error : 'Humanizing failed. Your original is unchanged.');
+      const revised = await requestMusicWording({text:base,model,signal:abort.signal});
       if (latest.current !== base) {setMessage('The annotation changed. Run the humanizer again.'); return;}
-      if (body.text === base) setMessage('No wording changes suggested.');
-      else setPreview({base,draft:body.text});
+      if (revised === base) setMessage('No wording changes suggested.');
+      else setPreview({base,draft:revised});
     } catch (error) {setMessage(error instanceof Error && error.name !== 'AbortError' ? error.message : 'Humanizing stopped or timed out. Your original is unchanged.');}
     finally {clearTimeout(timer);controller.current=null;setBusy(false);onBusy(false);}
   };
   const originals = preview ? musicProseFields(preview.base) : [];
   const changes = preview && preview.base === text ? musicProseFields(preview.draft).map((field,i)=>({label:field.label,before:originals[i]?.text,after:field.text})).filter(f=>f.before!==f.after) : [];
   return <section className="music-humanizer" aria-label="Music wording humanizer">
-    <div className="section-heading"><div><h3>Humanize wording</h3><p className="field-hint">Polish section narratives and Global Analysis while keeping their musical detail. Timestamps, tags and melody fields stay locked.</p></div>
+    <div className="section-heading"><div><h3>Humanize wording</h3><p className="field-hint">New results are humanized automatically. Preview another wording pass here, or revise a single description below. Timestamps, tags and melody fields stay locked.</p></div>
       <Button disabled={disabled || busy} onClick={run}>{busy ? 'Humanizing…' : 'Preview wording edits'}</Button>
     </div>
     <p className="field-hint">Uses the selected AI model; provider charges may apply. No audio upload is needed. Review edits for meaning before applying.</p>

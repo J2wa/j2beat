@@ -192,3 +192,10 @@ button.aces-brand{background:none;border:0;padding:0;color:inherit;cursor:pointe
 .humanizer-comparison p { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; font-size: 14px; }
 .humanizer-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
 @media (max-width: 640px) { .humanizer-comparison { grid-template-columns: 1fr; gap: 4px; } .music-humanizer { padding: 14px; } }
+
+.description-revision { margin-top: 12px; }
+.description-revision > .aces-button { margin: 0 8px 6px 0; }
+.description-revision-panel { border: 1px solid var(--border-dim, #39404c); border-radius: 6px; padding: 14px; margin-top: 6px; }
+.description-revision-panel > label { display: block; font-size: 13px; margin-bottom: 8px; }
+.description-revision-panel > textarea { width: 100%; min-height: 76px; resize: vertical; border: 1px solid var(--border-dim, #39404c); border-radius: 4px; padding: 10px; color: inherit; background: transparent; font: inherit; font-size: 13px; line-height: 1.5; }
+.analysis-stage-track { flex-wrap: wrap; }

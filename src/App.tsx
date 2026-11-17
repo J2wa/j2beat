@@ -38,6 +38,9 @@ import { annotateAudio, refineAnnotation } from "./services/geminiService";
 
 
 import { Button, Input, Header, SectionContainer } from "./components/BrandSystem";
+import { automaticallyHumanize } from "./services/humanizerService";
+import { musicProseFields } from "../shared/musicHumanizer";
+import { DescriptionRevision } from "./components/DescriptionRevision";
 import { MusicHumanizer } from "./components/MusicHumanizer";
 import { GuidanceDialog } from "./components/GuidanceDialog";
 import { MusicPlayer, formatTime } from "./components/MusicPlayer";
@@ -136,6 +139,8 @@ export default function App() {
     vocals: "",
   });
   const [result, setResult] = useState<string | null>(null);
+  const [humanizationNotice, setHumanizationNotice] = useState("");
+  const proseFields = useMemo(()=>musicProseFields(result || ""),[result]);
   const { annotation: annotationText, research, audioQaIncomplete } = useMemo(() => splitResearch(result || ""), [result]);
   const [globalMetadata, setGlobalMetadata] = useState<{
     genreEraSceneTags?: string;
@@ -406,6 +411,7 @@ export default function App() {
   };
 
   const handleToggleEditing = () => {
+    setHumanizationNotice("");
     if (isEditing) {
       if (editTab === "raw") {
         parseSections(result || "");
@@ -519,7 +525,8 @@ export default function App() {
     setUserFeedback("");
     setError(null);
     try {
-      const annotation = await annotateAudio(
+      setHumanizationNotice("");
+      const draft = await annotateAudio(
         file,
         isSimplified,
         isHighAccuracy,
@@ -527,6 +534,11 @@ export default function App() {
         duration,
         selectedModel,
       );
+      saveAnnotation(draft); // Keep a completed draft if the page closes during the wording pass.
+      setAnalysisStage("Humanizing wording");
+      const polished = await automaticallyHumanize(draft,selectedModel);
+      const annotation = polished.text;
+      setHumanizationNotice(polished.notice);
       setCredits((prev) => prev - GENERATE_COST);
       setResult(annotation);
       const savedPath=importedSource.current?.path;
@@ -596,6 +608,7 @@ export default function App() {
   };
   const openSaved = async (item:typeof archive[number]) => {
     if(isProcessing || isRefining || isHumanizing || importing)return;
+    setHumanizationNotice('');
     try {
       if (item.audioPath) {
         const audio = await loadStoredAudio(item.audioPath, item.name);
@@ -614,6 +627,11 @@ export default function App() {
     }catch(error){setError(error instanceof Error?error.message:'Could not open saved audio.');}
   };
 
+  const applyWordingResult = (text:string) => {
+    setHumanizationNotice("");
+    setResult(text);parseSections(text);saveAnnotation(text);
+  };
+
   const handleRefine = async () => {
     if (!file || !result || !userFeedback.trim() || isProcessing || isRefining || isHumanizing) return;
     if (credits < REFINE_COST) {
@@ -624,7 +642,8 @@ export default function App() {
     setIsRefining(true);
     setError(null);
     try {
-      const refinedAnnotation = await refineAnnotation(
+      setHumanizationNotice("");
+      const draft = await refineAnnotation(
         file,
         result,
         userFeedback,
@@ -634,6 +653,11 @@ export default function App() {
         duration,
         selectedModel,
       );
+      saveAnnotation(draft); // Keep a completed draft if the page closes during the wording pass.
+      setAnalysisStage("Humanizing wording");
+      const polished = await automaticallyHumanize(draft,selectedModel);
+      const refinedAnnotation = polished.text;
+      setHumanizationNotice(polished.notice);
       setCredits((prev) => prev - REFINE_COST);
       setResult(refinedAnnotation);
       saveAnnotation(refinedAnnotation);
@@ -844,7 +868,7 @@ export default function App() {
       {(isProcessing || isRefining) && <section className="analysis-progress-panel" aria-label="Annotation progress">
         <div className="analysis-progress-heading"><div><span className="analysis-pulse"/><strong>{isRefining ? 'Refining annotation' : 'Analyzing track'}</strong></div><time>{Math.floor(elapsedSeconds/60)}:{String(elapsedSeconds%60).padStart(2,'0')}</time></div>
         <p role="status" aria-live="polite">{analysisStage}</p>
-        <div className="analysis-stage-track" aria-label="Processing stages">{['Upload','Analyze','Research','Write','Review'].map((label,i)=>{const stage=/Reviewing/i.test(analysisStage)?4:/Writing|Repairing/i.test(analysisStage)?3:/Searching/i.test(analysisStage)?2:/Analyzing|Retrying|Preparing AI|Rechecking/i.test(analysisStage)?1:0;return <span key={label} className={i<stage?'complete':i===stage?'active':''}>{i<stage?'✓':i+1} {label}</span>;})}</div>
+        <div className="analysis-stage-track" aria-label="Processing stages">{['Upload','Analyze','Research','Write','Review','Humanize'].map((label,i)=>{const stage=/Humanizing/i.test(analysisStage)?5:/Reviewing/i.test(analysisStage)?4:/Writing|Repairing/i.test(analysisStage)?3:/Searching/i.test(analysisStage)?2:/Analyzing|Retrying|Preparing AI|Rechecking/i.test(analysisStage)?1:0;return <span key={label} className={i<stage?'complete':i===stage?'active':''}>{i<stage?'✓':i+1} {label}</span>;})}</div>
         <div className="analysis-meter" role="progressbar" aria-label="Current operation" aria-valuenow={/Uploading audio.*%/.test(analysisStage)?Number(analysisStage.match(/(\d+)%/)?.[1]):undefined} aria-valuemin={0} aria-valuemax={100} aria-valuetext={analysisStage}><span className={/Uploading audio.*%/.test(analysisStage)?'determinate':'indeterminate'} style={/Uploading audio.*%/.test(analysisStage)?{width:`${analysisStage.match(/(\d+)%/)?.[1]}%`}:undefined}/></div>
         <small>{elapsedSeconds>90?'Taking longer than usual. Progress and retries appear above.':'You can listen, seek, and loop while the annotation runs.'} AI processing may take up to 4 minutes, plus upload time.</small>
       </section>}
@@ -929,7 +953,7 @@ export default function App() {
                 <div className="annotation-actions">
                   <Button
                     onClick={handleToggleEditing}
-                    disabled={isHumanizing}
+                    disabled={isHumanizing || isProcessing || isRefining || importing}
                     className={cn(
                       "flex items-center gap-2 text-sm font-bold uppercase tracking-widest transition-colors",
                       isEditing ? "text-accent" : "text-dim hover:text-accent",
@@ -1008,6 +1032,7 @@ export default function App() {
                     >
                       <div className="flex gap-2 border-b border-border-dim pb-4">
                         <Button
+                          disabled={isHumanizing}
                           onClick={() => { if (editTab === "raw") parseSections(result || ""); setEditTab("form"); }}
                           className={cn(
                             "px-4 py-2 text-sm font-bold uppercase tracking-widest border transition-all rounded",
@@ -1019,6 +1044,7 @@ export default function App() {
                           Form Editor
                         </Button>
                         <Button
+                          disabled={isHumanizing}
                           onClick={() => {
                             setResult(serializeAnnotation(sections, globalMetadata));
                             setEditTab("raw");
@@ -1179,6 +1205,7 @@ export default function App() {
                                     Tags
                                   </label>
                                   <Input
+                                    disabled={isHumanizing}
                                     id={`${cat.id}-tags`}
                                     type="text"
                                     value={(globalMetadata as any)[cat.tagKey] || ""}
@@ -1197,6 +1224,7 @@ export default function App() {
                                     Description
                                   </label>
                                   <textarea
+                                    disabled={isHumanizing}
                                     id={`${cat.id}-description`}
                                     value={(globalMetadata as any)[cat.descKey] || ""}
                                     onChange={(e) =>
@@ -1208,6 +1236,7 @@ export default function App() {
                                     placeholder={cat.descPlaceholder}
                                     className="w-full bg-bg-card border border-border-dim rounded px-4 py-2.5 text-xs text-primary placeholder:text-primary focus:outline-none focus:border-accent/40 focus:bg-bg-card min-h-[110px] resize-y transition-all leading-relaxed"
                                   />
+                                  <DescriptionRevision source={`${cat.label}: ${(globalMetadata as any)[cat.descKey] || ""}`} fieldId="f0" label={cat.label} model={selectedModel} disabled={isHumanizing || isProcessing || isRefining || importing} onBusy={setIsHumanizing} onApply={text=>{const field=musicProseFields(text)[0];if(field)setGlobalMetadata(previous=>({...previous,[cat.descKey]:field.text}));}} />
                                 </div>
                               </div>
                               <details className="field-guidance">
@@ -1228,7 +1257,8 @@ export default function App() {
                       key="result"
                       className="annotation-results"
                     >
-                      <MusicHumanizer text={result} model={selectedModel} disabled={isProcessing || isRefining || importing || isEditing} onBusy={setIsHumanizing} onApply={text=>{setResult(text);parseSections(text);saveAnnotation(text);}} />
+                      {humanizationNotice && <p className="field-hint" role="status">{humanizationNotice}</p>}
+                      <MusicHumanizer text={result} model={selectedModel} disabled={isProcessing || isRefining || isHumanizing || importing || isEditing} onBusy={setIsHumanizing} onApply={applyWordingResult} />
                       {/* Feedback Section */}
                       <section className="correction-panel">
                         <div className="flex justify-between items-center mb-4">
@@ -1420,6 +1450,7 @@ export default function App() {
                                       <div className="text-xs text-primary font-medium leading-relaxed markdown-body mt-1">
                                         <ReactMarkdown remarkPlugins={[remarkGfm]}>{item.desc}</ReactMarkdown>
                                       </div>
+                                      <DescriptionRevision source={result} fieldId={proseFields.find(field=>field.label===item.category)?.id} label={item.category} model={selectedModel} disabled={isProcessing || isRefining || isHumanizing || importing} onBusy={setIsHumanizing} onApply={applyWordingResult} />
                                     </div>
                                   )}
                                 </div>
@@ -1527,6 +1558,7 @@ export default function App() {
                                   <p className="text-xs text-primary leading-relaxed font-medium">
                                     {section.description}
                                   </p>
+                                  <DescriptionRevision source={result} fieldId={proseFields.find(field=>field.label===`Section ${idx+1}: Narrative Description` || field.label===`Section ${idx+1}: Description`)?.id} label={`Segment ${idx+1} at ${section.startTime}`} model={selectedModel} disabled={isProcessing || isRefining || isHumanizing || importing} onBusy={setIsHumanizing} onApply={applyWordingResult} />
                                   {section.melody && (
                                     <div className="bg-bg-card p-3 rounded border-l-2 border-accent/20 relative group/melody">
                                       <p className="text-sm uppercase text-accent/60 font-bold mb-1 tracking-wider">
