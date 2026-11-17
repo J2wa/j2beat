@@ -86,3 +86,7 @@ export function annotateAudio(audioFile: File, isSimplified = false, isHighAccur
 export function refineAnnotation(audioFile: File, previousResult: string, feedback: string, isSimplified = false, isHighAccuracy = false, creativeGuidance = '', audioDuration = 0, model: ModelId = DEFAULT_MODEL) {
   return request(audioFile, {action:'refine', previousResult:splitResearch(previousResult).annotation, feedback, isSimplified, isHighAccuracy, creativeGuidance, audioDuration, model});
 }
+
+export function suggestAudio(audioFile:File,audioDuration:number,model:ModelId=DEFAULT_MODEL,suggestionStarts?:number[]){
+ return request(audioFile,{action:'suggest',audioDuration,model,suggestionStarts});
+}

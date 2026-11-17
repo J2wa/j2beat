@@ -218,3 +218,8 @@ button.aces-brand{background:none;border:0;padding:0;color:inherit;cursor:pointe
 .manual-workflow select {max-width:100%;background:#101c2e;color:#f1f5f9;border:1px solid #40516b;border-radius:6px;}
 .manual-workflow textarea:focus,.manual-workflow input:focus {outline:2px solid #739bff;outline-offset:2px;}
 @media(max-width:640px){.annotation-mode-picker{grid-template-columns:1fr;gap:12px;}.annotation-mode-picker button{min-height:160px;padding:22px;}}
+.manual-suggestions {border:1px solid #5373a5;border-radius:12px;padding:16px;}
+.manual-suggestions>article {margin:14px 0;}
+.manual-instrument-suggestion {display:flex;justify-content:space-between;align-items:center;gap:16px;border-top:1px solid #334155;padding:12px 0;}
+.manual-instrument-suggestion p {color:#aabbd2;font-size:13px;}
+@media(max-width:640px){.manual-instrument-suggestion{align-items:flex-start;flex-direction:column;}}

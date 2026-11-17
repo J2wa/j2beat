@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import {parseMusicSuggestions,addConfirmedInstrument} from '../shared/musicSuggestions.js';
+import {suggestMusic} from '../server/musicSuggestions.js';
+import {DEFAULT_MODEL} from '../shared/models.js';
+const candidate={start:0,label:'intro',reason:'Guitar entrance',instruments:[{name:'Guitar',reason:'Sounds like picked strings; uncertain'}]};
+const json=JSON.stringify({sections:[candidate]});
+assert.equal(parseMusicSuggestions(json,120,[0])[0].instruments[0].name,'Guitar');
+for(const start of [-1,120,0.5])assert.throws(()=>parseMusicSuggestions(JSON.stringify({sections:[{...candidate,start}]}),120));
+assert.throws(()=>parseMusicSuggestions(json,120,[0,60]));
+assert.throws(()=>parseMusicSuggestions(JSON.stringify({sections:[candidate,candidate]}),120));
+assert.equal(addConfirmedInstrument('Bass, guitar','Guitar'),'Bass, guitar');
+assert.equal(addConfirmedInstrument('Bass','Guitar'),'Bass, Guitar');
+let called=0;
+await suggestMusic({data:'YWJj',type:'audio/wav'},120,DEFAULT_MODEL,[0],(async(req:any,options:any)=>{called++;assert.ok(req.contents[0].parts.some((p:any)=>p.inlineData));assert.ok(req.contents[0].parts[0].text.includes('[0]'));assert.equal(req.config.responseMimeType,'application/json');assert.equal(options.copyeditOnly,true);return {text:json};}) as any);
+assert.equal(called,1);
+console.log('Passed audio suggestion request, timing validation, missing/duplicate section rejection and explicit instrument deduplication.');
