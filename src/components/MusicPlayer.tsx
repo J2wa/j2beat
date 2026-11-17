@@ -3,6 +3,7 @@ import { AudioLines, Upload, Play, Pause, RotateCcw, RotateCw, Repeat2, Volume2,
 import { Button } from './BrandSystem';
 export const formatTime = (value: number) => { const s = Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0; return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 type Props = {
+ markersActionLabel?: string;
  busy?: boolean;
  linkImport?: ReactNode;
  importStatus?: ReactNode;
@@ -82,7 +83,7 @@ export function MusicPlayer(p: Props) {
    </div>
    <div className="wave-times"><span>0:00</span><span>{formatTime(p.duration/4)}</span><span>{formatTime(p.duration/2)}</span><span>{formatTime(p.duration*3/4)}</span><span>{formatTime(p.duration)}</span></div>
    <div className="marker-controls" aria-label="Segment split markers">
-    <div className="marker-actions"><Button disabled={!p.duration} onClick={()=>p.onMark(p.audioRef.current?.currentTime ?? p.currentTime)}>Mark split · {formatTime(p.currentTime)}</Button><Button disabled={!p.markers.length || p.busy} onClick={p.onUseMarkers}>Use in specific timestamps</Button><Button variant="text" disabled={!p.markers.length} onClick={p.onClearMarkers}>Clear markers</Button></div>
+    <div className="marker-actions"><Button disabled={!p.duration} onClick={()=>p.onMark(p.audioRef.current?.currentTime ?? p.currentTime)}>Mark split · {formatTime(p.currentTime)}</Button><Button disabled={!p.markers.length || p.busy} onClick={p.onUseMarkers}>{p.markersActionLabel || "Use in specific timestamps"}</Button><Button variant="text" disabled={!p.markers.length} onClick={p.onClearMarkers}>Clear markers</Button></div>
     <p className="muted small">Seek on the waveform, then mark a split, or press M while listening. Times use whole seconds. 0:00 is included when adding to the form.</p>
     <div className="marker-list" aria-label="Marked split times">{p.markers.map(time=><span className="marker-chip" key={time}><Button variant="text" onClick={()=>p.onSeek(time)} aria-label={`Seek to split ${formatTime(time)}`}>{formatTime(time)}</Button><Button variant="text" onClick={()=>p.onRemoveMarker(time)} aria-label={`Remove split ${formatTime(time)}`}><X size={14}/></Button></span>)}</div>
     <span role="status" className="sr-only">{p.markers.length} split markers</span>

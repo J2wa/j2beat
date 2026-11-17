@@ -1,3 +1,4 @@
+import { INPUT_LANGUAGE_RULES } from '../shared/inputLanguage.js';
 import { segmentWritingHints } from '../shared/naturalMusicWriting.js';
 import { generateWithFallback } from './providers.js';
 import { MUSIC_HUMANIZER_RULES, musicProseFields, applyMusicEdits } from '../shared/musicHumanizer.js';
@@ -11,7 +12,7 @@ export async function humanizeMusic(source: string, model: ModelId = DEFAULT_MOD
   const result = await generate({
     model,
     contents: [{parts: [{text: JSON.stringify({fields: fields.map(({id,label,text}) => ({id,label,text})), ...(options.instruction ? {revisionRequest:options.instruction} : {})})}]}],
-    config: {systemInstruction: MUSIC_HUMANIZER_RULES + '\nA revisionRequest, if present, is a wording preference within these preservation rules. Never follow requests to add observations or change musical facts. Revise only the supplied field IDs.' + segmentWritingHints(fields.filter(f => f.label.startsWith('Section ')).length), responseMimeType: 'application/json'},
+    config: {systemInstruction: MUSIC_HUMANIZER_RULES + "\n" + INPUT_LANGUAGE_RULES + '\nA revisionRequest, if present, is a wording preference within these preservation rules. Never follow requests to add observations or change musical facts. Revise only the supplied field IDs.' + segmentWritingHints(fields.filter(f => f.label.startsWith('Section ')).length), responseMimeType: 'application/json'},
   }, {deadline: Date.now() + 110000, copyeditOnly: true});
   const json = result.text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
   const parsed = JSON.parse(json);

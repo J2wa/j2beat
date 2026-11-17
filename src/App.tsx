@@ -69,6 +69,7 @@ const IMPORTED_TRACK_NOTE = "Audio imported. Analyze this track to generate its 
 
 export default function App() {
   const [manualMode,setManualMode]=useState(false);
+  const [manualMarks,setManualMarks]=useState<{id:number;times:number[]}>({id:0,times:[]});
   const [selectedModel, setSelectedModel] = useState<ModelId>(() => {
     try { const stored = localStorage.getItem('aces_music_model'); return isModelId(stored) ? stored : DEFAULT_MODEL; }
     catch { return DEFAULT_MODEL; }
@@ -874,10 +875,12 @@ export default function App() {
         <div className="analysis-meter" role="progressbar" aria-label="Current operation" aria-valuenow={/Uploading audio.*%/.test(analysisStage)?Number(analysisStage.match(/(\d+)%/)?.[1]):undefined} aria-valuemin={0} aria-valuemax={100} aria-valuetext={analysisStage}><span className={/Uploading audio.*%/.test(analysisStage)?'determinate':'indeterminate'} style={/Uploading audio.*%/.test(analysisStage)?{width:`${analysisStage.match(/(\d+)%/)?.[1]}%`}:undefined}/></div>
         <small>{elapsedSeconds>90?'Taking longer than usual. Progress and retries appear above.':'You can listen, seek, and loop while the annotation runs.'} Analysis may take several minutes, followed by the automatic wording pass.</small>
       </section>}
-      {view === 'workspace' && <div className="p-4"><label>Annotation mode <select aria-label="Annotation mode" value={manualMode?'manual':'automatic'} disabled={isProcessing||isRefining||isHumanizing} onChange={e=>setManualMode(e.target.value==='manual')}><option value="automatic">Automatic</option><option value="manual">Manual</option></select></label></div>}
-      <div hidden={!manualMode || view !== 'workspace'}><ManualMode file={file} duration={duration} currentTime={currentTime} onSeek={seekTo} onBusy={setIsProcessing} onComplete={text=>{applyWordingResult(text);setManualMode(false);}}/></div>
+      {view === 'workspace' && <section className="annotation-mode-picker" aria-label="Choose annotation mode">
+        <button type="button" aria-pressed={!manualMode} disabled={isProcessing||isRefining||isHumanizing} onClick={()=>setManualMode(false)}><span className="mode-icon">✦</span><strong>Automatic annotation</strong><span>Upload your audio. AI listens and drafts the full annotation.</span><small>{!manualMode?'Selected':'Choose automatic →'}</small></button>
+        <button type="button" aria-pressed={manualMode} disabled={isProcessing||isRefining||isHumanizing} onClick={()=>setManualMode(true)}><span className="mode-icon">✎</span><strong>Manual annotation</strong><span>Mark sections, add listening notes, then let AI complete the draft.</span><small>{manualMode?'Selected':'Choose manual →'}</small></button>
+      </section>}
       <div className="player-section" hidden={view !== 'workspace'}>
-        <MusicPlayer linkImport={
+        <MusicPlayer markersActionLabel={manualMode ? "Use split marks in Manual" : "Use in specific timestamps"} linkImport={
           <form onSubmit={event => { event.preventDefault(); void importSpotify(); }}>
             <label htmlFor="spotify-link">Spotify track link</label>
             <div className="track-link-controls">
@@ -895,6 +898,7 @@ export default function App() {
           const second = Math.floor(time);
           setSplitMarkers(previous=>[...new Set([...previous,second])].sort((a,b)=>a-b));
         }} onRemoveMarker={time=>setSplitMarkers(previous=>previous.filter(value=>value!==time))} onClearMarkers={()=>setSplitMarkers([])} onUseMarkers={()=>{
+          if(manualMode){setManualMarks(previous=>({id:previous.id+1,times:[...splitMarkers]}));requestAnimationFrame(()=>document.getElementById('manual-annotation')?.scrollIntoView({behavior:'smooth',block:'start'}));return;}
           const times=[...new Set([0,...splitMarkers])].sort((a,b)=>a-b).map(formatTime);
           setAccurateData(previous=>{
             const existing=previous.timestamps.trim();
@@ -905,6 +909,7 @@ export default function App() {
           setGuidanceDialog("form");
         }} file={file} audioUrl={audioUrl} audioRef={audioRef} currentTime={currentTime} duration={duration} isPlaying={isPlaying} volume={volume} onFile={handleFileSelection} onSeek={seekTo} onToggle={togglePlay} onVolume={setVolume} onReset={reset} onTimeUpdate={handleTimeUpdate} onLoadedMetadata={handleLoadedMetadata} onPlaying={setIsPlaying} onError={setError} segments={sections} busy={isProcessing || isRefining || isHumanizing || importing}/>
       </div>
+      <div hidden={!manualMode || view !== 'workspace'}><ManualMode marksRequest={manualMarks} file={file} duration={duration} currentTime={currentTime} onSeek={seekTo} onBusy={setIsProcessing} onComplete={text=>{applyWordingResult(text);setManualMode(false);}}/></div>
       <main id="workspace" hidden={manualMode || view !== "workspace"} className="studio-grid">
         <section className="settings-panel" aria-labelledby="analysis-settings-title">
           <div className="settings-heading"><span className="section-eyebrow">Configure</span><h2 id="analysis-settings-title">Analysis settings</h2><p className="small muted">Choose how to describe this recording.</p></div>
@@ -922,7 +927,7 @@ export default function App() {
           </div>
           <div className="settings-actions">
             <Button className="guidance-button" onClick={()=>setGuidanceDialog("form")}><Settings/>{hasGuidance ? 'Edit guidance' : 'Add guidance'}{hasGuidance && <span className="status-dot"/>}</Button>
-            <p className="field-hint">{hasGuidance ? 'Your notes will be used for the next analysis.' : 'A timestamp or listening note helps the AI focus on the details you care about.'}</p>
+            <p className="field-hint">{hasGuidance ? 'English, Tagalog, or Taglish notes will guide the next analysis.' : 'Add timestamps or listening notes in English, Tagalog, or Taglish. The annotation is written in English.'}</p>
             <Button variant="primary" className="generate-button" disabled={!canAnalyze} onClick={() => void handleProcess()}>{isProcessing?<Activity/>:<Play/>}{isProcessing?'Analyzing…':result?'Analyze again':'Analyze track'}</Button>
             <p className="field-hint">Song research uses Google Search. Review sources alongside the audio.</p>
           </div>

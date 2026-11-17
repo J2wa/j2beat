@@ -199,3 +199,22 @@ button.aces-brand{background:none;border:0;padding:0;color:inherit;cursor:pointe
 .description-revision-panel > label { display: block; font-size: 13px; margin-bottom: 8px; }
 .description-revision-panel > textarea { width: 100%; min-height: 76px; resize: vertical; border: 1px solid var(--border-dim, #39404c); border-radius: 4px; padding: 10px; color: inherit; background: transparent; font: inherit; font-size: 13px; line-height: 1.5; }
 .analysis-stage-track { flex-wrap: wrap; }
+
+.annotation-mode-picker {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin:24px 0;}
+.annotation-mode-picker button {display:flex;flex-direction:column;align-items:flex-start;gap:12px;text-align:left;padding:28px;min-height:200px;background:#111b2b;border:2px solid #334155;border-radius:16px;color:#cbd5e1;cursor:pointer;transition:border-color .15s,background .15s;}
+.annotation-mode-picker button strong {font-size:clamp(22px,2.5vw,32px);color:#f8fafc;}
+.annotation-mode-picker button span {line-height:1.5;}
+.annotation-mode-picker button[aria-pressed="true"] {border-color:#739bff;background:#172947;box-shadow:0 0 0 1px #739bff;}
+.annotation-mode-picker button:hover {border-color:#a4bcff;}
+.annotation-mode-picker button:focus-visible {outline:3px solid #fbbf24;outline-offset:4px;}
+.annotation-mode-picker button:disabled {opacity:.6;cursor:wait;}
+.annotation-mode-picker .mode-icon {font-size:28px;color:#9bbaff;}
+.annotation-mode-picker small {color:#a9c4ff;font-weight:700;}
+.manual-workflow {margin-top:24px;scroll-margin-top:24px;}
+.manual-step-heading {display:flex;flex-wrap:wrap;gap:16px;padding:16px;background:#172947;border-radius:10px;}
+.manual-step-tab[aria-current="step"] {background:#284b85;border-color:#739bff;color:white;}
+.manual-notice {padding:12px 16px;background:#13372e;color:#b6f2db;border-radius:8px;}
+.manual-workflow details summary {cursor:pointer;padding:16px 0;color:#b9cbeb;}
+.manual-workflow select {max-width:100%;background:#101c2e;color:#f1f5f9;border:1px solid #40516b;border-radius:6px;}
+.manual-workflow textarea:focus,.manual-workflow input:focus {outline:2px solid #739bff;outline-offset:2px;}
+@media(max-width:640px){.annotation-mode-picker{grid-template-columns:1fr;gap:12px;}.annotation-mode-picker button{min-height:160px;padding:22px;}}

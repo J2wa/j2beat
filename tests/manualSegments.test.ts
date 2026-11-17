@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {mergeSplitMarks,timestampSeconds} from '../shared/manualSegments.js';
+const create=(start:string)=>({start,notes:''});
+const existing=[{start:'0:00',notes:'guitar'},{start:'1:10',notes:'keep bass notes'}];
+const merged=mergeSplitMarks(existing,[0,27,70,113,155,203,236,242,27,NaN,-2],242.7,create);
+assert.deepEqual(merged.map(r=>r.start),['0:00','0:27','1:10','1:53','2:35','3:23','3:56']);
+assert.equal(merged[2].notes,'keep bass notes');
+assert.deepEqual(mergeSplitMarks(merged,[27,70],242.7,create),merged);
+assert.equal(timestampSeconds('01:10'),70);
+assert.ok(Number.isNaN(timestampSeconds('0:60')));
+assert.equal(mergeSplitMarks(existing,[5],0,create).length,2);
+assert.equal(mergeSplitMarks([{start:'00:00',notes:'keep'}],[0],100,create).length,1);
+console.log('Passed split import: ordering, deduplication, end exclusion, existing notes, invalid times, and unloaded audio.');

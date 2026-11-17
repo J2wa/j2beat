@@ -1,3 +1,4 @@
+import { INPUT_LANGUAGE_RULES } from '../shared/inputLanguage.js';
 import { splitResearch } from '../shared/research.js';
 import { DEFAULT_MODEL, type ModelId } from '../shared/models.js';
 /**
@@ -19,7 +20,7 @@ export interface AnnotationResult {
 function annotationInstruction(simplified: boolean, highAccuracy: boolean) {
   const tone = simplified ? "\nUse plain musical terms and clear phrasing while preserving supported detail and sentence variety." : "";
   const timing = highAccuracy ? "\nListen closely around audible structural boundaries and place start times as precisely as the evidence allows. Keep incidental changes within the row." : "";
-  return SYSTEM_PROMPT + "\n\n" + KNOWLEDGE_BASE + tone + timing;
+  return SYSTEM_PROMPT + "\n\n" + KNOWLEDGE_BASE + tone + timing + "\n" + INPUT_LANGUAGE_RULES;
 }
 
 export async function annotateAudio(
