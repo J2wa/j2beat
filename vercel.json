@@ -18,6 +18,9 @@
     },
     "api/humanize.ts": {
       "maxDuration": 120
+    },
+    "api/manual.ts": {
+      "maxDuration": 120
     }
   },
   "rewrites": [

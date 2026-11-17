@@ -1,3 +1,4 @@
+import { ManualMode } from './components/ManualMode';
 import { importedAudioExpiresAt } from "../shared/importExpiry";
 import { attachResearch, splitResearch, researchAsMarkdown, type ResearchReport } from "../shared/research";
 import { DEFAULT_MODEL, MODEL_OPTIONS, isModelId, type ModelId } from '../shared/models';
@@ -67,6 +68,7 @@ function ResearchContext({ research }: { research?: ResearchReport }) {
 const IMPORTED_TRACK_NOTE = "Audio imported. Analyze this track to generate its annotation.";
 
 export default function App() {
+  const [manualMode,setManualMode]=useState(false);
   const [selectedModel, setSelectedModel] = useState<ModelId>(() => {
     try { const stored = localStorage.getItem('aces_music_model'); return isModelId(stored) ? stored : DEFAULT_MODEL; }
     catch { return DEFAULT_MODEL; }
@@ -872,6 +874,8 @@ export default function App() {
         <div className="analysis-meter" role="progressbar" aria-label="Current operation" aria-valuenow={/Uploading audio.*%/.test(analysisStage)?Number(analysisStage.match(/(\d+)%/)?.[1]):undefined} aria-valuemin={0} aria-valuemax={100} aria-valuetext={analysisStage}><span className={/Uploading audio.*%/.test(analysisStage)?'determinate':'indeterminate'} style={/Uploading audio.*%/.test(analysisStage)?{width:`${analysisStage.match(/(\d+)%/)?.[1]}%`}:undefined}/></div>
         <small>{elapsedSeconds>90?'Taking longer than usual. Progress and retries appear above.':'You can listen, seek, and loop while the annotation runs.'} Analysis may take several minutes, followed by the automatic wording pass.</small>
       </section>}
+      {view === 'workspace' && <div className="p-4"><label>Annotation mode <select aria-label="Annotation mode" value={manualMode?'manual':'automatic'} disabled={isProcessing||isRefining||isHumanizing} onChange={e=>setManualMode(e.target.value==='manual')}><option value="automatic">Automatic</option><option value="manual">Manual</option></select></label></div>}
+      <div hidden={!manualMode || view !== 'workspace'}><ManualMode/></div>
       <div className="player-section" hidden={view !== 'workspace'}>
         <MusicPlayer linkImport={
           <form onSubmit={event => { event.preventDefault(); void importSpotify(); }}>
@@ -901,7 +905,7 @@ export default function App() {
           setGuidanceDialog("form");
         }} file={file} audioUrl={audioUrl} audioRef={audioRef} currentTime={currentTime} duration={duration} isPlaying={isPlaying} volume={volume} onFile={handleFileSelection} onSeek={seekTo} onToggle={togglePlay} onVolume={setVolume} onReset={reset} onTimeUpdate={handleTimeUpdate} onLoadedMetadata={handleLoadedMetadata} onPlaying={setIsPlaying} onError={setError} segments={sections} busy={isProcessing || isRefining || isHumanizing || importing}/>
       </div>
-      <main id="workspace" hidden={view !== "workspace"} className="studio-grid">
+      <main id="workspace" hidden={manualMode || view !== "workspace"} className="studio-grid">
         <section className="settings-panel" aria-labelledby="analysis-settings-title">
           <div className="settings-heading"><span className="section-eyebrow">Configure</span><h2 id="analysis-settings-title">Analysis settings</h2><p className="small muted">Choose how to describe this recording.</p></div>
           <div className="settings-field">
