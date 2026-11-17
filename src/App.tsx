@@ -875,7 +875,7 @@ export default function App() {
         <small>{elapsedSeconds>90?'Taking longer than usual. Progress and retries appear above.':'You can listen, seek, and loop while the annotation runs.'} Analysis may take several minutes, followed by the automatic wording pass.</small>
       </section>}
       {view === 'workspace' && <div className="p-4"><label>Annotation mode <select aria-label="Annotation mode" value={manualMode?'manual':'automatic'} disabled={isProcessing||isRefining||isHumanizing} onChange={e=>setManualMode(e.target.value==='manual')}><option value="automatic">Automatic</option><option value="manual">Manual</option></select></label></div>}
-      <div hidden={!manualMode || view !== 'workspace'}><ManualMode/></div>
+      <div hidden={!manualMode || view !== 'workspace'}><ManualMode file={file} duration={duration} currentTime={currentTime} onSeek={seekTo} onBusy={setIsProcessing} onComplete={text=>{applyWordingResult(text);setManualMode(false);}}/></div>
       <div className="player-section" hidden={view !== 'workspace'}>
         <MusicPlayer linkImport={
           <form onSubmit={event => { event.preventDefault(); void importSpotify(); }}>

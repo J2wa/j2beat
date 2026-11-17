@@ -1,20 +1,40 @@
-import { useState } from 'react';
-import { MANUAL_INPUT_SHEET } from '../../shared/manualMode';
-import { DEFAULT_MODEL, MODEL_OPTIONS } from '../../shared/models';
-export function ManualMode(){
- const [sheet,setSheet]=useState(()=>{try{return localStorage.getItem('aces_manual_sheet')||MANUAL_INPUT_SHEET;}catch{return MANUAL_INPUT_SHEET;}});
- const [output,setOutput]=useState(''); const [busy,setBusy]=useState(false); const [error,setError]=useState(''); const [model,setModel]=useState<string>(DEFAULT_MODEL);
- const flags=output.match(/\[NEEDS INPUT:[^\]]*\]/g)||[];
- async function write(){setBusy(true);setError('');try{const response=await fetch('/api/manual',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:sheet,model}),signal:AbortSignal.timeout(125000)}); const data=await response.json();if(!response.ok||!data.text?.trim())throw Error(data.error||'Writing failed.');setOutput(data.text);}catch(e){setError(e instanceof Error?e.message:'Writing failed.');}finally{setBusy(false);}}
- return <section className="hardware-card p-6 space-y-4">
- <h2>Manual annotation</h2><p>You supply the facts. AI writes from your notes only. No audio upload, listening pass, or song research. Edit the sheet and regenerate to make corrections.</p>
- <label className="block">Writing model <select value={model} disabled={busy} onChange={e=>setModel(e.target.value)}>{MODEL_OPTIONS.map(m=><option key={m.id} value={m.id}>{m.label}</option>)}</select></label>
- <label className="block" htmlFor="manual-sheet">Annotator input sheet</label>
- <textarea id="manual-sheet" className="w-full bg-black/20 p-4 font-mono" rows={24} value={sheet} disabled={busy} onChange={e=>{setSheet(e.target.value);try{localStorage.setItem('aces_manual_sheet',e.target.value);}catch{}}}/>
- <button className="aces-button aces-button--primary" disabled={busy||!sheet.trim()} onClick={write}>{busy?'Writing from your notes…':'Write annotation'}</button>
- {error&&<p role="alert">{error}</p>}
- {output&&<><p role="status">{flags.length} needs-input flags. Check every fact against your sheet before copying. This is an AI draft.</p>
- <pre className="whitespace-pre-wrap">{output.split(/(\[NEEDS INPUT:[^\]]*\])/g).map((part,i)=>part.startsWith('[NEEDS INPUT:')?<mark key={i}>{part}</mark>:part)}</pre>
- <button className="aces-button" onClick={async()=>{try{await navigator.clipboard.writeText(output);}catch{setError('Copy failed. Select and copy the text manually.');}}}>Copy draft{flags.length?' with flags':''}</button></>}
- </section>;
+import { useEffect, useState } from 'react';
+import { annotateAudio } from '../services/geminiService';
+import { automaticallyHumanize } from '../services/humanizerService';
+import { DEFAULT_MODEL, MODEL_OPTIONS, type ModelId } from '../../shared/models';
+const globals = [
+ ['Genre, Era & Scene','What style does it sound like, and what supports that?'],
+ ['Tempo, Rhythm & Groove','How fast does it feel? How do the bass and drums work together?'],
+ ['Harmony, Chords & Key','Do the chords repeat or change? Bright, dark, tense, or relaxed?'],
+ ['Instrumentation','What role does each main instrument play?'],
+ ['Playing Style','How are the instruments played: picking, strumming, bent notes, short hits?'],
+ ['Wow Factor','What stands out: a solo, pause, unusual sound, or big chorus?'],
+ ['Emotion, Vibe & Setting','How does it feel, and what listening setting fits?'],
+ ['Mix & Production','Which parts are up front? Any echo, heavy bass, or stereo movement?'],
+ ['Sonic Fidelity','Is the recording clear, warm, muffled, noisy, or distorted?'],
+ ['Vocal Expression','Describe the voice, phrasing, delivery, and harmonies.'],
+ ['Lyrical Evocation','What are the clearly audible lyrics about?']
+];
+type Row={start:string;type:string;instruments:string;parts:string;vocals:string;changes:string;vibe:string;melody:string};
+const row=(start=''):Row=>({start,type:'',instruments:'',parts:'',vocals:'',changes:'',vibe:'',melody:''});
+export function ManualMode({file,duration,currentTime,onSeek,onComplete,onBusy}:{file:File|null;duration:number;currentTime:number;onSeek:(n:number)=>void;onComplete:(s:string)=>void;onBusy:(b:boolean)=>void}){
+ const [step,setStep]=useState(0),[rows,setRows]=useState<Row[]>([{...row('0:00'),type:'intro'}]);
+ const [notes,setNotes]=useState<Record<string,string>>({}),[model,setModel]=useState<ModelId>(DEFAULT_MODEL),[busy,setBusy]=useState(false),[error,setError]=useState(''),[stage,setStage]=useState('');
+ useEffect(()=>{try{const d=JSON.parse(localStorage.getItem('aces_guided_manual')||'null');if(d&&Array.isArray(d.rows)&&d.rows.length&&d.rows.every((r:any)=>Object.keys(row()).every(k=>typeof r[k]==='string'))){setRows(d.rows);setNotes(d.notes||{});}}catch{}},[]);
+ const save=(r:Row[],n:Record<string,string>)=>{try{localStorage.setItem('aces_guided_manual',JSON.stringify({rows:r,notes:n}));}catch{}};
+ const update=(i:number,k:keyof Row,v:string)=>{const next=rows.map((r,j)=>j===i?{...r,[k]:v}:r);setRows(next);save(next,notes);};
+ const seconds=(s:string)=>/^\d+:\d{2}$/.test(s)&&Number(s.split(':')[1])<60?Number(s.split(':')[0])*60+Number(s.split(':')[1]):NaN;
+ const timingError=rows.some((r,i)=>!Number.isFinite(seconds(r.start))||seconds(r.start)<0||(duration>0&&seconds(r.start)>=duration)||(i===0?seconds(r.start)!==0:seconds(r.start)<=seconds(rows[i-1].start)))?'Start at 0:00 and enter increasing M:SS times within the track.':'';
+ useEffect(()=>{const listener=(e:Event)=>setStage((e as CustomEvent).detail||'Analyzing audio');window.addEventListener('analysis-progress',listener);return()=>window.removeEventListener('analysis-progress',listener);},[]);
+ async function finish(){if(!file||timingError)return;setBusy(true);onBusy(true);setError('');setStage('Preparing audio');try{
+ const guidance='GUIDED MANUAL ANNOTATION. The annotator supplied the boundaries and observations below. Use these as the intended structure; verify musical claims against the audio. Listen to the entire recording and fill unfinished fields only with supported audible details. Preserve supplied boundaries unless invalid; do not invent details for blank inputs. Mark unresolved details [NEEDS INPUT: reason]. Write the full required timeline and Global Musical Matrix. Use everyday tags and natural descriptions.\n'+rows.map(r=>`Start: ${r.start}\nSection: ${r.type}\nInstruments: ${r.instruments}\nParts and how they combine: ${r.parts}\nVocals: ${r.vocals}\nChanges: ${r.changes}\nVibe: ${r.vibe}\nMelody: ${r.melody}`).join('\n\n')+'\nGLOBAL OBSERVATIONS\n'+globals.map(([label])=>label+': '+(notes[label]||'')).join('\n');
+ const draft=await annotateAudio(file,true,true,guidance,duration,model);setStage('Finishing wording');const polished=await automaticallyHumanize(draft,model);onComplete(polished.text);
+ }catch(e){setError(e instanceof Error?e.message:'Could not finish. Your form is preserved.');}finally{setBusy(false);onBusy(false);}}
+ const field=(i:number,k:keyof Row,label:string,hint:string)=><label className="block space-y-2" key={k}>{label}<textarea className="w-full bg-black/20 p-3 rounded border border-white/10" rows={2} value={rows[i][k]} placeholder={hint} onChange={e=>update(i,k,e.target.value)}/></label>;
+ return <section className="hardware-card p-6 space-y-5"><h2>Guided manual annotation</h2><p>Listen in the player, enter what you know, then let AI listen to the audio and complete the writing. Blank observations are checked against the recording.</p>
+ <fieldset disabled={busy} className="space-y-5"><nav className="flex flex-wrap gap-3">{['1. Timestamps','2. Segment details','3. Global guidance'].map((name,i)=><button type="button" className="aces-button" aria-current={step===i?'step':undefined} key={name} onClick={()=>{if(i>0&&timingError){setError(timingError);return;}setError('');setStep(i);}}>{name}</button>)}</nav>
+ {step===0&&<><p>Add a row for each section start. The next row marks its end; the last ends with the track.</p>{rows.map((r,i)=><div key={i} className="flex flex-wrap gap-3 items-end"><label>Start time<input aria-label={`Segment ${i+1} start time`} className="block bg-black/20 p-3" value={r.start} placeholder="0:00" onChange={e=>update(i,'start',e.target.value)}/></label><label>Section type<input className="block bg-black/20 p-3" value={r.type} placeholder="verse, chorus, outro…" onChange={e=>update(i,'type',e.target.value)}/></label><button type="button" className="aces-button" disabled={!Number.isFinite(seconds(r.start))} onClick={()=>onSeek(seconds(r.start))}>Listen here</button><button type="button" className="aces-button" disabled={rows.length===1} onClick={()=>{const next=rows.filter((_,j)=>j!==i);setRows(next);save(next,notes);}}>Remove</button></div>)}<button type="button" className="aces-button" onClick={()=>{const t=Math.floor(currentTime);const next=[...rows,row(`${Math.floor(t/60)}:${String(t%60).padStart(2,'0')}`)];setRows(next);save(next,notes);}}>Add segment at playhead</button>{timingError&&<p>{timingError}</p>}</>}
+ {step===1&&rows.map((r,i)=><article key={i} className="border border-white/10 rounded p-4 space-y-4"><h3>{r.start} · {r.type||`Segment ${i+1}`}</h3><button type="button" className="aces-button" onClick={()=>onSeek(seconds(r.start))}>Listen to segment</button>{field(i,'instruments','Instruments','Guitar, bass, drums…')}{field(i,'parts','How the parts are played and combine','Bass follows the kick; picked guitar notes sit over held piano chords…')}{field(i,'vocals','Vocals','Delivery, phrasing, harmonies, or no vocals')}{field(i,'changes','Changes within this segment','Entrances, exits, fills, or changes in energy')}{field(i,'vibe','Mood','Warm, relaxed, tense…')}{field(i,'melody','Melody','A short phrase describing its movement')}</article>)}
+ {step===2&&<>{globals.map(([label,hint])=><label className="block space-y-2" key={label}>{label}<textarea className="w-full bg-black/20 p-3 rounded border border-white/10" rows={3} placeholder={hint} value={notes[label]||''} onChange={e=>{const next={...notes,[label]:e.target.value};setNotes(next);save(rows,next);}}/></label>)}<label>AI model<select value={model} onChange={e=>setModel(e.target.value as ModelId)}>{MODEL_OPTIONS.map(m=><option key={m.id} value={m.id}>{m.label}</option>)}</select></label><p>Audio is sent to AI for completion. Review any added details in the finished annotation.</p><button type="button" className="aces-button aces-button--primary" disabled={!file||!!timingError} onClick={finish}>Analyze audio and finish annotation</button>{!file&&<p>Load audio in the player first.</p>}</>}
+ {step<2&&<button type="button" className="aces-button" disabled={!!timingError} onClick={()=>setStep(step+1)}>Next step</button>}{step>0&&<button type="button" className="aces-button" onClick={()=>setStep(step-1)}>Back</button>}</fieldset>{busy&&<p role="status">{typeof stage==='string'?stage:'Analyzing audio'}…</p>}{error&&<p role="alert">{error}</p>}</section>;
 }
