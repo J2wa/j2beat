@@ -909,7 +909,7 @@ export default function App() {
           setGuidanceDialog("form");
         }} file={file} audioUrl={audioUrl} audioRef={audioRef} currentTime={currentTime} duration={duration} isPlaying={isPlaying} volume={volume} onFile={handleFileSelection} onSeek={seekTo} onToggle={togglePlay} onVolume={setVolume} onReset={reset} onTimeUpdate={handleTimeUpdate} onLoadedMetadata={handleLoadedMetadata} onPlaying={setIsPlaying} onError={setError} segments={sections} busy={isProcessing || isRefining || isHumanizing || importing}/>
       </div>
-      <div hidden={!manualMode || view !== 'workspace'}><ManualMode marksRequest={manualMarks} file={file} duration={duration} currentTime={currentTime} onSeek={seekTo} onBusy={setIsProcessing} onComplete={text=>{applyWordingResult(text);setManualMode(false);}}/></div>
+      <div hidden={!manualMode || view !== 'workspace'}><ManualMode audioRef={audioRef} marksRequest={manualMarks} file={file} duration={duration} currentTime={currentTime} onSeek={seekTo} onBusy={setIsProcessing} onComplete={text=>{applyWordingResult(text);setManualMode(false);}}/></div>
       <main id="workspace" hidden={manualMode || view !== "workspace"} className="studio-grid">
         <section className="settings-panel" aria-labelledby="analysis-settings-title">
           <div className="settings-heading"><span className="section-eyebrow">Configure</span><h2 id="analysis-settings-title">Analysis settings</h2><p className="small muted">Choose how to describe this recording.</p></div>

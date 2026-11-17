@@ -1,0 +1,23 @@
+import assert from 'node:assert/strict';
+import {lockManualDraft,newManualRow,instrumentList,exportedInstruments,segmentChecks,annotationSections,annotationField,needsInput} from '../shared/manualWorkspace.js';
+const intro={...newManualRow('0:00'),type:'intro',instruments:'Guitar, Bass, Pad',parts:'Guitar picks notes',confidence:{Guitar:'Confirmed',Bass:'Probable',Pad:'Unsure'} as const};
+const outro={...newManualRow('0:15'),type:'outro',instruments:'Guitar',parts:'Guitar fades'};
+assert.equal(instrumentList(intro).length,3);
+assert.equal(exportedInstruments(intro,true),'Guitar, Bass,');
+assert.deepEqual(segmentChecks([intro,outro],0,30),[]);
+assert.ok(segmentChecks([intro,{...outro,start:'1:10'}],0,120).includes('Segment exceeds 60 seconds. Add a boundary.'));
+assert.ok(segmentChecks([intro,{...outro,melody:'two words'}],1,30).some(s=>s.includes('3 to 7')));
+const text='Timeline Sections\n- **Start Time:** 0:00\n- **Section Type:** intro\n- **Narrative Description:** Picked notes.\n- **Melody:**\n\nGlobal Musical Matrix\n1. Genre, Era & Scene Tags: Folk\n2. Genre, Era & Scene: A folk song.';
+assert.equal(annotationSections(text).length,1);
+assert.equal(annotationField(text,'Melody'),'');
+assert.equal(annotationField(text,'Genre, Era & Scene'),'A folk song.');
+assert.deepEqual(needsInput('[NEEDS INPUT: missing facts]'),['missing facts']);
+console.log('Passed manual confidence exports, timeline and melody checks, empty-field parsing and gap detection.');
+
+const locked=lockManualDraft(text,[intro],{'Genre, Era & Scene':'Tagalog notes tag'}, {},{fillAudio:false,trailing:true,instrumental:false,title:'My title',artist:'My artist',performers:'My performers',lyrics:''});
+assert.equal(annotationField(locked,'Instruments'),'Guitar, Bass,');
+assert.equal(annotationField(locked,'Genre, Era & Scene Tags'),'Tagalog notes tag');
+assert.equal(annotationField(locked,'Genre, Era & Scene'),'[NEEDS INPUT: No facts given for Genre, Era & Scene]');
+assert.ok(locked.includes('Song title: My title'));
+assert.ok(!annotationField(locked,'Instruments').includes('Pad'));
+console.log('Passed post-write field locking, uncertain instrument exclusion, metadata retention and missing-fact flags.');
