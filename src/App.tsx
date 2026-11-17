@@ -870,7 +870,7 @@ export default function App() {
         <p role="status" aria-live="polite">{analysisStage}</p>
         <div className="analysis-stage-track" aria-label="Processing stages">{['Upload','Analyze','Research','Write','Review','Humanize'].map((label,i)=>{const stage=/Humanizing/i.test(analysisStage)?5:/Reviewing/i.test(analysisStage)?4:/Writing|Repairing/i.test(analysisStage)?3:/Searching/i.test(analysisStage)?2:/Analyzing|Retrying|Preparing AI|Rechecking/i.test(analysisStage)?1:0;return <span key={label} className={i<stage?'complete':i===stage?'active':''}>{i<stage?'✓':i+1} {label}</span>;})}</div>
         <div className="analysis-meter" role="progressbar" aria-label="Current operation" aria-valuenow={/Uploading audio.*%/.test(analysisStage)?Number(analysisStage.match(/(\d+)%/)?.[1]):undefined} aria-valuemin={0} aria-valuemax={100} aria-valuetext={analysisStage}><span className={/Uploading audio.*%/.test(analysisStage)?'determinate':'indeterminate'} style={/Uploading audio.*%/.test(analysisStage)?{width:`${analysisStage.match(/(\d+)%/)?.[1]}%`}:undefined}/></div>
-        <small>{elapsedSeconds>90?'Taking longer than usual. Progress and retries appear above.':'You can listen, seek, and loop while the annotation runs.'} AI processing may take up to 4 minutes, plus upload time.</small>
+        <small>{elapsedSeconds>90?'Taking longer than usual. Progress and retries appear above.':'You can listen, seek, and loop while the annotation runs.'} Analysis may take several minutes, followed by the automatic wording pass.</small>
       </section>}
       <div className="player-section" hidden={view !== 'workspace'}>
         <MusicPlayer linkImport={
