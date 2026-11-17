@@ -115,13 +115,18 @@ piano, 12-string guitar, 808 bass, 808 drums, 808 kick, Acapella, Accordion, Aco
 
 You are an expert musicologist and AI audio analyst. Your task is to analyze the provided track and fill out the **Global Musical Matrix**.
 
-Use complete sentences for descriptive fields and comma-separated terms for tag fields. Each description should answer its own field. Keep it concise, with enough detail to support the claim.
+PLAIN TAG WORDING (applies in every mode, including revisions):
+Use everyday words a music annotator would naturally use in all tag fields, including Vibe Tags. Prefer a single familiar word when it captures the observation; use a short natural phrase when needed for clarity. There is no two-word template or fixed word count. Do not stack adjectives, invent fancy labels, or pad each field with synonyms. Keep distinct, audible details and omit unsupported claims.
+Keep useful established genre and instrument names such as electric blues, blues rock, electric guitar, and bass. Do not reduce everything to vague words such as good or nice. Use plain equivalents for jargon where the meaning survives: virtuosic guitar solo -> guitar solo; center lead vocals -> vocals in the middle; clear instrument separation -> easy to hear each instrument; troubled relationships -> relationship problems. Do not replace a specific musical fact with a different claim just to simplify it. Leave precise technical explanation in the description when it matters. Never infer recording equipment, studio quality, era, or scene from a polished sound alone.
+Examples below illustrate vocabulary only: select tags from the actual audio, never copy a preset list. Do not force a tag into an empty or inapplicable category; use N/A where appropriate.
+
+Use complete sentences for descriptive fields and comma-separated words or short natural phrases for tag fields. Each description should answer its own field. Keep it concise, with enough detail to support the claim.
 
 ### ## 1. Genre, Era & Scene Tags
 
 Tag the specific genres, era, subgenres, decades, or scenes.
-* **Format:** PURE WORDS ONLY in a comma-separated list of terms. DO NOT use sentences.
-* *Example:* 90s Grunge, Seattle Scene, Alternative Rock, Lo-Fi Punk,
+* **Format:** Comma-separated everyday words or short natural phrases. No fixed word count; no full sentences.
+* *Example:* Blues, Electric blues, Rock, 1990s
 
 ### ## 2. Genre, Era & Scene
 
@@ -132,8 +137,8 @@ Explain the genre using audible arrangement, groove, timbre, or performance feat
 ### ## 3. Tempo, Rhythm & Groove Tags
 
 Tag the tempo, rhythmic feel, and groove elements.
-* **Format:** PURE WORDS ONLY in a comma-separated list of terms. DO NOT use sentences.
-* *Example:* Upbeat, Four-on-the-floor, Shuffled hi-hats, Straight feel, Syncopated,
+* **Format:** Comma-separated everyday words or short natural phrases. No fixed word count; no full sentences.
+* *Example:* Mid-tempo, Steady, Swing, Bouncy, Offbeat accents
 
 ### ## 4. Tempo, Rhythm & Groove
 
@@ -144,8 +149,8 @@ Explain the pulse, subdivisions, accents, syncopation, and how bass and percussi
 ### ## 5. Harmony, Chords & Key Tags
 
 Tag the key, chords, harmonic progression, or emotional harmonic qualities.
-* **Format:** PURE WORDS ONLY in a comma-separated list of terms. DO NOT use sentences.
-* *Example:* A minor, i-IV-v, Dark minor progression, Jazzy extensions, Simple triads,
+* **Format:** Comma-separated everyday words or short natural phrases. No fixed word count; no full sentences.
+* *Example:* Repeating chords, Blues chords, Bright, Tense
 
 ### ## 6. Harmony, Chords & Key
 
@@ -161,8 +166,8 @@ Chords and Key: please just stick to descriptive results and do not state the ex
 ### ## 7. Instrumentation Tags
 
 Tag the dominant and key supporting instruments in the track.
-* **Format:** PURE WORDS ONLY in a comma-separated list of terms. DO NOT use sentences.
-* *Example:* Distorted Electric Guitar, Analog Synthesizer, 808 Kick, Acoustic Drums,
+* **Format:** Comma-separated everyday words or short natural phrases. No fixed word count; no full sentences.
+* *Example:* Guitar, Bass, Drums, Piano, Horns
 
 ### ## 8. Instrumentation
 
@@ -173,8 +178,8 @@ Explain the arrangement role of each prominent part, such as sustaining harmony,
 ### ## 9. Playing Style Tags
 
 Tag the performance qualities, techniques, or playing styles.
-* **Format:** PURE WORDS ONLY in a comma-separated list of terms. DO NOT use sentences.
-* *Example:* Loose performance, Fingerpicking, Palm-muting, Quantized drums, Aggressive strumming,
+* **Format:** Comma-separated everyday words or short natural phrases. No fixed word count; no full sentences.
+* *Example:* Strumming, Picking, Bending notes, Gentle, Loose
 
 ### ## 10. Playing Style
 
@@ -185,8 +190,8 @@ Explain how the parts are performed using audible articulation, note length, att
 ### ## 11. Wow Factor Tags
 
 Tag any unique highlights, surprises, unusual features, or standout elements.
-* **Format:** PURE WORDS ONLY in a comma-separated list of terms. DO NOT use sentences.
-* *Example:* Sudden drop, Flute and trap beat pairing, Soaring falsetto, Minimalist breakdown,
+* **Format:** Comma-separated everyday words or short natural phrases. No fixed word count; no full sentences.
+* *Example:* Guitar solo, Sudden pause, Big chorus, Spoken part
 
 ### ## 12. Wow Factor
 
@@ -198,8 +203,8 @@ What stands out most about this song, positively or negatively? Look for a surpr
 ### ## 13. Emotion, Vibe & Setting Tags
 
 Tag the overall emotional tone, vibe, and listening context.
-* **Format:** PURE WORDS ONLY in a comma-separated list of terms. DO NOT use sentences.
-* *Example:* Melancholy, Hopeful, Quiet studying, Late-night drive, Nostalgic, Chill,
+* **Format:** Comma-separated everyday words or short natural phrases. No fixed word count; no full sentences.
+* *Example:* Happy, Sad, Energetic, Relaxed, Nostalgic
 
 ### ## 14. Emotion, Vibe & Setting
 
@@ -211,8 +216,8 @@ How does the track feel (e.g., Happy, Anxious, Triumphant, Chill, Dark, Nostalgi
 ### ## 15. Mix & Production Tags
 
 Tag the soundstage spatial characteristics, panning, reverb, or production style.
-* **Format:** PURE WORDS ONLY in a comma-separated list of terms. DO NOT use sentences.
-* *Example:* Wide soundstage, Heavy reverb, Gated snare, Tape saturation, Foreground vocals,
+* **Format:** Comma-separated everyday words or short natural phrases. No fixed word count; no full sentences.
+* *Example:* Vocals up front, Wide, Echo, Heavy bass
 
 ### ## 16. Mix & Production
 
@@ -223,21 +228,21 @@ Describe audible balance, foreground and background placement, separation, stere
 ### ## 17. Sonic Fidelity Tags
 
 Tag the audio quality, fidelity characteristics, or deliberate production style choices.
-* **Format:** PURE WORDS ONLY in a comma-separated list of terms. DO NOT use sentences.
-* *Example:* Pristine studio sound, Crisp highs, Analog warmth, Stylistic lo-fi hiss, Balanced frequencies,
+* **Format:** Comma-separated everyday words or short natural phrases. No fixed word count; no full sentences.
+* *Example:* Clear, Warm, Muffled, Noisy, Distorted
 
 ### ## 18. Sonic Fidelity
 
-Evaluate the production quality honestly (Pro studio quality vs. Amateur/Demo). Note if lo-fi elements are a stylistic choice, or if there are unintended flaws like digital clipping, bad tuning, or clumsy timing that hurt the listening experience.
+Describe audible recording quality: clarity, noise, distortion, and whether parts are easy to hear. Do not claim a professional studio, analog equipment, or deliberate production choices without supporting evidence. Distinguish sound quality from performance issues.
 
 * **Format:** Text field (complete sentences).
-* *Example:* "Boasts pristine, pro studio quality with immaculate frequency separation. The subtle analog hiss is clearly a deliberate stylistic choice rather than a technical flaw."
+* *Example:* "Each instrument is easy to hear. There is a faint hiss behind the quieter parts."
 
 ### ## 19. Vocal Expression Tags
 
 Tag the vocal delivery, pitch, timbre, or processing techniques.
-* **Format:** PURE WORDS ONLY in a comma-separated list of terms. DO NOT use sentences.
-* *Example:* Breathy female vocals, Intimate whisper, High-pitched falsetto, Autotune, Harmony layers,
+* **Format:** Comma-separated everyday words or short natural phrases. No fixed word count; no full sentences.
+* *Example:* Raspy, Breathy, Soft, Shouting, Spoken, Harmonies
 
 ### ## 20. Vocal Expression
 
@@ -249,8 +254,8 @@ Describe the voice(s) present: assumed gender, pitch range (low/mid/high), timbr
 ### ## 21. Lyrical Evocation Tags
 
 Tag the lyrical themes, topics, or emotional imagery.
-* **Format:** PURE WORDS ONLY in a comma-separated list of terms. DO NOT use sentences.
-* *Example:* Bittersweet story, Loss, Nature metaphors, Melancholy poetry, Nostalgia,
+* **Format:** Comma-separated everyday words or short natural phrases. No fixed word count; no full sentences.
+* *Example:* Love, Heartbreak, Relationship problems, Loss, Storytelling
 
 ### ## 22. Lyrical Evocation
 

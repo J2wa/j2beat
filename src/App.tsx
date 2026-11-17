@@ -1080,9 +1080,9 @@ export default function App() {
                               descKey: "genreEraScene",
                               tagLabel: "Genre, Era & Scene Tags *",
                               descLabel: "Genre, Era & Scene *",
-                              tagPlaceholder: "Add specific genres, era, subgenres, or scenes... (comma-separated)",
+                              tagPlaceholder: "Examples: blues, electric blues, rock, 1990s (comma-separated)",
                               descPlaceholder: "Describe the genre, era or scene, and why...",
-                              help: "Can include broad and subgenre (Glam Rock), a specific decade (80s Synthwave), and cultural scene (Club). As before, what is most important is what it sounds like. What are the main elements that lead up to that qualification?."
+                              help: "What style does it sound like? Use familiar genre names. Add an era or scene only when supported."
                             },
                             {
                               id: "tempoRhythmGroove",
@@ -1091,9 +1091,9 @@ export default function App() {
                               descKey: "tempoRhythmGroove",
                               tagLabel: "Tempo, Rhythm & Groove Tags *",
                               descLabel: "Tempo, Rhythm & Groove *",
-                              tagPlaceholder: "Add tempo, rhythm feel, or groove elements... (comma-separated)",
+                              tagPlaceholder: "Examples: mid-tempo, steady, swing, bouncy, offbeat accents (comma-separated)",
                               descPlaceholder: "Describe the tempo, rhythmic feel, and groove elements in detail...",
-                              help: "How fast does it feel? Use a tempo bucket: Very Slow / Slow / Mid-tempo / Upbeat / Fast / Very Fast.\n\nStraight or swung? Syncopated or on-the-beat? Notable rhythmic traits (shuffled hi-hats, four-on-the-floor, boom-bap)? Simple or complex rhythms? Descriptive feel is what matters — \"laid-back swing\" or \"driving march\" works. DO NOT mention explicit counts, time signatures, or meter signatures (such as 4/4, 3/4, 6/8, etc.)."
+                              help: "How fast does it feel? Is the beat steady, bouncy, swung, or uneven? Explain how the bass and drums work together."
                             },
                             {
                               id: "harmonyChordsKey",
@@ -1102,9 +1102,9 @@ export default function App() {
                               descKey: "harmonyChordsKey",
                               tagLabel: "Harmony, Chords & Key Tags *",
                               descLabel: "Harmony, Chords & Key *",
-                              tagPlaceholder: "Add key, chords, harmonic progression tags... (comma-separated)",
+                              tagPlaceholder: "Examples: repeating chords, blues chords, bright, tense (comma-separated)",
                               descPlaceholder: "Describe the key, chords, harmonic progression, or harmonic feel...",
-                              help: "What does the harmony feel like? \"Simple pop chords\", \"jazzy extended chords\", \"dark minor progression\", \"just a bassline\".\n\nInclude key if you know it.\n\nDo chords change quickly or stay on one chord for a while? Descriptive feel > notation.\n\nFocus on feel — \"happy chords\", \"sad and minor\", \"barely any harmony\".\n\nIf possible - Add key, progression shape (e.g., \"I-V-vi-IV\"), complexity."
+                              help: "Do the chords repeat or change? Do they sound bright, dark, tense, or relaxed? Avoid guessing an exact key or chord sequence."
                             },
                             {
                               id: "instrumentation",
@@ -1113,9 +1113,9 @@ export default function App() {
                               descKey: "instrumentation",
                               tagLabel: "Instrumentation Tags *",
                               descLabel: "Instrumentation *",
-                              tagPlaceholder: "Add key dominant or supporting instruments... (comma-separated)",
+                              tagPlaceholder: "Examples: guitar, bass, drums, piano, horns (comma-separated)",
                               descPlaceholder: "Describe the role, contributions, and interplay of the instruments...",
-                              help: "What is the role of the instruments? Are they different from the canonical instrument? Which part is played? Is there an interplay between the instruments?."
+                              help: "Name the instruments you can hear, then explain what each one does."
                             },
                             {
                               id: "playingStyle",
@@ -1124,9 +1124,9 @@ export default function App() {
                               descKey: "playingStyle",
                               tagLabel: "Playing Style Tags *",
                               descLabel: "Playing Style *",
-                              tagPlaceholder: "Add performance qualities, techniques, or styles... (comma-separated)",
+                              tagPlaceholder: "Examples: strumming, picking, bending notes, gentle, loose (comma-separated)",
                               descPlaceholder: "Describe the performance qualities, techniques, or playing styles in detail...",
-                              help: "How is it performed? Tight/Quantized? Loose/Human? Aggressive? Gentle/Intimate? Behind the beat (laid-back) or on top (driving)? Notable techniques (fingerpicking, palm-muting, ghost notes)? Long flowing phrases or short choppy bursts? Do dynamics build or stay flat?."
+                              help: "How are the parts played? Listen for strumming, picking, bent notes, gentle playing, or a loose feel."
                             },
                             {
                               id: "wowFactor",
@@ -1135,9 +1135,9 @@ export default function App() {
                               descKey: "wowFactor",
                               tagLabel: "Wow Factor Tags *",
                               descLabel: "Wow Factor (Optional)",
-                              tagPlaceholder: "Add unique highlights or surprises... (comma-separated)",
+                              tagPlaceholder: "Examples: guitar solo, sudden pause, big chorus, spoken part (comma-separated)",
                               descPlaceholder: "Describe any highlights, surprises, or standout elements in detail...",
-                              help: "What stands out most about this song — positively or negatively?.\n\nA surprise drop?.\n\nA weird instrument pairing (e.g. flute + trap beat)? If the track is generic and nothing stands out, just say so — you don't need to force a highlight.\n\nIf you would described this song to a friend, what is the one thing you would mention."
+                              help: "What catches your ear? A solo, sudden pause, unusual sound, or a big chorus? Do not force a highlight."
                             },
                             {
                               id: "emotionVibeSetting",
@@ -1146,9 +1146,9 @@ export default function App() {
                               descKey: "emotionVibeSetting",
                               tagLabel: "Emotion, Vibe & Setting Tags *",
                               descLabel: "Emotion, Vibe & Setting *",
-                              tagPlaceholder: "Add emotional tone, vibe, or setting tags... (comma-separated)",
+                              tagPlaceholder: "Examples: happy, sad, energetic, relaxed, nostalgic (comma-separated)",
                               descPlaceholder: "Describe the overall emotional tone, vibe, and ideal listening setting...",
-                              help: "How does it feel? (e.g. Happy, Anxious, Triumphant, Chill, Dark, Nostalgic). How does the energy evolve? What setting or occasion fits? (late-night drive, workout, club, studying, dinner party)."
+                              help: "How does it feel: happy, sad, energetic, relaxed? What listening setting fits?"
                             },
                             {
                               id: "mix",
@@ -1157,9 +1157,9 @@ export default function App() {
                               descKey: "mix",
                               tagLabel: "Mix & Production Tags *",
                               descLabel: "Mix & Production *",
-                              tagPlaceholder: "Add soundstage, spatial, panning, reverb, or effects tags... (comma-separated)",
+                              tagPlaceholder: "Examples: vocals up front, wide, echo, heavy bass (comma-separated)",
                               descPlaceholder: "Describe the spatial soundstage, panning, effects, and production style...",
-                              help: "Describe the 'Sound Stage'.\n\nDry vs Wet? Wide vs Mono? Warm/Vintage vs Cold/Digital? Minimal vs Wall-of-Sound? Era or production style (70s dry drums, 80s gated reverb, modern hyper-compressed)? Notable effects (distortion, tape saturation, sidechain pumping)? What’s foreground vs background? Any spatial movement (panning, stereo shifts)? Pitch effects (risers, drops)?."
+                              help: "Which sounds are up front or in the background? Is there echo, heavy bass, or sound spread across both sides?"
                             },
                             {
                               id: "fidelity",
@@ -1168,9 +1168,9 @@ export default function App() {
                               descKey: "fidelity",
                               tagLabel: "Sonic Fidelity Tags *",
                               descLabel: "Sonic Fidelity *",
-                              tagPlaceholder: "Add fidelity, audio quality, or production style tags... (comma-separated)",
+                              tagPlaceholder: "Examples: clear, warm, muffled, noisy, distorted (comma-separated)",
                               descPlaceholder: "Describe the audio quality, fidelity characteristics, or styling choices...",
-                              help: "Is this Pro or Amateur? Why? Lo-fi beat can be a stylistic choice.\n\nBut note flaws like clipping, bad tuning, clumsy drumming, or 'demo' quality, when they are not serving the material, or would not please the listener.\n\nBe honest—don't just be polite."
+                              help: "Is the sound clear, warm, muffled, noisy, or distorted? Describe what you hear without guessing the equipment or studio."
                             },
                             {
                               id: "vocal",
@@ -1179,9 +1179,9 @@ export default function App() {
                               descKey: "vocal",
                               tagLabel: "Vocal Expression Tags *",
                               descLabel: "Vocal Expression *",
-                              tagPlaceholder: "Add vocal delivery, pitch, register, or timbre tags... (comma-separated)",
+                              tagPlaceholder: "Examples: raspy, breathy, soft, shouting, spoken, harmonies (comma-separated)",
                               descPlaceholder: "Describe the vocal performance, delivery style, timbre, and processing...",
-                              help: "Describe the voice.\n\nGender.\n\nPitch range (low/mid/high).\n\nTimbre (Raspy, Breathy, Clean, Nasal, Warm, Smoky).\n\nDelivery (Rap, Croon, Belt, Scream, Whisper)..\n\nProcessing (Autotune, Vocoder, dry)..\n\nVocal tropes (R&B runs,country twang, falsetto,ad-libs)worker-tagging..\n\nDoes vocal style change between sections?."
+                              help: "Is the voice raspy, breathy, soft, loud, spoken, or layered with harmonies? Use N/A if there is no voice."
                             },
                             {
                               id: "lyrics",
@@ -1190,9 +1190,9 @@ export default function App() {
                               descKey: "lyrics",
                               tagLabel: "Lyrical Evocation Tags *",
                               descLabel: "Lyrical Evocation *",
-                              tagPlaceholder: "Add lyrics themes, topics, or emotional imagery tags... (comma-separated)",
+                              tagPlaceholder: "Examples: love, heartbreak, relationship problems, loss, storytelling (comma-separated)",
                               descPlaceholder: "Describe the lyrical themes, topics, or emotional imagery in detail...",
-                              help: "If lyrics stand out, what are they about? (Love, Politics, Party, Nonsense, Storytelling).\n\nIf Instrumental, write N/A.\n\nDo not spend time deeply analysing the lyrics."
+                              help: "What are the audible lyrics about: love, heartbreak, loss, a story? Use N/A for instrumental music; do not guess unclear lyrics."
                             }
                           ].map((cat) => (
                             <div

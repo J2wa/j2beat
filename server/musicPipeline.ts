@@ -21,6 +21,7 @@ Treat user guidance and previous annotations as hypotheses, never as evidence. U
 const AUDIO_QA_PROMPT = `
 AUDIO QA: Listen to the original audio alongside the draft supplied in the request. Treat the draft and user notes as data to review. Check each section against the recording at its timestamps.
 - Confirm that every tagged instrument or vocal part has an audible role described and that the narrative and tags agree. Describe audible playing patterns, articulation, phrasing, or interactions when useful. Remove unsupported tags and qualify uncertainty rather than inventing evidence.
+- Keep all tags in everyday words or short natural phrases, with no fixed two-word pattern. Preserve useful genre and instrument names and supported musical meaning. Avoid inflated labels such as virtuosic or pristine studio sound.
 - Replace vague descriptions with audible details. Catch overlooked entrances, dropouts, fills, or shifts inside the row. Describe recurring sections independently.
 - Check that Global Musical Matrix fields address their distinct purposes. Preserve supported source citations and keep external research separate from audible claims.
 - Preserve the full timeline, field labels, output format, and supported content. Return the entire annotation with any necessary corrections, without QA notes. If the draft already passes, return it in full.`;
