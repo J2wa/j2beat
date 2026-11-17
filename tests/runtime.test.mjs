@@ -17,8 +17,8 @@ try {
       { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText);
   }
   const check = spawnSync(process.execPath, ['--input-type=module', '-e',
-    "const {default: handler} = await import("+JSON.stringify(join(root, 'api/annotate.js'))+"); if(typeof handler !== 'function') throw Error('Missing API handler');"],
+    "for (const path of "+JSON.stringify([join(root, 'api/annotate.js'),join(root, 'api/humanize.js')])+") { const {default: handler} = await import(path); if(typeof handler !== 'function') throw Error('Missing API handler'); }"],
     { encoding: 'utf8', env: {...process.env, NODE_OPTIONS:''} });
   assert.equal(check.status, 0, check.stderr);
-  console.log('Passed compiled API import under native Node ESM.');
+  console.log('Passed compiled annotation and humanizer API imports under native Node ESM.');
 } finally { rmSync(root, { recursive: true, force: true }); }

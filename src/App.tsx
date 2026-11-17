@@ -38,6 +38,7 @@ import { annotateAudio, refineAnnotation } from "./services/geminiService";
 
 
 import { Button, Input, Header, SectionContainer } from "./components/BrandSystem";
+import { MusicHumanizer } from "./components/MusicHumanizer";
 import { GuidanceDialog } from "./components/GuidanceDialog";
 import { MusicPlayer, formatTime } from "./components/MusicPlayer";
 
@@ -61,89 +62,6 @@ function ResearchContext({ research }: { research?: ResearchReport }) {
 }
 
 const IMPORTED_TRACK_NOTE = "Audio imported. Analyze this track to generate its annotation.";
-
-const PROFILES = [
-  {
-    id: "PRODUCER",
-    label: "PRODUCER",
-    fullName: "PRODUCER - Musician & Producer",
-    desc: "Focuses on groove, arrangement density, and structural development.",
-    formula: "Pulse → Texture → Ensemble Development → Transition",
-    color: "border-accent/25 text-accent bg-accent/5 hover:bg-accent/5"
-  },
-  {
-    id: "VOCAL",
-    label: "VOCAL",
-    fullName: "VOCAL - Choir Director & Vocal Focus",
-    desc: "Focuses on vocal delivery, choral harmonies, and vocal techniques.",
-    formula: "Opening Character → Vocal Presence → Rhythmic Motion → Ensemble Support → Direction",
-    color: "border-accent/25 text-accent bg-accent/5 hover:bg-accent/5"
-  },
-  {
-    id: "R&B",
-    label: "R&B",
-    fullName: "R&B - Acoustic & Rhythmic R&B",
-    desc: "Warm R&B layout focusing on syncopation, pocket groove, and acoustic layers.",
-    formula: "Rhythmic Foundation → Vocal Presence → Instrumental Support → Energy Level → Transition",
-    color: "border-accent/25 text-accent bg-accent/5 hover:bg-accent/5"
-  },
-  {
-    id: "SOLOIST",
-    label: "SOLOIST",
-    fullName: "SOLOIST - Instrumental & Melodic",
-    desc: "Musicology flow focusing on melodic leads, harmony lift, and counterpoints.",
-    formula: "Primary Instrumentation → Harmonic Foundation → Vocal Presence → Feel → Development",
-    color: "border-accent/25 text-accent bg-accent/5 hover:bg-accent/5"
-  },
-  {
-    id: "ACOUSTIC",
-    label: "ACOUSTIC",
-    fullName: "ACOUSTIC - Atmosphere & SOP V2",
-    desc: "Spacious focus on room reverb depth, environmental pads, and textures.",
-    formula: "Opening element → Supporting texture → Atmosphere → Transition",
-    color: "border-accent/25 text-accent bg-accent/5 hover:bg-accent/5"
-  },
-  {
-    id: "TEXTURE",
-    label: "TEXTURE",
-    fullName: "TEXTURE - Textural & Layer Arrangement",
-    desc: "Focuses on orchestration, arrangement density, and layered physical instruments.",
-    formula: "Opening Texture → Vocal Presence → Rhythmic Foundation → Instrumental Development → Overall Effect",
-    color: "border-accent/25 text-accent bg-accent/5 hover:bg-accent/5"
-  },
-  {
-    id: "RHYTHM",
-    label: "RHYTHM",
-    fullName: "RHYTHM - Rhythm & Structural Pulse",
-    desc: "Strict focus on rhythmic patterns, drum fills, timing boundaries, and timing cues.",
-    formula: "Rhythmic Foundation → Vocal Presence → Instrumentation → Transition",
-    color: "border-accent/25 text-accent bg-accent/5 hover:bg-accent/5"
-  },
-  {
-    id: "EXPERT",
-    label: "EXPERT",
-    fullName: "EXPERT - Deep Musicology & Master SOP",
-    desc: "Comprehensive musicology flow with full structural and transitions purpose analysis.",
-    formula: "Opening Element → Supporting Texture → Atmosphere → Development → Transition",
-    color: "border-red-500/30 text-red-400 bg-red-500/10 hover:bg-red-500/15"
-  },
-  {
-    id: "AMBIENT",
-    label: "AMBIENT",
-    fullName: "AMBIENT - Atmospheric & Reverb Flow",
-    desc: "Spacious focus on environmental drones, soundstages, pads, and spatial decay.",
-    formula: "Opening element → Supporting texture → Atmosphere → Transition",
-    color: "border-accent/25 text-accent bg-accent/5 hover:bg-accent/5"
-  },
-  {
-    id: "DYNAMICS",
-    label: "DYNAMICS",
-    fullName: "DYNAMICS - Dynamic Intensity & Energy Shift",
-    desc: "Focuses on volume curves, crescendos, decrescendos, and structural transitions.",
-    formula: "Opening Character → Vocal Presence → Rhythmic Motion → Ensemble Support → Direction",
-    color: "border-accent/25 text-accent bg-accent/5 hover:bg-accent/5"
-  }
-];
 
 export default function App() {
   const [selectedModel, setSelectedModel] = useState<ModelId>(() => {
@@ -191,6 +109,7 @@ export default function App() {
   const [splitMarkers, setSplitMarkers] = useState<number[]>([]);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isHumanizing, setIsHumanizing] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editTab, setEditTab] = useState<"form" | "raw">("form");
   const [sections, setSections] = useState<any[]>([]);
@@ -205,55 +124,7 @@ export default function App() {
   const [volume, setVolume] = useState(1);
   const [isSimplified, setIsSimplified] = useState(false);
   const [isHighAccuracy, setIsHighAccuracy] = useState(false);
-  const [activeProfile, setActiveProfile] = useState<string>(() => {
-    const saved = localStorage.getItem("active_profile") || "PRODUCER";
-    if (saved === "COCO") return "PRODUCER";
-    if (saved === "MAJ") return "VOCAL";
-    if (saved === "LUCID") return "R&B";
-    return saved;
-  });
-  const [annotationProfile, setAnnotationProfile] = useState<"default" | "brief">(() => (localStorage.getItem("annotation_profile") as "default" | "brief") || "default");
-  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [guidanceDialog, setGuidanceDialog] = useState<"form" | "confirm" | null>(null);
-
-  // Modal temporary wizard states
-  const [tempProfile, setTempProfile] = useState<string>("");
-  const [tempAnnotationProfile, setTempAnnotationProfile] = useState<"default" | "brief">("default");
-  const [profileStep, setProfileStep] = useState<1 | 2>(1);
-
-
-
-  useEffect(() => {
-    if (!isProfileModalOpen) return;
-    const previous = document.activeElement as HTMLElement | null;
-    const dialog = document.querySelector('[role="dialog"]');
-    const focusable = () => Array.from(dialog?.querySelectorAll<HTMLElement>('button:not(:disabled), input, textarea, select, [tabindex="0"]') || []);
-    focusable()[0]?.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setIsProfileModalOpen(false);
-      if (e.key === 'Tab') {
-        const nodes = focusable(); const first = nodes[0]; const last = nodes[nodes.length - 1];
-        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); }
-        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); }
-      }
-    };
-    document.addEventListener('keydown',onKey);
-    return () => { document.removeEventListener('keydown',onKey); previous?.focus(); };
-  }, [isProfileModalOpen]);
-
-  // Sync temp wizard state whenever modal is opened
-  useEffect(() => {
-    if (isProfileModalOpen) {
-      setTempProfile(activeProfile || "");
-      setTempAnnotationProfile(annotationProfile);
-      setProfileStep(1);
-    }
-  }, [isProfileModalOpen, activeProfile, annotationProfile]);
-
-  const selectAnnotationProfile = (mode: "default" | "brief") => {
-    setAnnotationProfile(mode);
-    localStorage.setItem("annotation_profile", mode);
-  };
 
   const [creativeGuidance, setCreativeGuidance] = useState("");
 
@@ -623,7 +494,7 @@ export default function App() {
   };
 
   const hasGuidance = Boolean(generalGuidance.trim() || Object.values(accurateData).some(value => value.trim()));
-  const canAnalyze = Boolean(file && !importing && !isProcessing && !isRefining && serviceReady === true);
+  const canAnalyze = Boolean(file && !importing && !isProcessing && !isRefining && !isHumanizing && serviceReady === true);
 
   const handleProcess = async (allowEmptyGuidance = false) => {
     if (!file || !canAnalyze) return;
@@ -654,8 +525,6 @@ export default function App() {
         isHighAccuracy,
         compiledGuidance,
         duration,
-        activeProfile || "PRODUCER",
-        annotationProfile,
         selectedModel,
       );
       setCredits((prev) => prev - GENERATE_COST);
@@ -688,7 +557,7 @@ export default function App() {
     return { file: new File([await response.blob()], name, { type: 'audio/mpeg' }), expiresAt: Number.isFinite(expiresAt) ? expiresAt : undefined };
   };
   const importSpotify = async () => {
-    if (!spotifyLink.trim() || !rightsConfirmed || importing || isProcessing || isRefining) return;
+    if (!spotifyLink.trim() || !rightsConfirmed || importing || isProcessing || isRefining || isHumanizing) return;
     setImporting(true);setImportProgress({stage:'Connecting to downloader',percent:null});setError(null);setView('workspace');
     try {
       const response=await fetch('/api/spotify',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/x-ndjson'},body:JSON.stringify({url:spotifyLink.trim(),rightsConfirmed}),signal:AbortSignal.timeout(290000)});
@@ -726,7 +595,7 @@ export default function App() {
     finally{setImporting(false);}
   };
   const openSaved = async (item:typeof archive[number]) => {
-    if(isProcessing || isRefining || importing)return;
+    if(isProcessing || isRefining || isHumanizing || importing)return;
     try {
       if (item.audioPath) {
         const audio = await loadStoredAudio(item.audioPath, item.name);
@@ -746,7 +615,7 @@ export default function App() {
   };
 
   const handleRefine = async () => {
-    if (!file || !result || !userFeedback.trim() || isProcessing || isRefining) return;
+    if (!file || !result || !userFeedback.trim() || isProcessing || isRefining || isHumanizing) return;
     if (credits < REFINE_COST) {
       setError("Insufficient credits. You need 5 credits for refinement.");
       return;
@@ -763,8 +632,6 @@ export default function App() {
         isHighAccuracy,
         creativeGuidance,
         duration,
-        activeProfile || "PRODUCER",
-        annotationProfile,
         selectedModel,
       );
       setCredits((prev) => prev - REFINE_COST);
@@ -928,7 +795,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <Header view={view} onNavigate={setView} onProfile={() => setIsProfileModalOpen(true)} />
+      <Header view={view} onNavigate={setView} />
       <div className="page-title"><h1>{view === 'workspace' ? 'Studio' : view === 'archive' ? 'Library' : 'Guide'}</h1>{view === 'workspace' && <span className="small muted">{sections.length ? `${sections.length} segments` : 'Music annotation'}</span>}</div>
       {serviceReady === false && <details className="service-notice"><summary><span className="status-dot"/> AI offline <span className="muted">Setup required</span></summary><p>In Vercel → j2beat → Settings → Environment Variables, set GEMINI_API_KEY and/or OPENROUTER_API_KEY with OPENROUTER_MODEL (an audio-input model). Your selected model is tried first, followed by the other Gemini models and the configured OpenRouter model if needed. Redeploy to apply. Keys remain server-side.</p></details>}
       {error && <div role="alert" className="error-notice">{error}</div>}
@@ -973,7 +840,7 @@ export default function App() {
           <Button className="mt-6" variant="primary" onClick={() => setView("workspace")}>Open Studio</Button>
         </SectionContainer>
       )}
-      {view === 'archive' && <SectionContainer className="document-view"><p className="eyebrow"></p><h2>Saved annotations</h2><p>Annotations are saved in this browser. Unannotated imports expire after 24 hours. Successful analysis removes the stored audio and keeps the annotation.</p>{archive.length === 0 ? <p className="archive-empty">No saved annotations yet.</p> : archive.map(item => <article className="archive-row" key={item.id}><div><h3>{item.name}</h3><p>{new Date(item.date).toLocaleString()}</p>{item.audioPath && item.text === IMPORTED_TRACK_NOTE && <p>Expires {new Date(item.expiresAt ?? importedAudioExpiresAt(item.date)).toLocaleString()}</p>}</div><div className="archive-actions"><Button disabled={isProcessing||isRefining||importing} onClick={()=>openSaved(item)}><FileAudio />{item.audioPath?'Open & play':'Open annotation'}</Button>{item.text !== IMPORTED_TRACK_NOTE && <Button onClick={async()=>{try{(await import('./utils/pdfGenerator')).exportSavedPDF(item.name,item.text,item.date);}catch{setError('PDF export failed. Please retry.');}}}><Download/>Export PDF</Button>}{item.audioPath&&<a className="aces-button aces-button--secondary" href={'/api/audio?path='+encodeURIComponent(item.audioPath)} download={item.name}>Download audio</a>}</div></article>)}</SectionContainer>}
+      {view === 'archive' && <SectionContainer className="document-view"><p className="eyebrow"></p><h2>Saved annotations</h2><p>Annotations are saved in this browser. Unannotated imports expire after 24 hours. Successful analysis removes the stored audio and keeps the annotation.</p>{archive.length === 0 ? <p className="archive-empty">No saved annotations yet.</p> : archive.map(item => <article className="archive-row" key={item.id}><div><h3>{item.name}</h3><p>{new Date(item.date).toLocaleString()}</p>{item.audioPath && item.text === IMPORTED_TRACK_NOTE && <p>Expires {new Date(item.expiresAt ?? importedAudioExpiresAt(item.date)).toLocaleString()}</p>}</div><div className="archive-actions"><Button disabled={isProcessing||isRefining||isHumanizing||importing} onClick={()=>openSaved(item)}><FileAudio />{item.audioPath?'Open & play':'Open annotation'}</Button>{item.text !== IMPORTED_TRACK_NOTE && <Button onClick={async()=>{try{(await import('./utils/pdfGenerator')).exportSavedPDF(item.name,item.text,item.date);}catch{setError('PDF export failed. Please retry.');}}}><Download/>Export PDF</Button>}{item.audioPath&&<a className="aces-button aces-button--secondary" href={'/api/audio?path='+encodeURIComponent(item.audioPath)} download={item.name}>Download audio</a>}</div></article>)}</SectionContainer>}
       {(isProcessing || isRefining) && <section className="analysis-progress-panel" aria-label="Annotation progress">
         <div className="analysis-progress-heading"><div><span className="analysis-pulse"/><strong>{isRefining ? 'Refining annotation' : 'Analyzing track'}</strong></div><time>{Math.floor(elapsedSeconds/60)}:{String(elapsedSeconds%60).padStart(2,'0')}</time></div>
         <p role="status" aria-live="polite">{analysisStage}</p>
@@ -986,11 +853,11 @@ export default function App() {
           <form onSubmit={event => { event.preventDefault(); void importSpotify(); }}>
             <label htmlFor="spotify-link">Spotify track link</label>
             <div className="track-link-controls">
-              <input id="spotify-link" type="url" value={spotifyLink} placeholder="https://open.spotify.com/track/…" onChange={event => setSpotifyLink(event.target.value)} disabled={importing || isProcessing || isRefining} required />
-              <Button type="submit" disabled={!spotifyLink.trim() || !rightsConfirmed || importing || isProcessing || isRefining}>{importing ? 'Importing…' : 'Import track'}</Button>
+              <input id="spotify-link" type="url" value={spotifyLink} placeholder="https://open.spotify.com/track/…" onChange={event => setSpotifyLink(event.target.value)} disabled={importing || isProcessing || isRefining || isHumanizing} required />
+              <Button type="submit" disabled={!spotifyLink.trim() || !rightsConfirmed || importing || isProcessing || isRefining || isHumanizing}>{importing ? 'Importing…' : 'Import track'}</Button>
             </div>
             <p className="field-hint">Loads a matched recording into the player. Check the version before analyzing. Unannotated imports expire after 24 hours.</p>
-            <label className="import-permission"><input type="checkbox" checked={rightsConfirmed} disabled={importing || isProcessing || isRefining} onChange={event => setRightsConfirmed(event.target.checked)} />I have permission to download and analyze this recording.</label>
+            <label className="import-permission"><input type="checkbox" checked={rightsConfirmed} disabled={importing || isProcessing || isRefining || isHumanizing} onChange={event => setRightsConfirmed(event.target.checked)} />I have permission to download and analyze this recording.</label>
           </form>
         } importStatus={importing && <div className="track-import-status" role="status">
           <p>{importProgress.stage}{importProgress.percent !== null ? ` · ${importProgress.percent}%` : '…'}</p>
@@ -1008,26 +875,19 @@ export default function App() {
             return {...previous,timestamps:existing+(existing && added.length ? ', ' : '')+added.join(', ')};
           });
           setGuidanceDialog("form");
-        }} file={file} audioUrl={audioUrl} audioRef={audioRef} currentTime={currentTime} duration={duration} isPlaying={isPlaying} volume={volume} onFile={handleFileSelection} onSeek={seekTo} onToggle={togglePlay} onVolume={setVolume} onReset={reset} onTimeUpdate={handleTimeUpdate} onLoadedMetadata={handleLoadedMetadata} onPlaying={setIsPlaying} onError={setError} segments={sections} busy={isProcessing || isRefining || importing}/>
+        }} file={file} audioUrl={audioUrl} audioRef={audioRef} currentTime={currentTime} duration={duration} isPlaying={isPlaying} volume={volume} onFile={handleFileSelection} onSeek={seekTo} onToggle={togglePlay} onVolume={setVolume} onReset={reset} onTimeUpdate={handleTimeUpdate} onLoadedMetadata={handleLoadedMetadata} onPlaying={setIsPlaying} onError={setError} segments={sections} busy={isProcessing || isRefining || isHumanizing || importing}/>
       </div>
       <main id="workspace" hidden={view !== "workspace"} className="studio-grid">
         <section className="settings-panel" aria-labelledby="analysis-settings-title">
           <div className="settings-heading"><span className="section-eyebrow">Configure</span><h2 id="analysis-settings-title">Analysis settings</h2><p className="small muted">Choose how to describe this recording.</p></div>
           <div className="settings-field">
             <label className="field-label" htmlFor="model-select">Model</label>
-            <select id="model-select" value={selectedModel} disabled={isProcessing || isRefining} onChange={e=>{
+            <select id="model-select" value={selectedModel} disabled={isProcessing || isRefining || isHumanizing} onChange={e=>{
               if (isModelId(e.target.value)) { setSelectedModel(e.target.value); try { localStorage.setItem('aces_music_model',e.target.value); } catch {} }
             }}>{MODEL_OPTIONS.map(model=><option key={model.id} value={model.id}>{model.label}{model.id===DEFAULT_MODEL?' (default)':''}</option>)}</select>
             <p className="field-hint">Automatic fallback enabled.</p>
           </div>
-          <div className="settings-field">
-            <label className="field-label" htmlFor="profile-select">Analysis profile</label>
-            <select id="profile-select" value={activeProfile || 'PRODUCER'} onChange={e=>{setActiveProfile(e.target.value);localStorage.setItem('active_profile',e.target.value);}}>{PROFILES.map(p=><option key={p.id} value={p.id}>{p.label.charAt(0)+p.label.slice(1).toLowerCase()}</option>)}</select>
-          </div>
-          <div className="settings-field">
-            <span className="field-label" id="writing-style-label">Writing style</span>
-            <div className="segmented-control" role="group" aria-labelledby="writing-style-label"><Button aria-pressed={annotationProfile==='default'} onClick={()=>selectAnnotationProfile('default')}>Standard</Button><Button aria-pressed={annotationProfile==='brief'} onClick={()=>selectAnnotationProfile('brief')}>Brief</Button></div>
-          </div>
+          <p className="field-hint">Natural writing is automatic. Each segment uses fresh phrasing based on its musical details.</p>
           <div className="settings-options">
             <label className="toggle-row"><span>Simple language</span><input type="checkbox" checked={isSimplified} onChange={e=>setIsSimplified(e.target.checked)}/></label>
             <label className="toggle-row"><span>Detailed segmentation</span><input type="checkbox" checked={isHighAccuracy} onChange={e=>setIsHighAccuracy(e.target.checked)}/></label>
@@ -1069,6 +929,7 @@ export default function App() {
                 <div className="annotation-actions">
                   <Button
                     onClick={handleToggleEditing}
+                    disabled={isHumanizing}
                     className={cn(
                       "flex items-center gap-2 text-sm font-bold uppercase tracking-widest transition-colors",
                       isEditing ? "text-accent" : "text-dim hover:text-accent",
@@ -1367,6 +1228,7 @@ export default function App() {
                       key="result"
                       className="annotation-results"
                     >
+                      <MusicHumanizer text={result} model={selectedModel} disabled={isProcessing || isRefining || importing || isEditing} onBusy={setIsHumanizing} onApply={text=>{setResult(text);parseSections(text);saveAnnotation(text);}} />
                       {/* Feedback Section */}
                       <section className="correction-panel">
                         <div className="flex justify-between items-center mb-4">
@@ -1388,7 +1250,7 @@ export default function App() {
                           <div className="correction-actions">
                             <Button
                               onClick={handleRefine}
-                              disabled={!userFeedback.trim() || isRefining || isProcessing}
+                              disabled={!userFeedback.trim() || isRefining || isProcessing || isHumanizing}
                               className={cn(
                                 "py-2 px-4 rounded text-sm font-bold uppercase tracking-widest transition-all h-8 flex items-center gap-2",
                                 userFeedback.trim() && !isRefining
@@ -1822,201 +1684,6 @@ export default function App() {
         onProceed={() => void handleProcess(true)}
       />}
 
-      {isProfileModalOpen && (
-        <div role="dialog" aria-modal="true" aria-label="Analysis profile settings" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-          <div className="bg-bg-panel border border-border-dim rounded-xl p-8 w-full max-w-2xl shadow-2xl relative max-h-[90vh] overflow-y-auto animate-fade-in">
-            {activeProfile && (
-              <Button
-                aria-label="Close profile settings" onClick={() => setIsProfileModalOpen(false)}
-                className="absolute top-5 right-5 text-dim hover:text-primary transition-colors cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </Button>
-            )}
-            
-            {profileStep === 1 ? (
-              <>
-                <div className="mb-6 text-center">
-                  <div className="inline-flex p-3 rounded-full bg-accent/10 border border-accent/20 mb-3 text-accent">
-                    <ShieldCheck className="w-6 h-6" />
-                  </div>
-                  <h3 className="text-base font-black text-primary uppercase tracking-[0.2em]">
-                    Choose your analysis profile
-                  </h3>
-                  <p className="text-sm text-dim uppercase tracking-widest mt-1.5 max-w-md mx-auto leading-relaxed">
-                    Choose the musical perspective for your annotations. You can change it at any time.
-                  </p>
-                </div>
-
-                {/* Progress Indicators */}
-                <div className="flex justify-center items-center gap-4 mb-6">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-4 h-4 rounded-full bg-accent text-bg-main text-sm font-black flex items-center justify-center">1</span>
-                    <span className="text-sm font-bold text-accent uppercase tracking-wider">Analysis profile</span>
-                  </div>
-                  <div className="w-8 h-[1px] bg-bg-card" />
-                  <div className="flex items-center gap-1.5 opacity-100">
-                    <span className="w-4 h-4 rounded-full bg-bg-card text-primary text-sm font-black flex items-center justify-center">2</span>
-                    <span className="text-sm font-bold text-primary uppercase tracking-wider">Annotation Style</span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {PROFILES.map((profile) => (
-                    <Button
-                      key={profile.id}
-                      onClick={() => setTempProfile(profile.id)}
-                      className={cn(
-                        "text-left p-5 rounded-lg border transition-all flex flex-col gap-2 group cursor-pointer relative overflow-hidden",
-                        tempProfile === profile.id
-                          ? "border-accent bg-accent/10 shadow-[0_0_20px_rgba(215,183,139,0.1)]"
-                          : "border-border-dim bg-bg-card hover:bg-bg-card hover:border-border-dim"
-                      )}
-                    >
-                      <div className="flex justify-between items-center w-full">
-                        <span className="text-xs font-black uppercase tracking-[0.15em] text-primary group-hover:text-accent transition-colors">
-                          {profile.label}
-                        </span>
-                        {tempProfile === profile.id && (
-                          <span className="text-sm uppercase tracking-widest font-black text-accent bg-accent/10 px-2 py-0.5 rounded border border-accent/25">
-                            SELECTED
-                          </span>
-                        )}
-                      </div>
-                      
-                      <p className="text-sm text-dim leading-relaxed font-medium">
-                        {profile.desc}
-                      </p>
-                      
-                      <div className="mt-1 pt-2 border-t border-border-dim w-full">
-                        <span className="text-sm uppercase tracking-widest font-black text-accent/70 block mb-0.5">
-                          Suggested listening order
-                        </span>
-                        <span className="text-sm font-mono text-primary block truncate leading-normal">
-                          {profile.formula}
-                        </span>
-                      </div>
-                    </Button>
-                  ))}
-                </div>
-
-                <div className="flex justify-center mt-8">
-                  {tempProfile ? (
-                    <Button
-                      onClick={() => setProfileStep(2)}
-                      className="py-3 px-10 bg-accent text-bg-main font-bold text-sm uppercase tracking-[0.2em] rounded-sm hover:bg-accent/90 active:scale-[0.98] transition-all cursor-pointer shadow-[0_0_15px_rgba(215,183,139,0.15)]"
-                    >
-                      Continue
-                    </Button>
-                  ) : (
-                    <p className="text-sm text-accent/60 uppercase tracking-widest animate-pulse font-bold">
-                      Select a profile above to continue
-                    </p>
-                  )}
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="mb-6 text-center">
-                  <div className="inline-flex p-3 rounded-full bg-accent/10 border border-accent/20 mb-3 text-accent">
-                    <ShieldCheck className="w-6 h-6" />
-                  </div>
-                  <h3 className="text-base font-black text-primary uppercase tracking-[0.2em]">
-                    Writing style
-                  </h3>
-                  <p className="text-sm text-dim uppercase tracking-widest mt-1.5 max-w-md mx-auto leading-relaxed">
-                    
-                  </p>
-                </div>
-
-                {/* Progress Indicators */}
-                <div className="flex justify-center items-center gap-4 mb-8">
-                  <div className="flex items-center gap-1.5 opacity-60">
-                    <span className="w-4 h-4 rounded-full bg-bg-card text-primary text-sm font-black flex items-center justify-center">1</span>
-                    <span className="text-sm font-bold text-primary uppercase tracking-wider">Analysis profile</span>
-                  </div>
-                  <div className="w-8 h-[1px] bg-bg-card" />
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-4 h-4 rounded-full bg-accent text-bg-main text-sm font-black flex items-center justify-center">2</span>
-                    <span className="text-sm font-bold text-accent uppercase tracking-wider">Annotation Style</span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-xl mx-auto">
-                  <Button
-                    onClick={() => setTempAnnotationProfile("default")}
-                    className={cn(
-                      "text-left p-6 rounded-lg border transition-all flex flex-col gap-3 group cursor-pointer relative overflow-hidden",
-                      tempAnnotationProfile === "default"
-                        ? "border-accent bg-accent/10 shadow-[0_0_20px_rgba(215,183,139,0.1)]"
-                        : "border-border-dim bg-bg-card hover:bg-bg-card hover:border-border-dim"
-                    )}
-                  >
-                    <div className="flex justify-between items-center w-full">
-                      <span className="text-xs font-black uppercase tracking-[0.15em] text-primary group-hover:text-accent transition-colors">
-                        Default Style
-                      </span>
-                      {tempAnnotationProfile === "default" && (
-                        <span className="text-sm uppercase tracking-widest font-black text-accent bg-accent/10 px-2 py-0.5 rounded border border-accent/25">
-                          ACTIVE
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-sm text-dim leading-relaxed font-medium">
-                      Detailed annotations with an emphasis based on the selected profile.
-                    </p>
-                  </Button>
-
-                  <Button
-                    onClick={() => setTempAnnotationProfile("brief")}
-                    className={cn(
-                      "text-left p-6 rounded-lg border transition-all flex flex-col gap-3 group cursor-pointer relative overflow-hidden",
-                      tempAnnotationProfile === "brief"
-                        ? "border-accent bg-accent/10 shadow-[0_0_20px_rgba(215,183,139,0.1)]"
-                        : "border-border-dim bg-bg-card hover:bg-bg-card hover:border-border-dim"
-                    )}
-                  >
-                    <div className="flex justify-between items-center w-full">
-                      <span className="text-xs font-black uppercase tracking-[0.15em] text-primary group-hover:text-accent transition-colors">
-                        Brief & Concise
-                      </span>
-                      {tempAnnotationProfile === "brief" && (
-                        <span className="text-sm uppercase tracking-widest font-black text-accent bg-accent/10 px-2 py-0.5 rounded border border-accent/25">
-                          ACTIVE
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-sm text-dim leading-relaxed font-medium">
-                      Uses short, direct sentences and plain musical terms while covering the tagged parts.
-                    </p>
-                  </Button>
-                </div>
-
-                <div className="flex justify-center gap-4 mt-10">
-                  <Button
-                    onClick={() => setProfileStep(1)}
-                    className="py-3 px-6 bg-bg-card hover:bg-bg-card text-primary font-bold text-sm uppercase tracking-[0.2em] rounded-sm transition-all border border-border-dim cursor-pointer"
-                  >
-                    Back
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      setActiveProfile(tempProfile);
-                      setAnnotationProfile(tempAnnotationProfile);
-                      localStorage.setItem("active_profile", tempProfile);
-                      localStorage.setItem("annotation_profile", tempAnnotationProfile);
-                      setIsProfileModalOpen(false);
-                    }}
-                    className="py-3 px-8 bg-accent text-bg-main font-bold text-sm uppercase tracking-[0.2em] rounded-sm hover:bg-accent/90 active:scale-[0.98] transition-all cursor-pointer shadow-[0_0_15px_rgba(215,183,139,0.15)]"
-                  >
-                    Save profile
-                  </Button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

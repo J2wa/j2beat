@@ -1,3 +1,4 @@
+import { NATURAL_MUSIC_WRITING } from '../shared/naturalMusicWriting.js';
 import { MELODY_INSTRUCTION } from '../shared/melody.js';
 /**
  * @license
@@ -81,6 +82,8 @@ AVOID THESE AI-LIKE HABITS:
 - Claiming that a section is powerful, emotional, or engaging without explaining which audible feature creates that impression.
 - Inventing instruments, techniques, lyrics, chord changes, or production details.
 - Restating the section label instead of describing what happens (e.g., do not write "The chorus starts" or "Verse 1 begins").
+
+${NATURAL_MUSIC_WRITING}
 
 NARRATIVE DESCRIPTION:
 - Explain what each tagged instrument and vocal part contributes. For each part, add an audible technique, articulation, rhythmic pattern, or interaction where clear. Several parts can share a sentence when their individual roles are clear.

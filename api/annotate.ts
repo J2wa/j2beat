@@ -29,15 +29,15 @@ export default async function handler(req: any, res: any) {
  if (b.songHint !== undefined && (typeof b.songHint !== 'string' || b.songHint.length > 500)) return res.status(400).json({error:'Invalid song filename clue.'});
  if (![b.creativeGuidance,b.feedback,b.previousResult].every(v => v === undefined || (typeof v === 'string' && v.length <= 120000))) return res.status(400).json({error:'The supplied text is invalid or too long.'});
  if (b.action === 'refine' && (!b.previousResult || !b.feedback?.trim())) return res.status(400).json({error:'Provide an annotation and correction instructions.'});
- const profiles=['PRODUCER','VOCAL','R&B','SOLOIST','ACOUSTIC','TEXTURE','RHYTHM','EXPERT','AMBIENT','DYNAMICS'];
- if (!profiles.includes(b.activeProfile) || !['default','brief'].includes(b.annotationProfile) || typeof b.audioDuration !== 'number' || !Number.isFinite(b.audioDuration) || b.audioDuration < 0) return res.status(400).json({error:'Invalid analysis settings.'});
+ // Legacy profile fields from cached clients are accepted but no longer affect writing.
+ if (typeof b.audioDuration !== 'number' || !Number.isFinite(b.audioDuration) || b.audioDuration < 0) return res.status(400).json({error:'Invalid analysis settings.'});
  const streaming = req.headers.accept === 'application/x-ndjson';
  const emit = (event:any) => { if (!res.destroyed && !res.writableEnded) res.write(JSON.stringify(event)+'\n'); };
  if(streaming) { res.setHeader('Content-Type','application/x-ndjson'); res.setHeader('X-Accel-Buffering','no'); res.flushHeaders(); emit({stage:'Preparing AI analysis'}); }
  try {
-   const args = [b.audio, !!b.isSimplified, !!b.isHighAccuracy, b.creativeGuidance || '', b.audioDuration, b.activeProfile, b.annotationProfile, b.model ?? DEFAULT_MODEL, b.songHint || ''] as const;
+   const args = [b.audio, !!b.isSimplified, !!b.isHighAccuracy, b.creativeGuidance || '', b.audioDuration, b.model ?? DEFAULT_MODEL, b.songHint || ''] as const;
    const text = await progressContext.run(stage => {if(streaming) emit({stage});}, async () => b.action === 'refine'
-    ? await refineAnnotation(b.audio,b.previousResult,b.feedback,...args.slice(1) as [boolean,boolean,string,number,string,string,ModelId,string])
+    ? await refineAnnotation(b.audio,b.previousResult,b.feedback,...args.slice(1) as [boolean,boolean,string,number,ModelId,string])
     : await annotateAudio(...args));
    if(streaming) {emit({text}); return res.end();}
    return res.status(200).json({text});

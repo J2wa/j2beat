@@ -16,32 +16,10 @@ export interface AnnotationResult {
   text: string;
 }
 
-const profileFocus: Record<string, string> = {
-  PRODUCER: "Groove, arrangement density, interaction between parts, and structural development.",
-  VOCAL: "Vocal entries, phrasing, tone, harmonies, and the instruments supporting them.",
-  "R&B": "Pocket, syncopation, instrumental support, and vocal delivery.",
-  SOLOIST: "Lead parts, melodic movement, harmonic shifts, and counterpoint.",
-  ACOUSTIC: "Acoustic tone, articulation, space, and changes in dynamics.",
-  TEXTURE: "Layering, arrangement density, timbre, and interaction between parts.",
-  RHYTHM: "Pulse, subdivisions, accents, syncopation, and tempo stability.",
-  EXPERT: "Precise musical detail, structural boundaries, and development within each section.",
-  AMBIENT: "Spatial placement, pads, sustained textures, and audible effects.",
-  DYNAMICS: "Intensity, volume, accents, entrances, and dropouts.",
-};
-
-const profileAliases: Record<string, string> = { COCO: "PRODUCER", MAJ: "VOCAL", LUCID: "R&B" };
-
-export function getStyleInstruction(activeProfile: string, annotationProfile = "default"): string {
-  const focus = profileFocus[profileAliases[activeProfile] ?? activeProfile];
-  const emphasis = focus ? ` Use this emphasis where audible: ${focus}` : "";
-  const brief = annotationProfile === "brief" ? " Prefer short, plain sentences while covering every tagged part." : "";
-  return `\n\nSTYLE: Write directly and objectively.${emphasis}${brief}`;
-}
-
-function annotationInstruction(activeProfile: string, annotationProfile: string, simplified: boolean, highAccuracy: boolean) {
-  const tone = simplified ? "\nUse plain musical terms and short sentences while preserving supported detail." : "";
+function annotationInstruction(simplified: boolean, highAccuracy: boolean) {
+  const tone = simplified ? "\nUse plain musical terms and clear phrasing while preserving supported detail and sentence variety." : "";
   const timing = highAccuracy ? "\nListen closely around audible structural boundaries and place start times as precisely as the evidence allows. Keep incidental changes within the row." : "";
-  return SYSTEM_PROMPT + "\n\n" + KNOWLEDGE_BASE + getStyleInstruction(activeProfile, annotationProfile) + tone + timing;
+  return SYSTEM_PROMPT + "\n\n" + KNOWLEDGE_BASE + tone + timing;
 }
 
 export async function annotateAudio(
@@ -50,8 +28,6 @@ export async function annotateAudio(
   isHighAccuracy: boolean = false,
   creativeGuidance: string = "",
   audioDuration: number = 0,
-  activeProfile: string = "PRODUCER",
-  annotationProfile: string = "default",
   model: ModelId = DEFAULT_MODEL,
   songHint: string = ""
 ): Promise<string> {
@@ -82,7 +58,7 @@ export async function annotateAudio(
       },
     ],
     config: {
-      systemInstruction: annotationInstruction(activeProfile, annotationProfile, isSimplified, isHighAccuracy),
+      systemInstruction: annotationInstruction(isSimplified, isHighAccuracy),
     },
   }, audioDuration);
 
@@ -98,8 +74,6 @@ export async function refineAnnotation(
   isHighAccuracy: boolean = false,
   creativeGuidance: string = "",
   audioDuration: number = 0,
-  activeProfile: string = "PRODUCER",
-  annotationProfile: string = "default",
   model: ModelId = DEFAULT_MODEL,
   songHint: string = ""
 ): Promise<string> {
@@ -129,7 +103,7 @@ export async function refineAnnotation(
       },
     ],
     config: {
-      systemInstruction: annotationInstruction(activeProfile, annotationProfile, isSimplified, isHighAccuracy),
+      systemInstruction: annotationInstruction(isSimplified, isHighAccuracy),
     },
   }, audioDuration);
 

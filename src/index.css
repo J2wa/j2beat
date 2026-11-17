@@ -180,3 +180,15 @@ button.aces-brand{background:none;border:0;padding:0;color:inherit;cursor:pointe
   .track-replace-actions { width: 100%; margin-left: 0; }
   .track-replace-actions .aces-button { flex: 1; font-size: 12px; }
 }
+
+.music-humanizer { border: 1px solid var(--border-dim, #39404c); padding: 20px; margin-bottom: 20px; border-radius: 8px; }
+.music-humanizer h3 { margin: 0 0 8px; font-size: 16px; }
+.music-humanizer .section-heading { flex-wrap: wrap; gap: 12px; }
+.music-humanizer .section-heading > div { flex: 1 1 240px; }
+.humanizer-preview details { border-top: 1px solid var(--border-dim, #39404c); padding: 12px 0; }
+.humanizer-preview summary { cursor: pointer; font-weight: 600; }
+.humanizer-comparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.humanizer-comparison h4 { font-size: 12px; text-transform: uppercase; opacity: .7; margin: 12px 0 8px; }
+.humanizer-comparison p { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; font-size: 14px; }
+.humanizer-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
+@media (max-width: 640px) { .humanizer-comparison { grid-template-columns: 1fr; gap: 4px; } .music-humanizer { padding: 14px; } }

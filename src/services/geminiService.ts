@@ -80,9 +80,9 @@ async function request(audioFile: File, options: Record<string, unknown>): Promi
   if (!body.text) throw new Error('The server returned an empty annotation. Please retry.');
   return body.text;
 }
-export function annotateAudio(audioFile: File, isSimplified = false, isHighAccuracy = false, creativeGuidance = '', audioDuration = 0, activeProfile = 'PRODUCER', annotationProfile = 'default', model: ModelId = DEFAULT_MODEL) {
-  return request(audioFile, {action:'annotate', isSimplified, isHighAccuracy, creativeGuidance, audioDuration, activeProfile, annotationProfile, model});
+export function annotateAudio(audioFile: File, isSimplified = false, isHighAccuracy = false, creativeGuidance = '', audioDuration = 0, model: ModelId = DEFAULT_MODEL) {
+  return request(audioFile, {action:'annotate', isSimplified, isHighAccuracy, creativeGuidance, audioDuration, model});
 }
-export function refineAnnotation(audioFile: File, previousResult: string, feedback: string, isSimplified = false, isHighAccuracy = false, creativeGuidance = '', audioDuration = 0, activeProfile = 'PRODUCER', annotationProfile = 'default', model: ModelId = DEFAULT_MODEL) {
-  return request(audioFile, {action:'refine', previousResult:splitResearch(previousResult).annotation, feedback, isSimplified, isHighAccuracy, creativeGuidance, audioDuration, activeProfile, annotationProfile, model});
+export function refineAnnotation(audioFile: File, previousResult: string, feedback: string, isSimplified = false, isHighAccuracy = false, creativeGuidance = '', audioDuration = 0, model: ModelId = DEFAULT_MODEL) {
+  return request(audioFile, {action:'refine', previousResult:splitResearch(previousResult).annotation, feedback, isSimplified, isHighAccuracy, creativeGuidance, audioDuration, model});
 }

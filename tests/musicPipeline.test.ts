@@ -20,6 +20,8 @@ assert.equal(splitResearch((await generateMusicAnnotation(request,20,generate,no
 assert.equal(calls.length,3);
 assert.ok(calls[1].r.contents.every((c:any)=>c.parts.every((p:any)=>!p.inlineData)));
 assert.equal(calls[1].options.metadataOnly,true);
+assert.ok(calls[1].r.config.systemInstruction.includes('Segment 1:'));
+assert.ok(calls[1].r.config.systemInstruction.includes('OPTIONAL WORDING CUES'));
 assert.ok(calls[2].r.config.systemInstruction.includes('AUDIO QA'));
 assert.ok(calls[2].r.contents[0].parts.some((part:any)=>part.inlineData?.data==='YQ=='));
 assert.ok(calls[2].r.contents[0].parts[0].text.includes(finalText));
