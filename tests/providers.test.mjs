@@ -131,3 +131,9 @@ globalThis.fetch=async(url,options)=>{
  return {ok:true,json:async()=>({choices:[{message:{content:'heard audio'}}]})};
 };
 assert.equal((await generateWithFallback({...request,model:NEMOTRON_MODEL,contents:[{parts:[{inlineData:{data:'YQ==',mimeType:'audio/mpeg'}}]}]})).text,'heard audio');
+
+// Copyediting must not receive listening, melody or metadata-writing directives.
+calls=[];responses=[good];process.env.GEMINI_API_KEY='test';
+await generateWithFallback({...request,config:{systemInstruction:'COPYEDIT ONLY',responseMimeType:'application/json'}},{copyeditOnly:true});
+assert.equal(calls[0].config.systemInstruction,'COPYEDIT ONLY');
+console.log('Passed isolated text-only humanizer instructions.');

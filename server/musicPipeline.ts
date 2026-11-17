@@ -1,3 +1,4 @@
+import { segmentWritingHints } from '../shared/naturalMusicWriting.js';
 import { reportProgress } from './progress.js';
 import { AnalysisError, generateWithFallback } from './providers.js';
 import { researchSong, researchInstruction } from './songResearch.js';
@@ -119,7 +120,7 @@ export async function generateMusicAnnotation(request: any, duration: number, ge
     ? request.contents.map((c:any) => ({...c, parts:c.parts.filter((p:any) => typeof p.text === 'string')}))
     : request.contents;
   reportProgress(evidence ? 'Writing annotation from analysis' : 'Analyzing and writing directly');
-  const finalRequest = {...request, contents, config:{...request.config, systemInstruction:request.config.systemInstruction+instruction+researchInstruction(songResearch)
+  const finalRequest = {...request, contents, config:{...request.config, systemInstruction:request.config.systemInstruction+instruction+researchInstruction(songResearch)+segmentWritingHints(evidence?.sections.length ?? 0)
     + `\nFULL DURATION: ${duration} seconds. Preserve EVERY listening interval in order using Start Time fields. Cover zero through the actual recording end. No segment may exceed 60 seconds. Never call an early pause the outro or invent silence to cover missing audio.`}};
   let result = await generate(finalRequest, {deadline:draftDeadline, metadataOnly:!!evidence});
   let issues = timelineIssues(result.text, duration, evidence?.sections.map(s=>s.start));

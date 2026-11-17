@@ -4,23 +4,22 @@ Source: J2wa/j2beatsv1, commit cbb2d390b2f4b476ec7a88f965e16a3f6276f280.
 
 The repository does not contain the original app-building conversation or an original design prompt. The following extraction is based on its actual code and annotation instructions, not a recovered conversation.
 
-## Prompt inventory (verbatim source retained)
+## Current prompt inventory
 - `src/constants.ts`: complete SYSTEM_PROMPT for the annotation schema, segment boundaries, instrument and vocal descriptions, global musical matrix, and permitted musical terminology.
 - `src/knowledgeBase.ts`: reference knowledge used with both generation and refinement.
-- `server/annotation.ts`: the original ten profile directives, brief-mode override, generation/refinement requests, duration constraints, and quality mandates, moved server-side without rewriting their musical content.
+- `server/annotation.ts`: generation/refinement requests, duration constraints, and shared natural-writing guidance. The legacy profile and brief-mode overrides have been removed.
 - `Music_Annotation_SOP.md` and `Human_Music_Annotation_Template.md`: original human annotation workflow and template, preserved.
 
 ## Core concept
-An audio-first annotation workstation: upload and listen, select an analytical perspective, generate a structured draft, check the global musical matrix and timestamped sections against the recording, correct details, and export.
+An audio-first annotation workstation: upload and listen, add any listening notes, generate a structured draft, check the global musical matrix and timestamped sections against the recording, correct details, and export.
 
 ## Preserved functionality
 - File picker and drag/drop audio input; local playback, seek, segment playback, mute and volume.
-- Ten profiles: Producer, Vocal, R&B, Soloist, Acoustic, Texture, Rhythm, Expert, Ambient, Dynamics. Legacy profile identifiers continue migrating.
-- Standard and brief/concise output; simplified tone; granular/high-accuracy segmentation.
+- Automatic natural prose with independently varied segment construction; simplified vocabulary and detailed segmentation remain optional.
 - Optional guidance for segment counts, timestamps, instruments, vocal identity and creative direction.
 - Gemini generation and feedback-based refinement using the complete prompt and knowledge base.
 - Parsing global matrix and timestamped segments, form and raw editing, per-field copy, full analysis copy, and PDF export.
-- Original local credit accounting/reset logic and profile preference keys. These are browser convenience counters, not enforced billing or authentication.
+- Original local credit accounting/reset logic. Stored legacy writing preferences are ignored. These are browser convenience counters, not enforced billing or authentication.
 
 ## New implementation
 - Shared ACES Brand, Header, Footer, Button, Input, and SectionContainer.
@@ -39,3 +38,22 @@ An audio-first annotation workstation: upload and listen, select an analytical p
 The current interface uses a minimalist dark navy palette with blue controls, compact Studio/Guide/Library navigation, and a persistent transport bar. It removes the former marketing headline, duplicate footer navigation, profile descriptions in the sidebar, and decorative processing statistics.
 
 The player now derives its waveform from decoded audio, supports pointer/keyboard scrubbing, 10-second skips, 0.5×–2× playback, volume/mute, full-track repeat, A–B section loops, and jumps to annotated segment timestamps. Space toggles playback and Left/Right seek five seconds when focus is outside interactive fields. Audio is decoded locally for the waveform; AI upload behavior is unchanged.
+
+## Natural music writing
+
+The profile picker, Standard/Brief control and profile wizard are removed. The runtime
+knowledge base no longer includes fill-in-the-blank narrative sentences or fixed
+instrument-to-vocal writing formulas. The original SOP/template documents remain
+reference material; their sentence templates are not injected into generation.
+
+`shared/naturalMusicWriting.ts` supplies one shared writing policy for analysis,
+refinement and the music humanizer. The final writer receives independently shuffled,
+nonbinding construction cues for each validated segment. These are editing suggestions,
+not sentences to paste or musical evidence. If preliminary listening is unavailable,
+the audio-grounded writer chooses independently from shuffled suggestions. All required
+musical detail and output labels retain priority. Audio QA preserves the draft wording
+except where corrections are needed.
+
+Variation changes subjects, clause order, openings and sentence lengths. It never
+shuffles events, substitutes arbitrary musical terms or invents differences between
+repeated sections. Naturalness is model-dependent and still needs listening review.

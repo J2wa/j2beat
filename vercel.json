@@ -3,7 +3,10 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "crons": [
-    { "path": "/api/expire-imports", "schedule": "*/15 * * * *" }
+    {
+      "path": "/api/expire-imports",
+      "schedule": "*/15 * * * *"
+    }
   ],
   "functions": {
     "api/annotate.ts": {
@@ -12,6 +15,9 @@
     "api/spotify.py": {
       "maxDuration": 300,
       "excludeFiles": "{node_modules/**,src/**,dist/**,tests/**,.git/**}"
+    },
+    "api/humanize.ts": {
+      "maxDuration": 120
     }
   },
   "rewrites": [

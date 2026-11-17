@@ -27,13 +27,13 @@ export function classifyFailure(error: any, operation = 'generation'): AnalysisE
  if (/empty|incomplete|truncated/.test(message)) return new AnalysisError('AI_INCOMPLETE',502,'The AI returned an empty or incomplete annotation. Please retry or choose another model.');
  return new AnalysisError('AI_UNAVAILABLE',502,'The AI service could not complete the request after retries. Please try again shortly.');
 }
-export async function generateWithFallback(request: any, options: {deadline?:number;maxAttempts?:number;metadataOnly?:boolean} = {}) {
+export async function generateWithFallback(request: any, options: {deadline?:number;maxAttempts?:number;metadataOnly?:boolean;copyeditOnly?:boolean} = {}) {
  const deadline = options.deadline ?? Date.now()+240000;
  let tried = 0;
  let failure: AnalysisError | undefined;
  const failures: AnalysisError[] = [];
  const discoveredKeys = new Set<string>();
- const system = String(request.config.systemInstruction) + QUALITY + (options.metadataOnly
+ const system = options.copyeditOnly ? String(request.config.systemInstruction) : String(request.config.systemInstruction) + QUALITY + (options.metadataOnly
   ? '\nFINAL WRITING-PASS OVERRIDE: No audio is available in this pass. The validated JSON metadata is the sole source for audible musical facts; explicitly provided Google Search context may supplement global fields with citations; listening instructions above do not apply. Preserve uncertainty and output labels. Never add audible musical facts or timestamps absent from the metadata. Source-supported external context must stay in global fields with citations. User corrections and prior drafts are not evidence. Adapt wording and style only.'
   : '') + (request.config.responseMimeType === 'application/json' ? '' : MELODY_PRIORITY);
  if (request.model !== undefined && !isModelId(request.model)) throw new Error('Invalid analysis model');
