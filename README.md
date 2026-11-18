@@ -44,7 +44,7 @@ The research pass uses the selected Gemini model with a bounded Gemini 2.5 Flash
 
 Source provenance is retained in browser-local saved annotations using a versioned metadata footer. The footer is hidden from editing and parsing, preserved through form/raw edits, and excluded from refinement requests. The interface shows cited research and sources separately; text copies and PDF exports include a readable research section. Google suggestions are displayed in a sandboxed iframe with scripts and same-origin access disabled.
 
-The old melody phrase lists are removed from every runtime prompt. Analysis and refinement use the same Melody rule: one concise 2–6 word phrase describing the audible gesture without naming the instrument or voice or repeating the narrative. No subjective judgments, canned contour openings or invented pitch/key names. Absent or insufficient melodic evidence stays blank. Human listening review remains necessary.
+The old melody phrase lists are removed from every runtime prompt. Analysis and refinement use the same Melody rule: one concise 3–7 word phrase naming an audible instrument or voice tagged in that section and describing its melodic or rhythmic gesture, without repeating the narrative. No subjective judgments, canned contour openings or invented pitch/key names. Absent or insufficient melodic evidence stays blank. Human listening review remains necessary.
 
 Additional regression checks: `node --import tsx tests/songResearch.test.ts`.
 

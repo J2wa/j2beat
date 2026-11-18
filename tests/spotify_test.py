@@ -34,6 +34,50 @@ class ImportTests(unittest.TestCase):
     result=subprocess.run([sys.executable,'-c','import aces_runtime_dependency; print(aces_runtime_dependency.VALUE)'],cwd='/tmp',env=module.downloader_environment(folder),capture_output=True)
     self.assertEqual(result.returncode,0,result.stderr);self.assertIn(b'42',result.stdout)
    finally:sys.path.remove(folder)
+ @unittest.skipUnless(sys.platform.startswith('linux'), 'Production downloader runs on Linux')
+ def test_runtime_binaries_and_ejs_cache_reused(self):
+  import tempfile, subprocess
+  with tempfile.TemporaryDirectory() as root:
+   base = Path(root)
+   cache = base / 'runtime'
+   utils = base / 'spotdl' / 'utils'
+   utils.mkdir(parents=True)
+   (utils.parent / '__init__.py').touch()
+   (utils / '__init__.py').touch()
+   for name in ('ffmpeg', 'deno'):
+    (utils / (name + '.py')).write_text(
+     'from pathlib import Path\n'
+     'get_spotdl_path = Path.home\n'
+     f'def download_{name}():\n'
+     f'    print("downloaded:{name}")\n'
+     f'    binary = get_spotdl_path() / "{name}"\n'
+     '    binary.write_text("#!/bin/sh\\nexit 0\\n")\n'
+     '    binary.chmod(0o700)\n'
+     '    return binary\n'
+    )
+   (base / 'yt_dlp.py').write_text(
+    'import json\nclass YoutubeDL:\n'
+    '    def __init__(self, params): print(json.dumps(params["cachedir"]))\n'
+   )
+   (utils.parent / '__main__.py').write_text('import yt_dlp\nyt_dlp.YoutubeDL({})\n')
+   bootstrap = module.BOOTSTRAP.replace("'/tmp/aces-runtime-cache'", repr(str(cache)))
+   def invoke():
+    with tempfile.TemporaryDirectory(prefix='aces-import-') as folder:
+     env = module.downloader_environment(folder)
+     env['PYTHONPATH'] = root
+     self.assertEqual(env['XDG_CONFIG_HOME'], folder)
+     result = subprocess.run([sys.executable, '-B', '-c', bootstrap, folder], cwd=folder, env=env, check=True, capture_output=True, text=True)
+     self.assertIn(json.dumps(str(cache / 'yt-dlp')), result.stdout)
+     return result.stdout
+   first = invoke()
+   self.assertIn('downloaded:ffmpeg', first)
+   self.assertIn('downloaded:deno', first)
+   self.assertEqual(cache.stat().st_mode & 0o777, 0o700)
+   self.assertNotIn('downloaded:', invoke())
+   (cache / 'ffmpeg').write_text('#!/bin/sh\nexit 1\n')
+   repaired = invoke()
+   self.assertIn('downloaded:ffmpeg', repaired)
+   self.assertNotIn('downloaded:deno', repaired)
  def test_streamed_download_progress(self):
   import tempfile
   events=[]

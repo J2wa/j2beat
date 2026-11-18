@@ -18,7 +18,7 @@ Imagine you are describing the song to someone on the phone as it plays.
 
 CRITICAL TIMELINE GUIDELINES:
 - Start the first row exactly at 0:00.
-- Place each timestamp at the precise point where the new musical section begins—not when the change has already fully developed. Use M:SS timestamps. Prioritize accuracy within approximately one second whenever the audio allows it.
+- Place each timestamp at the precise point where the new musical section begins—not when the change has already fully developed. Use M:SS timestamps, such as 0:00 and 1:15. Prioritize accuracy within approximately one second whenever the audio allows it.
 - Listen through the entire track before finalizing the structural timeline. Check transitions carefully by listening several seconds before and after each proposed boundary.
 - Do not create a new row for minor changes such as a single fill, brief vocal pause, lyric change, or added background sound. Add a row only when the song’s structure, musical role, energy, groove, texture, or arrangement changes meaningfully.
 - Ensure every major section is represented and that the timeline remains chronological, with no duplicated, missing, or overlapping timestamps.
@@ -96,7 +96,7 @@ NARRATIVE DESCRIPTION:
 CRITICAL FORMATTING REQUIREMENT: 
 You MUST format each section EXACTLY as follows, replacing the brackets with your actual analysis. Do NOT use markdown bold outside of the specified labels. Each section MUST be separated by a blank line.
 
-- **Start Time:** [MM:SS]
+- **Start Time:** [M:SS]
 - **Section Type:** [Type from the list]
 - **Narrative Description:** [Standalone, evidence-based description of the parts, their roles, and any meaningful development within this interval. Avoid lyrics and parentheses.]
 - **Instruments:** [STRICTLY NO EXPLANATIONS. PURE WORDS ONLY in a comma-separated list of instrument names. DO NOT use sentences.]
@@ -148,7 +148,7 @@ Explain the pulse, subdivisions, accents, syncopation, and how bass and percussi
 
 ### ## 5. Harmony, Chords & Key Tags
 
-Tag the key, chords, harmonic progression, or emotional harmonic qualities.
+Tag audible harmonic color, tonal stability, and chord movement. Leave out exact keys and chord progressions.
 * **Format:** Comma-separated everyday words or short natural phrases. No fixed word count; no full sentences.
 * *Example:* Repeating chords, Blues chords, Bright, Tense
 
@@ -246,10 +246,10 @@ Tag the vocal delivery, pitch, timbre, or processing techniques.
 
 ### ## 20. Vocal Expression
 
-Describe the voice(s) present: assumed gender, pitch range (low/mid/high), timbre (raspy, breathy, clean, smoky), delivery style (rap, croon, belt, whisper), and processing (autotune, vocoder, dry). Note any vocal tropes or changes between sections. If instrumental, state "N/A".
+Describe the voice(s) present: audible register and pitch range (low/mid/high), timbre (raspy, breathy, clean, smoky), delivery style (rap, croon, belt, whisper), and processing (autotune, vocoder, dry). Note any vocal techniques or changes between sections. Do not guess gender or personal identity. If instrumental, state "N/A".
 
 * **Format:** Text field (complete sentences).
-* *Example:* "Features a high-pitched, breathy female vocal delivering an intimate whisper-style performance. The chorus shifts into an impressive falsetto layered with heavy, pitch-corrected autotune."
+* *Example:* "Features a high, breathy lead vocal delivering an intimate whisper-style performance. The chorus shifts into an impressive falsetto layered with heavy, pitch-corrected autotune."
 
 ### ## 21. Lyrical Evocation Tags
 
@@ -268,7 +268,7 @@ OUTPUT INSTRUCTION: Return the timeline sections first, followed by the Global M
 
 Timeline Sections
 
-- **Start Time:** [MM:SS]
+- **Start Time:** [M:SS]
 - **Section Type:** [Type]
 - **Narrative Description:** [Description]
 - **Instruments:** [Instruments]
@@ -316,17 +316,8 @@ Performing Artists:
 
 ---
 
-Lyrics & Song Structure
+Lyrics & Song Structure:
 
 
 
 `;
-
-export const APP_THEME = {
-  bg: "#151619",
-  ink: "#FFFFFF",
-  secondary: "#8E9299",
-  accent: "#FF4444",
-  mono: "'JetBrains Mono', monospace",
-  sans: "'Inter', sans-serif",
-};

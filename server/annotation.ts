@@ -35,7 +35,8 @@ export async function annotateAudio(
   const base64Data = audioFile.data;
   const mimeType = audioFile.type;
 
-  const durationStr = audioDuration ? `${Math.floor(audioDuration / 60)}:${Math.floor(audioDuration % 60).toString().padStart(2, "0")}` : "";
+  const wholeDuration = audioDuration > 0 ? Math.floor(audioDuration) : 0;
+  const durationStr = wholeDuration ? `${Math.floor(wholeDuration / 60)}:${(wholeDuration % 60).toString().padStart(2, "0")}` : "";
 
   const response = await generateMusicAnnotation({
     model,
@@ -44,7 +45,7 @@ export async function annotateAudio(
         parts: [
           { text: `Please annotate this audio track according to the provided rules.
             Song filename clue for search (unverified): ${JSON.stringify(songHint)}
-            ${durationStr ? `CRITICAL DIRECTIVE: The total duration of this audio file is exactly ${durationStr} (${Math.floor(audioDuration)} seconds). You MUST NOT create any segments with a start time that exceeds ${durationStr}.` : ""}
+            ${durationStr ? `CRITICAL DIRECTIVE: The total duration of this audio file is exactly ${durationStr} (${wholeDuration} seconds). You MUST NOT create any segments with a start time that exceeds ${durationStr}.` : ""}
             ${isSimplified ? "MODE: SIMPLIFIED TONE." : ""}
             ${isHighAccuracy ? "MODE: HIGH ACCURACY SEGMENTATION (Check the timing of audible structural transitions carefully.)." : ""}
             ${creativeGuidance ? `\nUser guidance (verify proposed timestamps and musical claims against the audio):\n${creativeGuidance}` : ""}`
@@ -61,7 +62,7 @@ export async function annotateAudio(
     config: {
       systemInstruction: annotationInstruction(isSimplified, isHighAccuracy),
     },
-  }, audioDuration);
+  }, wholeDuration);
 
   if (!response.text?.trim()) throw new Error("Empty annotation response");
   return response.text;
@@ -81,7 +82,8 @@ export async function refineAnnotation(
   const base64Data = audioFile.data;
   const mimeType = audioFile.type;
 
-  const durationStr = audioDuration ? `${Math.floor(audioDuration / 60)}:${Math.floor(audioDuration % 60).toString().padStart(2, "0")}` : "";
+  const wholeDuration = audioDuration > 0 ? Math.floor(audioDuration) : 0;
+  const durationStr = wholeDuration ? `${Math.floor(wholeDuration / 60)}:${(wholeDuration % 60).toString().padStart(2, "0")}` : "";
 
   const response = await generateMusicAnnotation({
     model,
@@ -89,7 +91,7 @@ export async function refineAnnotation(
       {
         parts: [
           { text: `Song filename clue for search (unverified): ${JSON.stringify(songHint)}\nAnalysis guidance (unverified): ${creativeGuidance}\nCorrection Input Matrix:\n${feedback}\n\nHere is the previous analysis: \n\n${splitResearch(previousResult).annotation}\n\nRevise the annotation using the correction input as a guide. Check factual corrections against the audio and preserve the existing output format.
-            ${durationStr ? `CRITICAL DIRECTIVE: The total duration of this audio file is exactly ${durationStr} (${Math.floor(audioDuration)} seconds). You MUST NOT create any segments with a start time that exceeds ${durationStr}.` : ""}
+            ${durationStr ? `CRITICAL DIRECTIVE: The total duration of this audio file is exactly ${durationStr} (${wholeDuration} seconds). You MUST NOT create any segments with a start time that exceeds ${durationStr}.` : ""}
             ${isSimplified ? "MODE: SIMPLIFIED TONE." : ""}
             ${isHighAccuracy ? "MODE: HIGH ACCURACY SEGMENTATION (Check the timing of audible structural transitions carefully)." : ""}
             ${creativeGuidance ? `\nUser guidance (verify proposed timestamps and musical claims against the audio):\n${creativeGuidance}` : ""}`
@@ -106,7 +108,7 @@ export async function refineAnnotation(
     config: {
       systemInstruction: annotationInstruction(isSimplified, isHighAccuracy),
     },
-  }, audioDuration);
+  }, wholeDuration);
 
   if (!response.text?.trim()) throw new Error("Empty refinement response");
   return response.text;

@@ -1,6 +1,6 @@
 import { timingSafeEqual } from 'node:crypto';
 import { del, list } from '@vercel/blob';
-import { IMPORTED_AUDIO_PATH, importedAudioExpiresAt } from '../shared/importExpiry.js';
+import { DIRECT_UPLOAD_AUDIO_PATH, DIRECT_UPLOAD_LIFETIME_MS, IMPORTED_AUDIO_PATH, IMPORT_LIFETIME_MS } from '../shared/importExpiry.js';
 
 export default async function handler(req: any, res: any) {
   res.setHeader('Cache-Control', 'no-store');
@@ -15,20 +15,26 @@ export default async function handler(req: any, res: any) {
   }
 
   const now = Date.now();
-  let cursor: string | undefined;
   let deleted = 0;
   try {
-    do {
-      const page = await list({ prefix: 'music/', cursor, limit: 500 });
-      const expired = page.blobs.filter(blob =>
-        IMPORTED_AUDIO_PATH.test(blob.pathname) && importedAudioExpiresAt(blob.uploadedAt) <= now
-      ).map(blob => blob.pathname);
-      if (expired.length) {
-        await del(expired);
-        deleted += expired.length;
-      }
-      cursor = page.hasMore ? page.cursor : undefined;
-    } while (cursor);
+    const policies = [
+      { prefix: 'music/', pattern: IMPORTED_AUDIO_PATH, lifetime: IMPORT_LIFETIME_MS },
+      { prefix: 'audio/', pattern: DIRECT_UPLOAD_AUDIO_PATH, lifetime: DIRECT_UPLOAD_LIFETIME_MS },
+    ];
+    for (const { prefix, pattern, lifetime } of policies) {
+      let cursor: string | undefined;
+      do {
+        const page = await list({ prefix, cursor, limit: 500 });
+        const expired = page.blobs.filter(blob =>
+          pattern.test(blob.pathname) && new Date(blob.uploadedAt).getTime() + lifetime <= now
+        ).map(blob => blob.pathname);
+        if (expired.length) {
+          await del(expired);
+          deleted += expired.length;
+        }
+        cursor = page.hasMore ? page.cursor : undefined;
+      } while (cursor);
+    }
     console.info('Expired audio import cleanup completed', { deleted });
     return res.status(200).json({ deleted });
   } catch {

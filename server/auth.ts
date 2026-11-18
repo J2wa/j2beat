@@ -5,11 +5,16 @@ export const configured = () => Boolean(process.env.USER_PASSWORD);
 const digest = (value: string) => createHash('sha256').update(value).digest();
 export const passwordMatches = (value: string) => configured() && timingSafeEqual(digest(value), digest(process.env.USER_PASSWORD!));
 const sign = (value: string) => createHmac('sha256', process.env.USER_PASSWORD!).update('aces-music-session:v1:' + value).digest('base64url');
-export function sessionCookie(name: string) {
+type CookieRequest = { headers: Record<string, string | string[] | undefined>; socket?: { encrypted?: boolean } };
+const secureCookie = (req?: CookieRequest) =>
+  !req || process.env.NODE_ENV === 'production' || req.headers['x-forwarded-proto'] === 'https' || req.socket?.encrypted
+    ? '; Secure' : '';
+
+export function sessionCookie(name: string, req?: CookieRequest) {
  const payload = Buffer.from(JSON.stringify({ name, exp: Date.now() + TTL * 1000 })).toString('base64url');
- return `${COOKIE}=${payload}.${sign(payload)}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${TTL}`;
+ return `${COOKIE}=${payload}.${sign(payload)}; HttpOnly${secureCookie(req)}; SameSite=Strict; Path=/; Max-Age=${TTL}`;
 }
-export const clearCookie = () => `${COOKIE}=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0`;
+export const clearCookie = (req?: CookieRequest) => `${COOKIE}=; HttpOnly${secureCookie(req)}; SameSite=Strict; Path=/; Max-Age=0`;
 export function session(req: any): {name: string; exp: number} | null {
  if (!configured()) return null;
  try {

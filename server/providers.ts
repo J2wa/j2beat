@@ -8,7 +8,7 @@ FINAL PRIORITY: Preserve the requested output schema and field labels, but prior
 Listen to the supplied audio. Never infer instruments, artist identity, vocal gender, recording era, key, BPM, or production techniques from genre stereotypes. Use 'uncertain' or 'None' when evidence is insufficient. User notes are hypotheses to verify, not facts to force into the recording.
 Keep timestamps chronological, non-overlapping and inside the supplied duration. Segment at audible changes; do not fabricate micro-transitions. Treat exact timing as approximate when uncertain.
 Use natural, direct English throughout all narrative and global fields: concrete verbs, varied sentence lengths, no marketing language, clichés, repetitive openings, forced emotional claims, or elaborate synonyms. Use concise complete sentences and enough detail to cover the audible parts; never pad a field to meet a sentence quota. Preserve technical accuracy and useful musical detail. Do not deliberately add errors, claim human authorship, or promise detection avoidance.
-Describe only sounds within each segment. Match the instrument list to the narrative. Describe vocal timbre and delivery without asserting personal identity. Do not use web search to substitute for listening. Before answering, silently check timing, contradictions, unsupported details, duplicate phrasing and schema completeness. Return only the annotation, with uncertainty in the relevant fields.`;
+Describe only sounds within each segment. Match the instrument list to the narrative. Describe audible vocal register, pitch range, timbre and delivery without guessing gender or personal identity. Do not use web search to substitute for listening. Before answering, silently check timing, contradictions, unsupported details, duplicate phrasing and schema completeness. Return only the annotation, with uncertainty in the relevant fields.`;
 export class AnalysisError extends Error {
  constructor(public code: string, public status: number, message: string) { super(message); }
 }
@@ -27,7 +27,58 @@ export function classifyFailure(error: any, operation = 'generation'): AnalysisE
  if (/empty|incomplete|truncated/.test(message)) return new AnalysisError('AI_INCOMPLETE',502,'The AI returned an empty or incomplete annotation. Please retry or choose another model.');
  return new AnalysisError('AI_UNAVAILABLE',502,'The AI service could not complete the request after retries. Please try again shortly.');
 }
-export async function generateWithFallback(request: any, options: {deadline?:number;maxAttempts?:number;metadataOnly?:boolean;copyeditOnly?:boolean} = {}) {
+type InlineAudio = {data: string; mimeType: string};
+type UploadedAudio = {uri: string; mimeType: string};
+
+// Scoped to one annotation run. The same inline audio object is passed to each
+// listening pass, and an uploaded URI is only used with its original API key.
+export class GeminiAudioFiles {
+ private readonly ready = new Map<string, Map<InlineAudio, UploadedAudio>>();
+ // Prefer a key that already holds this run's audio, even when the global
+ // key order starts at a random offset for load balancing.
+ preferUploadedKeys(keys: string[]) {
+  return [...keys.filter(key => this.ready.has(key)), ...keys.filter(key => !this.ready.has(key))];
+ }
+
+ private readonly cleanup: (() => Promise<unknown>)[] = [];
+
+ get(apiKey: string, audio: InlineAudio) {
+  return this.ready.get(apiKey)?.get(audio);
+ }
+
+ set(apiKey: string, audio: InlineAudio, file: UploadedAudio) {
+  if (!this.ready.has(apiKey)) this.ready.set(apiKey, new Map());
+  this.ready.get(apiKey)!.set(audio, file);
+ }
+
+ track(ai: GoogleGenAI, name: string) {
+  this.cleanup.push(() => ai.files.delete({name, config:{httpOptions:{timeout:2000}}}));
+ }
+
+ async dispose() {
+  this.ready.clear();
+  await Promise.allSettled(this.cleanup.splice(0).map(async remove => remove()));
+ }
+}
+
+interface GenerationOptions {
+ deadline?: number;
+ maxAttempts?: number;
+ metadataOnly?: boolean;
+ copyeditOnly?: boolean;
+ audioFiles?: GeminiAudioFiles;
+}
+
+export async function generateWithFallback(request: any, options: GenerationOptions = {}) {
+ const audioFiles = options.audioFiles ?? new GeminiAudioFiles();
+ try {
+  return await generate(request, options, audioFiles);
+ } finally {
+  if (!options.audioFiles) await audioFiles.dispose();
+ }
+}
+
+async function generate(request: any, options: GenerationOptions, audioFiles: GeminiAudioFiles) {
  const deadline = options.deadline ?? Date.now()+240000;
  let tried = 0;
  let failure: AnalysisError | undefined;
@@ -38,7 +89,7 @@ export async function generateWithFallback(request: any, options: {deadline?:num
   : '') + (request.config.responseMimeType === 'application/json' ? '' : MELODY_PRIORITY);
  if (request.model !== undefined && !isModelId(request.model)) throw new Error('Invalid analysis model');
  const models = modelOrder(request.model ?? DEFAULT_MODEL);
- const keys = orderedGeminiKeys();
+ const keys = audioFiles.preferUploadedKeys(orderedGeminiKeys());
  const routerModel = process.env.OPENROUTER_MODEL || NEMOTRON_MODEL;
  const attempts = request.model === NEMOTRON_MODEL
    ? [{ provider: 'openrouter', model: NEMOTRON_MODEL, apiKey: undefined }]
@@ -57,42 +108,57 @@ export async function generateWithFallback(request: any, options: {deadline?:num
    let text: string | undefined;
    if(provider==='gemini') {
     const ai=new GoogleGenAI({apiKey});
-    let uploadedName: string | undefined;
-    try {
-     const contents=structuredClone(request.contents);
-     // Budget the complete encoded request, including prompts and config. Leave
-     // 2 MB headroom below the conservative 20 MB audio request limit.
-     const useFilesApi = Buffer.byteLength(JSON.stringify({...request, model, contents,
-       config:{...request.config, systemInstruction:system}}), 'utf8') > 18_000_000;
-     for(const c of contents)for(let i=0;i<c.parts.length;i++) {
-      const data=c.parts[i].inlineData;
-      if(data?.data && useFilesApi) {
-       operation = 'audio upload';
-       const uploaded=await ai.files.upload({file:new Blob([Buffer.from(data.data,'base64')],{type:data.mimeType}),config:{mimeType:data.mimeType,httpOptions:{timeout:Math.min(30000,timeout())}}});
-       uploadedName=uploaded.name;
-       if(!uploaded.uri)throw new Error('Audio upload failed');
-       let readyFile = uploaded;
-       while (readyFile.state === 'PROCESSING') {
-         if(Date.now()+1000 >= deadline) throw new Error('Audio processing timeout');
-         reportProgress('Preparing audio with AI provider');
-         await new Promise(resolve=>setTimeout(resolve,1000));
-         readyFile=await ai.files.get({name:uploadedName!,config:{httpOptions:{timeout:timeout()}}});
-       }
-       if(readyFile.state === 'FAILED') throw new Error('Audio processing failed');
-       c.parts[i]={fileData:{fileUri:uploaded.uri,mimeType:data.mimeType}};
+    // Base64 contains only ASCII, so its string length is its UTF-8 byte size.
+    // Allow headroom for JSON escaping and request scaffolding without building
+    // a second serialized copy of the audio just to measure the request.
+    let requestBytes = Buffer.byteLength(system, 'utf8');
+    const contents = request.contents.map((content: any) => ({
+      ...content,
+      parts: content.parts.map((part: any) => {
+        requestBytes += (part.inlineData?.data?.length ?? 0)
+          + (typeof part.text === 'string' ? Buffer.byteLength(part.text, 'utf8') : 0);
+        return { ...part };
+      }),
+    }));
+    const useFilesApi = requestBytes > 18_000_000;
+    for (const content of contents) {
+      for (let index = 0; index < content.parts.length; index++) {
+        const audio: InlineAudio | undefined = content.parts[index].inlineData;
+        if (!audio?.data) continue;
+        let file = audioFiles.get(apiKey!, audio);
+        if (!file && useFilesApi) {
+          operation = 'audio upload';
+          const uploaded = await ai.files.upload({
+            file: new Blob([Buffer.from(audio.data, 'base64')], {type:audio.mimeType}),
+            config: {mimeType:audio.mimeType, httpOptions:{timeout:Math.min(30000,timeout())}},
+          });
+          if (uploaded.name) audioFiles.track(ai, uploaded.name);
+          if (!uploaded.uri) throw new Error('Audio upload failed');
+          let readyFile = uploaded;
+          while (readyFile.state === 'PROCESSING') {
+            if (!uploaded.name) throw new Error('Missing uploaded audio file name');
+            if (Date.now()+1000 >= deadline) throw new Error('Audio processing timeout');
+            reportProgress('Preparing audio with AI provider');
+            await new Promise(resolve=>setTimeout(resolve,1000));
+            readyFile = await ai.files.get({name:uploaded.name,config:{httpOptions:{timeout:timeout()}}});
+          }
+          if (readyFile.state === 'FAILED') throw new Error('Audio processing failed');
+          file = {uri:uploaded.uri, mimeType:audio.mimeType};
+          audioFiles.set(apiKey!, audio, file);
+        }
+        if (file) content.parts[index] = {fileData:{fileUri:file.uri,mimeType:file.mimeType}};
       }
-     }
-     const config = {...request.config, systemInstruction:system, tools:undefined, httpOptions:{timeout:timeout()}};
-     // Gemini 3 models use their default sampling parameters.
-     delete config.temperature;
-     delete config.topP;
-     delete config.topK;
-     delete config.candidateCount;
-     operation = 'generation';
-     const result=await ai.models.generateContent({...request,model,contents,config});
-     if(result.candidates?.[0]?.finishReason !== 'STOP')throw new Error('Incomplete output');
-     text=result.text;
-    } finally { if(uploadedName)await ai.files.delete({name:uploadedName,config:{httpOptions:{timeout:2000}}}).catch(()=>{}); }
+    }
+    const config = {...request.config, systemInstruction:system, tools:undefined, httpOptions:{timeout:timeout()}};
+    // Gemini 3 models use their default sampling parameters.
+    delete config.temperature;
+    delete config.topP;
+    delete config.topK;
+    delete config.candidateCount;
+    operation = 'generation';
+    const result=await ai.models.generateContent({...request,model,contents,config});
+    if(result.candidates?.[0]?.finishReason !== 'STOP')throw new Error('Incomplete output');
+    text=result.text;
    } else {
     const content=request.contents.flatMap((c:any)=>c.parts.map((p:any)=>p.text?{type:'text',text:p.text}:{type:'input_audio',input_audio:{data:p.inlineData.data,format:({'audio/mpeg':'mp3','audio/x-wav':'wav','audio/wave':'wav','audio/x-aiff':'aiff'} as Record<string,string>)[p.inlineData.mimeType] || p.inlineData.mimeType.split('/')[1]}}));
     const response=await fetch('https://openrouter.ai/api/v1/chat/completions',{method:'POST',signal:AbortSignal.timeout(timeout()),headers:{Authorization:`Bearer ${process.env.OPENROUTER_API_KEY}`,'Content-Type':'application/json','X-Title':'ACES Music'},body:JSON.stringify({model,messages:[{role:'system',content:system},{role:'user',content}],temperature:0.2,...(model === NEMOTRON_MODEL ? {max_tokens:8192,reasoning:{enabled:false}} : {})})});

@@ -24,10 +24,10 @@ const globalLabels = ['Genre, Era & Scene', 'Tempo, Rhythm & Groove', 'Harmony, 
 const editable = new Set(['Narrative Description', 'Description', ...globalLabels]);
 const knownLabels = ['Start Time', 'End Time', 'Section Type', 'Narrative Description', 'Description',
   'Instruments', 'Vibe Tags', 'Vibe', 'Melody', 'Tempo', 'Key', ...globalLabels,
-  ...globalLabels.map(s => s + ' Tags'), 'Song title', 'Song by', 'Performing Artists'];
+  ...globalLabels.map(s => s + ' Tags'), 'Song title', 'Song by', 'Performing Artists', 'Lyrics & Song Structure'];
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const header = new RegExp(`^[ \\t]*(?:(?:[-*]|\\d+\\.)[ \\t]+)?(?:\\*\\*)?(${knownLabels.sort((a,b)=>b.length-a.length).map(escape).join('|')}):(?:\\*\\*)?[ \\t]*`, 'i');
-const isBoundary = (line: string) => header.test(line) || /^\s*(?:#{1,6}\s*)?(?:Timeline Sections|Global Musical Matrix|Global Analysis)\s*$|^\s*---+\s*$|^\s*<!--/i.test(line);
+const isBoundary = (line: string) => header.test(line) || /^\s*(?:#{1,6}\s*)?(?:Timeline Sections|Global Musical Matrix|Global Analysis|Performing Artists|Lyrics & Song Structure)\s*$|^\s*---+\s*$|^\s*<!--/i.test(line);
 
 // Work with offsets into the original string. Locked fields and provenance never
 // pass through a model serializer, including whitespace and research footer bytes.

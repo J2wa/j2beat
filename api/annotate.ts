@@ -1,3 +1,4 @@
+import { DIRECT_UPLOAD_AUDIO_PATH } from '../shared/importExpiry.js';
 import { suggestMusic } from '../server/musicSuggestions.js';
 import { geminiApiKeys } from '../server/apiKeys.js';
 import { progressContext } from '../server/progress.js';
@@ -17,7 +18,7 @@ export default async function handler(req: any, res: any) {
  if (b?.model !== undefined && !isModelId(b.model)) return res.status(400).json({error:'Choose a supported analysis model.'});
  if(b?.audio?.path) {
   const path=b.audio.path;
-  if(typeof path!=='string'||!/^audio\/[a-f0-9-]{36}\.[a-z0-9]{2,5}$/.test(path))return res.status(400).json({error:'Invalid audio reference.'});
+  if(typeof path!=='string'||!DIRECT_UPLOAD_AUDIO_PATH.test(path))return res.status(400).json({error:'Invalid audio reference.'});
   try {
    const stored=await get(path,{access:'private'});
    if(!stored || stored.statusCode!==200 || stored.blob.size>100*1024*1024)throw new Error('Invalid upload');

@@ -1,6 +1,6 @@
 import { segmentWritingHints } from '../shared/naturalMusicWriting.js';
 import { reportProgress } from './progress.js';
-import { AnalysisError, generateWithFallback } from './providers.js';
+import { AnalysisError, GeminiAudioFiles, generateWithFallback } from './providers.js';
 import { researchSong, researchInstruction } from './songResearch.js';
 import { attachResearch, type ResearchReport } from '../shared/research.js';
 
@@ -13,8 +13,8 @@ export const EVIDENCE_PROMPT = `Listen to the supplied audio and return ONLY a J
  "songClues":"up to ten clearly audible lyric words to help identify the song, or blank"}.
 Cover the entire supplied duration from zero to its actual end, including all music after two minutes. Every interval must have listening observations, including silence when audible. Do not mistake a pause for the ending. Keep intervals at most 60 seconds; for a sustained passage use neutral continuation labels without inventing transitions.
 First assess the whole recording, then locate sections by audible changes and repetition, then describe events inside each interval. Do not force verse/chorus labels onto instrumental or through-composed music. Keep sparse music sparse.
-Use seconds relative to the uploaded audio. Bound all intervals by the supplied duration. Do not invent precise boundaries. Describe key, chords, tempo, instruments, vocal delivery and lyrics only when supported by listening; otherwise record uncertainty. Do not infer identity or gender. Do not reconstruct inaudible lyrics from memory. No web knowledge can establish what is audible.
-For each section, identify the audible parts and record what each contributes. Note its technique, rhythmic pattern, or interaction with another part where clear. For vocals, note audible phrasing, register, timbre, and layering. Capture meaningful entrances, exits, fills, and changes in technique or density, with approximate times when useful. In recurring sections, describe the full arrangement and the distinguishing sounds. Record the melodic carrier and its gesture where clear.
+Use whole-second integers for start and end, relative to the uploaded audio. Bound all intervals by the supplied duration. Do not invent precise boundaries. Describe harmonic color, chord movement, tempo, instruments, vocal delivery and lyrics only when supported by listening; otherwise record uncertainty. Do not infer identity or gender. Do not reconstruct inaudible lyrics from memory. No web knowledge can establish what is audible.
+For each section, identify the audible parts and record what each contributes. Note its technique, rhythmic pattern, or interaction with another part where clear. For vocals, note audible phrasing, register, pitch range, timbre, delivery and layering. Capture meaningful entrances, exits, fills, and changes in technique or density, with approximate times when useful. In recurring sections, describe the full arrangement and the distinguishing sounds. Record the melodic carrier and its gesture where clear.
 In the overview, capture separate observations on genre cues, pulse and bass-percussion interplay, arrangement roles, playing techniques, and audible balance, placement, or effects. Use broader source descriptions or record uncertainty if the evidence is ambiguous. Do not guess details to fill the checklist.
 Treat user guidance and previous annotations as hypotheses, never as evidence. Use short factual observations, not polished captions. Do not output reasoning or extra JSON fields.`;
 
@@ -33,9 +33,21 @@ export function cleanEvidence(raw: string, duration: number) {
   const sections: {start:number;end:number;label:string;observations:string;uncertainties:string}[] = [];
   let rejected = 0;
   const ordered = data.sections.slice(0, 200).sort((a:any,b:any) => (a?.start ?? Infinity) - (b?.start ?? Infinity));
-  for (const s of ordered) {
-    if (!s || typeof s.start !== 'number' || typeof s.end !== 'number' || !Number.isFinite(s.start) || !Number.isFinite(s.end) || s.start < 0 || s.end <= s.start || (duration > 0 && s.end > duration) || (sections.length && s.start < sections.at(-1)!.end) || !short(s.observations)) { rejected++; continue; }
-    sections.push({start:s.start,end:s.end,label:short(s.label),observations:short(s.observations),uncertainties:short(s.uncertainties)});
+  for (const [index, section] of ordered.entries()) {
+    if (!section || !Number.isFinite(section.start) || !Number.isFinite(section.end) || section.start < 0 || section.end <= section.start) {
+      rejected++;
+      continue;
+    }
+    const start = Math.round(section.start);
+    const roundedEnd = Math.round(section.end);
+    const end = duration > 0 && index === ordered.length - 1 && Math.abs(roundedEnd - duration) <= 1
+      ? duration : roundedEnd;
+    const observations = short(section.observations);
+    if (end <= start || (duration > 0 && end > duration) || start < (sections.at(-1)?.end ?? 0) || !observations) {
+      rejected++;
+      continue;
+    }
+    sections.push({start, end, label:short(section.label), observations, uncertainties:short(section.uncertainties)});
   }
   const uncertainties = Array.isArray(data.uncertainties) ? data.uncertainties.slice(0,20).map(short).filter(Boolean) : [];
   if (rejected) uncertainties.push(`${rejected} invalid or overlapping intervals discarded; boundaries require human review.`);
@@ -50,7 +62,7 @@ export function coverageIssues(sections: {start:number;end:number}[], duration: 
   if (!sections.length) return ['No timeline intervals'];
   for (const section of sections) {
     if (Math.abs(section.start - end) > 1) issues.push(`Gap or overlap near ${end}s`);
-    if (section.end - section.start > 60.5) issues.push(`Interval at ${section.start}s exceeds 60 seconds`);
+    if (Math.floor(section.end) - Math.floor(section.start) > 60) issues.push(`Interval at ${section.start}s exceeds 60 seconds`);
     end = section.end;
   }
   if (Math.abs(end - duration) > 1) issues.push(`Coverage ends at ${end}s; recording ends at ${duration}s`);
@@ -65,6 +77,8 @@ function timelineStarts(text: string): number[] {
 
 export function timelineIssues(text: string, duration: number, expectedStarts: number[] = []): string[] {
   if (!(duration > 0)) return [];
+  duration = Math.floor(duration);
+  if (!duration) return [];
   const starts = timelineStarts(text);
   if (!starts.length) return ['No readable Start Time fields'];
   const issues = coverageIssues(starts.map((start,i)=>({start,end:starts[i+1] ?? duration})), duration);
@@ -85,6 +99,16 @@ function keepsDraftFormat(draft: string, reviewed: string): boolean {
 }
 
 export async function generateMusicAnnotation(request: any, duration: number, generate = generateWithFallback, research = researchSong) {
+  const audioFiles = new GeminiAudioFiles();
+  const generatePass: typeof generateWithFallback = (pass, options) => generate(pass, {...options, audioFiles});
+  try {
+    return await runMusicAnnotation(request, duration, generatePass, research);
+  } finally {
+    await audioFiles.dispose();
+  }
+}
+
+async function runMusicAnnotation(request: any, duration: number, generate: typeof generateWithFallback, research: typeof researchSong) {
   const deadline = Date.now() + 240000;
   const draftDeadline = deadline - 50000;
   let evidence: ReturnType<typeof cleanEvidence> | undefined;

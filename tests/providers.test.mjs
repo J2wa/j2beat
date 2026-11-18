@@ -137,3 +137,36 @@ calls=[];responses=[good];process.env.GEMINI_API_KEY='test';
 await generateWithFallback({...request,config:{systemInstruction:'COPYEDIT ONLY',responseMimeType:'application/json'}},{copyeditOnly:true});
 assert.equal(calls[0].config.systemInstruction,'COPYEDIT ONLY');
 console.log('Passed isolated text-only humanizer instructions.');
+
+// Exercise the actual annotation pipeline with the mocked Gemini transport.
+const {generateMusicAnnotation} = await import('../server/musicPipeline.ts');
+const {unavailableResearch} = await import('../server/songResearch.ts');
+delete process.env.OPENROUTER_API_KEY;
+process.env.GEMINI_API_KEY_1 = 'another-key';
+const beforeUploads = globalThis.uploadCount;
+const beforeDeletes = globalThis.deleteCount;
+const largeRequest = audioRequest(14 * 1024 * 1024);
+const interval = (start, end) => ({start, end, label:'section', observations:'Piano plays'});
+const evidence = sections => ({...good, text:JSON.stringify({overview:'Piano',sections})});
+const draft = {...good, text:'- **Start Time:** 0:00\n- **Start Time:** 1:00\n- **Start Time:** 2:00'};
+responses = [evidence([interval(0,60)]), evidence([interval(0,60),interval(60,120),interval(120,150)]), draft, draft];
+calls = [];
+usedKeys = [];
+await generateMusicAnnotation(largeRequest, 150, async (pass, options) => {
+ const response = await generateWithFallback(pass, options);
+ assert.equal(globalThis.deleteCount, beforeDeletes);
+ return response;
+}, async () => unavailableResearch());
+assert.equal(calls.length, 4);
+assert.equal(new Set(usedKeys).size, 1);
+assert.equal(globalThis.uploadCount - beforeUploads, 1);
+assert.equal(globalThis.deleteCount - beforeDeletes, 1);
+assert.ok([0,1,3].every(index=>calls[index].contents[0].parts.some(part=>part.fileData?.fileUri==='https://example.test/audio')));
+assert.ok(largeRequest.contents[0].parts[0].inlineData.data.length > 18_000_000);
+delete process.env.GEMINI_API_KEY_1;
+
+// A rejected annotation still releases the upload.
+responses = [evidence([interval(0,60)]), evidence([interval(0,60),interval(60,120),interval(120,150)]), good, good];
+await assert.rejects(generateMusicAnnotation(largeRequest,150,generateWithFallback,async()=>unavailableResearch()), /full recording/);
+assert.equal(globalThis.deleteCount - beforeDeletes, 2);
+console.log('Passed same-key Gemini file reuse across listening, recheck and QA, and cleanup on success and failure.');

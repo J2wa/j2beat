@@ -2,6 +2,7 @@ import { requireSession } from '../server/auth.js';
 import { get, del } from '@vercel/blob';
 import { IMPORTED_AUDIO_PATH, importedAudioExpiresAt } from '../shared/importExpiry.js';
 import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 export default async function handler(req:any,res:any) {
  res.setHeader('Cache-Control','private, no-store');
  if(!requireSession(req,res))return;
@@ -18,7 +19,15 @@ export default async function handler(req:any,res:any) {
     return res.status(410).json({error:'This imported track expired. Import it again to listen or analyze.'});
   }
   res.setHeader('X-Audio-Expires-At', new Date(expiresAt).toISOString());
-  res.setHeader('Content-Type','audio/mpeg');
-  Readable.fromWeb(stored.stream as any).pipe(res);
- }catch{return res.status(502).json({error:'Could not load saved audio.'});}
+  res.setHeader('Content-Type', stored.blob.contentType || 'audio/mpeg');
+  res.setHeader('Content-Length', String(stored.blob.size));
+  await pipeline(Readable.fromWeb(stored.stream as any), res);
+ } catch {
+  // pipeline handles stream destruction. Never write JSON into a partial audio response.
+  if (req.aborted || res.destroyed || res.writableEnded) return;
+  if (res.headersSent) { res.destroy(); return; }
+  res.removeHeader('Content-Length');
+  res.removeHeader('Content-Type');
+  return res.status(502).json({error:'Could not load saved audio.'});
+ }
 }

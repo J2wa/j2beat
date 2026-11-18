@@ -100,3 +100,23 @@ for (const invalidReview of [new Error('provider offline'), correctedDraft.repla
   assert.equal(fallback.audioQaIncomplete,true);
 }
 console.log('Passed audio QA corrections, malformed review rejection, and incomplete QA status.');
+
+// The last timestamp is 2:30, so a 3:30.84 track has a 60-second
+// final segment at the format's whole-second resolution.
+const fractional = JSON.stringify({overview:'Piano',sections:[
+  {...section,start:0,end:59.75},
+  {...section,start:59.75,end:119.81},
+  {...section,start:119.81,end:149.69},
+  {...section,start:149.69,end:210.84},
+]});
+const rounded = cleanEvidence(fractional, 210).sections;
+assert.deepEqual(rounded.map(({start,end})=>[start,end]), [[0,60],[60,120],[120,150],[150,210]]);
+assert.deepEqual(coverageIssues(rounded,210),[]);
+const fractionalEnd = cleanEvidence(fractional,210.84).sections;
+assert.deepEqual(fractionalEnd.map(s=>s.end),[60,120,150,210.84]);
+assert.deepEqual(coverageIssues(fractionalEnd,210.84),[]);
+const minuteBoundaries = 'Timeline Sections\n- **Start Time:** 0:00\n- **Start Time:** 01:00\n- **Start Time:** 2:00\n- **Start Time:** 2:30';
+assert.deepEqual(timelineIssues(minuteBoundaries,210.84),[]);
+assert.ok(timelineIssues(minuteBoundaries,211).some(issue=>issue.includes('exceeds 60 seconds')));
+assert.equal(cleanEvidence(fractional.replace('210.84','212'),210).sections.length,3);
+console.log('Passed whole-second evidence rounding, end clamping, and 60-second timeline boundaries.');

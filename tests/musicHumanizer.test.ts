@@ -31,6 +31,11 @@ const fields = musicProseFields(source);
 assert.deepEqual(fields.map(f=>f.label),['Section 1: Narrative Description','Genre, Era & Scene','Tempo, Rhythm & Groove']);
 assert.ok(fields[0].text.includes('held note.'));
 assert.ok(!fields[2].text.includes('Song title'));
+const trailingLyrics = '22. Lyrical Evocation: Reflective phrases.\nLyrics & Song Structure: Verse and refrain.';
+assert.equal(musicProseFields(trailingLyrics)[0].text, 'Reflective phrases.');
+assert.equal(applyMusicEdits(trailingLyrics, [{ id: 'f0', text: 'The words sound reflective.' }]),
+  trailingLyrics.replace('Reflective phrases.', 'The words sound reflective.'));
+assert.throws(() => applyMusicEdits(trailingLyrics, [{id:'f0', text:'Reflective phrases.\nLyrics & Song Structure: Different verse.'}]));
 const replacement = fields[0].text.replace('beautifully intertwines with','plays alongside');
 const edited = applyMusicEdits(source,[{id:'f0',text:replacement}]);
 assert.equal(edited,source.replace(fields[0].text,replacement));

@@ -30,12 +30,13 @@ export function MusicPlayer(p: Props) {
  const [loopEnd,setLoopEnd] = useState<number|null>(null);
  const [hoverTime,setHoverTime] = useState<number|null>(null);
  const lastVolume = useRef(.8);
+ const largeFile = !!p.file && p.file.size > 30 * 1024 * 1024;
  const looped = loopStart !== null && loopEnd !== null;
  const progress = p.duration > 0 ? Math.min(100,p.currentTime/p.duration*100) : 0;
  useEffect(() => {
    setShowLinkImport(false);
    setPeaks([]); setWaveError(false); setRate(1); setRepeat(false); setLoopStart(null); setLoopEnd(null);
-   if(!p.file) {setDecoding(false);return;}
+   if(!p.file || largeFile) {setDecoding(false);return;}
    let cancelled=false; const context=new AudioContext(); setDecoding(true);
    p.file.arrayBuffer().then(b=>context.decodeAudioData(b)).then(buffer=>{
      if(cancelled)return;
@@ -44,7 +45,7 @@ export function MusicPlayer(p: Props) {
      const maximum=Math.max(...values,.001);setPeaks(values.map(v=>Math.max(.025,v/maximum)));
    }).catch(()=>{if(!cancelled)setWaveError(true);}).finally(()=>{void context.close().catch(()=>{});if(!cancelled)setDecoding(false);});
    return ()=>{cancelled=true;void context.close().catch(()=>{});};
- },[p.file]);
+ },[p.file,largeFile]);
  useEffect(()=>{if(p.audioRef.current)p.audioRef.current.playbackRate=rate;},[rate,p.audioUrl]);
  useEffect(()=>{
    const onKey=(e:KeyboardEvent)=>{
@@ -74,7 +75,7 @@ export function MusicPlayer(p: Props) {
     <svg viewBox="0 0 1080 100" preserveAspectRatio="none" aria-hidden="true" className="waveform-svg">
       {peaks.map((v,i)=><rect key={i} x={i*6} y={50-v*44} width="3.5" height={Math.max(2,v*88)} rx="1.5" fill={i/peaks.length<=progress/100?'#6090ff':'#34435d'}/>)}
     </svg>
-    {peaks.length===0&&<span className="wave-status">{decoding?'Reading waveform…':waveError?'Waveform unavailable. Playback and seeking still work.':''}</span>}
+    {peaks.length===0&&<span className="wave-status">{largeFile?'Waveform preview skipped for large file — playback and seeking remain active.':decoding?'Reading waveform…':waveError?'Waveform unavailable. Playback and seeking still work.':''}</span>}
     {loopStart!==null&&p.duration>0&&<div className="loop-area" style={{left:`${loopStart/p.duration*100}%`,width:`${((loopEnd??p.duration)-loopStart)/p.duration*100}%`}}/>}
     {p.duration>0&&p.markers.map((time,i)=><div key={time} className="split-marker" style={{left:`${time/p.duration*100}%`}} aria-hidden="true"><span>{i+1}</span></div>)}
     <div className="playhead" style={{left:`${progress}%`}}/>

@@ -101,21 +101,63 @@ def download_failure(result, using_cookies=False):
 
 
 BOOTSTRAP = r"""
-import pathlib, runpy, sys, json
+import fcntl, json, os, pathlib, runpy, stat, subprocess, sys, tempfile
 work = sys.argv.pop(1)
 pathlib.Path.home = classmethod(lambda cls: pathlib.Path(work))
 sys.argv[0] = 'spotdl'
 def event(stage, percent=None):
     print('ACES_PROGRESS:' + json.dumps({'stage':stage,'percent':percent}), flush=True)
+def private_cache_dir(path):
+    path.mkdir(mode=0o700, exist_ok=True)
+    info = path.lstat()
+    if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid():
+        raise RuntimeError('Invalid runtime cache directory')
+    path.chmod(0o700)
+    return path
+
+def executable_works(path, version_flag):
+    if not path.is_file() or path.is_symlink():
+        return False
+    try:
+        subprocess.run([str(path), version_flag], check=True, timeout=5,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return True
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+def cached_binary(name, version_flag, module, download):
+    path = runtime_cache / name
+    if executable_works(path, version_flag):
+        return path
+    # spotDL downloads directly into its configured directory. Stage that
+    # download privately, then publish the verified executable atomically.
+    with tempfile.TemporaryDirectory(prefix='binary-', dir=runtime_cache) as staging:
+        original_path = module.get_spotdl_path
+        module.get_spotdl_path = lambda: pathlib.Path(staging)
+        try:
+            candidate = pathlib.Path(download())
+        finally:
+            module.get_spotdl_path = original_path
+        if not executable_works(candidate, version_flag):
+            raise RuntimeError('Downloaded runtime binary did not pass its version check')
+        candidate.chmod(0o700)
+        candidate.replace(path)
+    return path
+
+runtime_cache = private_cache_dir(pathlib.Path('/tmp/aces-runtime-cache'))
+yt_cache = private_cache_dir(runtime_cache / 'yt-dlp')
 event('Preparing audio converter')
 print('ACES_STAGE:dependencies', file=sys.stderr, flush=True)
-from spotdl.utils.ffmpeg import download_ffmpeg
-ffmpeg = download_ffmpeg()
-import subprocess
-subprocess.run([str(ffmpeg), '-version'], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-event('Preparing YouTube runtime')
-from spotdl.utils.deno import download_deno
-download_deno()
+from spotdl.utils import ffmpeg, deno
+# A warm instance may serve concurrent requests. Only one worker installs
+# binaries at a time, and the lock is released if that worker exits.
+fd = os.open(runtime_cache / 'install.lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+with os.fdopen(fd, 'w') as lock:
+    fcntl.flock(lock, fcntl.LOCK_EX)
+    cached_binary('ffmpeg', '-version', ffmpeg, ffmpeg.download_ffmpeg)
+    event('Preparing YouTube runtime')
+    deno_path = cached_binary('deno', '--version', deno, deno.download_deno)
+os.environ['PATH'] = str(runtime_cache) + os.pathsep + os.environ.get('PATH', '')
 import yt_dlp
 original_init = yt_dlp.YoutubeDL.__init__
 def progress(data):
@@ -128,6 +170,8 @@ def init(self, params=None, *args, **kwargs):
     params = dict(params or {})
     params['progress_hooks'] = list(params.get('progress_hooks',[])) + [progress]
     params['remote_components'] = ['ejs:github']
+    params['js_runtimes'] = {'deno': {'path': str(deno_path)}}
+    params['cachedir'] = str(yt_cache)
     original_init(self, params, *args, **kwargs)
 yt_dlp.YoutubeDL.__init__ = init
 event('Finding matching recording')
@@ -187,7 +231,7 @@ class handler(BaseHTTPRequestHandler):
             import requests
             canonical = 'https://open.spotify.com/track/'+match[1]
             with tempfile.TemporaryDirectory(prefix='aces-import-') as folder:
-                # spotDL and its caches must only write to ephemeral /tmp.
+                # Keep request configuration, credentials and output in this folder.
                 cookie_file = prepare_cookie_file(folder)
                 env = downloader_environment(folder)
                 streaming = 'application/x-ndjson' in self.headers.get('Accept','')

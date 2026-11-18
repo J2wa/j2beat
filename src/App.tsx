@@ -1,3 +1,4 @@
+import { parseAnnotation, serializeAnnotation, isSectionUnsure, type AnnotationSection, type GlobalMetadata } from "./utils/annotationForm";
 import { ManualMode } from './components/ManualMode';
 import { importedAudioExpiresAt } from "../shared/importExpiry";
 import { attachResearch, splitResearch, researchAsMarkdown, type ResearchReport } from "../shared/research";
@@ -7,10 +8,8 @@ import { DEFAULT_MODEL, MODEL_OPTIONS, isModelId, type ModelId } from '../shared
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback, memo } from "react";
 import {
-  Upload,
-  Music,
   FileAudio,
   Settings,
   Play,
@@ -21,16 +20,10 @@ import {
   AlertTriangle,
   Copy,
   Download,
-  Trash2,
   ChevronRight,
-  Volume2,
-  VolumeX,
   RotateCcw,
-  X,
-  User,
-  ShieldCheck,
 } from "lucide-react";
-import { animate, motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { clsx, type ClassValue } from "clsx";
@@ -51,13 +44,63 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+const CopyBadge = memo(({
+  text,
+  label,
+  className,
+  onCopyError,
+}: {
+  text: string;
+  label: string;
+  className?: string;
+  onCopyError: (message: string) => void;
+}) => {
+  const [copied, setCopied] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(timer.current), []);
+
+  const handleCopy = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try { await navigator.clipboard.writeText(text); } catch { onCopyError("Copy failed. Select and copy the annotation manually."); return; }
+    setCopied(true);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <Button
+      onClick={handleCopy}
+      aria-label={label.toLowerCase().startsWith("copy ") ? label : `Copy ${label.toLowerCase()}`}
+      title={copied ? "Copied" : label.toLowerCase().startsWith("copy ") ? label : `Copy ${label.toLowerCase()}`}
+      className={cn(
+        "copy-button",
+        copied
+          ? "bg-green-500/20 text-green-500 border border-green-500/30"
+          : "bg-bg-card text-dim border border-border-dim hover:border-accent/40 hover:text-accent",
+        className,
+      )}
+    >
+      {copied ? (
+        <CheckCircle2 className="w-2 h-2" />
+      ) : (
+        <Copy className="w-2 h-2" />
+      )}
+      {copied ? "Copied" : label}
+    </Button>
+  );
+});
+
+const AnnotationMarkdown = memo(({ text }: { text: string }) => (
+  <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+));
+
 function ResearchContext({ research }: { research?: ResearchReport }) {
   if (!research) return <aside className="research-panel"><h3>Google Search context</h3><p className="small muted">This saved annotation has no research record. Analyze the track again to add sources.</p></aside>;
   const status = research.status === 'grounded' ? 'Sources found' : research.status === 'unverified' ? 'Needs verification' : 'Search unavailable';
   return <aside className="research-panel" aria-label="Google Search research">
     <div className="section-heading"><div><span className="section-eyebrow">Supporting evidence</span><h3>Google Search context</h3></div><span className={`research-status research-status--${research.status}`}>{status}</span></div>
     <p className="research-message">{research.message}</p>
-    {research.summary && <details className="research-findings"><summary>Read research findings</summary><div className="markdown-body research-summary"><ReactMarkdown remarkPlugins={[remarkGfm]}>{research.summary}</ReactMarkdown></div></details>}
+    {research.summary && <details className="research-findings"><summary>Read research findings</summary><div className="markdown-body research-summary"><AnnotationMarkdown text={research.summary} /></div></details>}
     {research.sources.length > 0 && <ol className="research-sources">{research.sources.map(source => <li key={`${source.id}-${source.url}`}><a href={source.url} target="_blank" rel="noopener noreferrer"><span className="source-number">{source.id}</span><span>{source.title}</span><ChevronRight size={16} aria-hidden="true"/></a></li>)}</ol>}
     {research.queries.length > 0 && <details className="research-queries"><summary>Search queries</summary><ul>{research.queries.map((query, i) => <li key={i}>{query}</li>)}</ul></details>}
     {research.searchEntryPoint && <iframe title="Google Search suggestions" className="google-search-suggestions" sandbox="allow-popups allow-popups-to-escape-sandbox" referrerPolicy="no-referrer" srcDoc={`<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src https:; base-uri 'none'; form-action 'none'"><base target="_blank"><style>body{margin:0;padding:4px;background:transparent;color:#dce6f7;font:14px system-ui}a{color:#8ab0ff}</style></head><body>${research.searchEntryPoint}</body></html>`}/>}
@@ -105,12 +148,12 @@ export default function App() {
   const [importProgress,setImportProgress]=useState<{stage:string;percent:number|null}>({stage:'Preparing import',percent:null});
   const [rightsConfirmed,setRightsConfirmed]=useState(false);
   const deletedAudioPaths=useRef(new Set<string>());
-  const saveAnnotation = (text: string, audioFile = file, audioDuration = duration) => {
+  const saveAnnotation = useCallback((text: string, audioFile: File | null, audioDuration: number) => {
     const next = [{id: crypto.randomUUID(), name: audioFile?.name || 'Untitled annotation', text, date: new Date().toISOString(), duration:audioDuration, audioPath:importedSource.current?.path, expiresAt:importedSource.current?.expiresAt, sourceUrl:importedSource.current?.sourceUrl}, ...archive.filter(item => item.text !== IMPORTED_TRACK_NOTE || !deletedAudioPaths.current.has(item.audioPath || ''))
       .map(item=>deletedAudioPaths.current.has(item.audioPath||'')?{...item,audioPath:undefined}:item)].slice(0, 30);
     try { localStorage.setItem('aces_music_archive_v1', JSON.stringify(next)); setArchive(next); }
     catch { setError('Analysis completed, but this browser could not save the archive. Download your result.'); }
-  };
+  }, [archive]);
   const [file, setFile] = useState<File | null>(null);
   const [splitMarkers, setSplitMarkers] = useState<number[]>([]);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -118,7 +161,7 @@ export default function App() {
   const [isHumanizing, setIsHumanizing] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editTab, setEditTab] = useState<"form" | "raw">("form");
-  const [sections, setSections] = useState<any[]>([]);
+  const [sections, setSections] = useState<AnnotationSection[]>([]);
   const [activeSegment, setActiveSegment] = useState<{
     start: number;
     end: number | null;
@@ -145,30 +188,7 @@ export default function App() {
   const [humanizationNotice, setHumanizationNotice] = useState("");
   const proseFields = useMemo(()=>musicProseFields(result || ""),[result]);
   const { annotation: annotationText, research, audioQaIncomplete } = useMemo(() => splitResearch(result || ""), [result]);
-  const [globalMetadata, setGlobalMetadata] = useState<{
-    genreEraSceneTags?: string;
-    genreEraScene?: string;
-    tempoRhythmGrooveTags?: string;
-    tempoRhythmGroove?: string;
-    harmonyChordsKeyTags?: string;
-    harmonyChordsKey?: string;
-    instrumentationTags?: string;
-    instrumentation?: string;
-    playingStyleTags?: string;
-    playingStyle?: string;
-    wowFactorTags?: string;
-    wowFactor?: string;
-    emotionVibeSettingTags?: string;
-    emotionVibeSetting?: string;
-    mixTags?: string;
-    mix?: string;
-    fidelityTags?: string;
-    fidelity?: string;
-    vocalTags?: string;
-    vocal?: string;
-    lyricsTags?: string;
-    lyrics?: string;
-  }>({});
+  const [globalMetadata, setGlobalMetadata] = useState<GlobalMetadata>({});
   const [credits, setCredits] = useState<number>(() => {
     const getLast8AMPHT = () => {
       const now = new Date();
@@ -231,220 +251,30 @@ export default function App() {
     return () => window.clearInterval(timer);
   }, [isProcessing, isRefining]);
   const [error, setError] = useState<string | null>(null);
-  const [dragActive, setDragActive] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
 
-  const cleanMelodyType = (text: string) => {
-    if (!text) return "";
-    const cleaned = text.trim();
-    const lower = cleaned.toLowerCase().replace(/\.$/, ""); // remove trailing period for check
-    if (
-      lower === "" ||
-      lower === "none" ||
-      lower === "n/a" ||
-      lower === "absent" ||
-      lower === "not applicable" ||
-      lower === "no melody" ||
-      lower === "no prominent melody" ||
-      lower === "no melody specified" ||
-      lower === "none specified"
-    ) {
-      return "";
-    }
-    return cleaned;
-  };
+  useEffect(() => {
+    return () => { if (audioUrl) URL.revokeObjectURL(audioUrl); };
+  }, [audioUrl]);
 
-  const parseSections = (text: string) => {
-    text = splitResearch(text).annotation;
-    let sectionBlocks = text.split(/Timeline Sections/i)[1] || text;
-    const splitIndex = sectionBlocks.search(/Global Musical Matrix|Global Analysis|1\.\s*Genre/i);
-    if (splitIndex !== -1) {
-      sectionBlocks = sectionBlocks.substring(0, splitIndex);
-    }
-    const items = sectionBlocks
-      .split(/^(?:-\s*)?(?:\*\*)?Start Time:?(?:\*\*)?\s*/im)
-      .filter((s) => s.trim());
-
-    // Helper to safely extract a field that might span multiple lines until the next common field header
-    const extractSectionField = (str: string, fieldName: string) => {
-      const lines = str.split("\n");
-      const escapedFieldName = fieldName.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&");
-      const regex = new RegExp(`^\\s*(?:-\\s*)?(?:\\*\\*)?${escapedFieldName}:?(?:\\*\\*)?\\s*(.*)`, "i");
-      
-      let foundIndex = -1;
-      let fieldValue = "";
-      
-      for (let i = 0; i < lines.length; i++) {
-        const match = lines[i].match(regex);
-        if (match) {
-          foundIndex = i;
-          fieldValue = match[1];
-          break;
-        }
-      }
-      
-      if (foundIndex === -1) return "";
-      
-      const nextFieldRegex = /^\s*(?:-\s*)?(?:\*\*)?(?:Start Time|Section Type|Narrative Description|Instruments|Vibe Tags|Melody|Tempo|Key|Description|Vibe)[\s:]/i;
-      const collectedLines = [fieldValue];
-      
-      for (let i = foundIndex + 1; i < lines.length; i++) {
-        if (nextFieldRegex.test(lines[i])) {
-          break;
-        }
-        collectedLines.push(lines[i]);
-      }
-      
-      return collectedLines.join("\n").replace(/^\*\*|\*\*$/g, "").trim();
-    };
-
-    const parsed = items.map((item, index) => {
-      const timeMatch = item.match(/\[?(\d{1,2}:\d{2})\]?/);
-      let instruments = extractSectionField(item, "Instruments");
-
-      const type = extractSectionField(item, "Section Type") || "Unknown";
-      const description =
-        extractSectionField(item, "Narrative Description") ||
-        extractSectionField(item, "Description");
-      const vibe =
-        extractSectionField(item, "Vibe Tags") ||
-        extractSectionField(item, "Vibe");
-      const melodyRaw = extractSectionField(item, "Melody");
-      const melody = cleanMelodyType(melodyRaw);
-
-      // Heuristic for uncertainty: search for question marks or specific keywords
-      const isUnsure =
-        instruments.includes("?") ||
-        /likely|possibly|maybe|unsure|uncertain/i.test(instruments) ||
-        /likely|possibly|maybe|unsure|uncertain/i.test(description);
-
-      return {
-        startTime: timeMatch ? timeMatch[1] : "00:00",
-        type,
-        description,
-        instruments,
-        vibe,
-        melody,
-        isUnsure,
-        fullText: item,
-      };
-    });
-
-    const globalBlock = text.split(/Global Musical Matrix|Global Analysis/i)[1] || text;
-    const globalLabels = ["Genre, Era & Scene Tags", "Genre, Era & Scene", "Tempo, Rhythm & Groove Tags", "Tempo, Rhythm & Groove", "Harmony, Chords & Key Tags", "Harmony, Chords & Key", "Instrumentation Tags", "Instrumentation", "Playing Style Tags", "Playing Style", "Wow Factor Tags", "Wow Factor", "Emotion, Vibe & Setting Tags", "Emotion, Vibe & Setting", "Mix & Production Tags", "Mix & Production", "Sonic Fidelity Tags", "Sonic Fidelity", "Vocal Expression Tags", "Vocal Expression", "Lyrical Evocation Tags", "Lyrical Evocation", "Song title", "Song by", "Performing Artists"];
-    const extractGlobal = (key: string) => {
-      const lines = globalBlock.split("\n");
-      const normalizeHeader = (line: string) => line.trim().replace(/^(?:[-*]\s+|\d+\.\s*)/, "").replace(/\*\*/g, "");
-      const start = lines.findIndex(line => normalizeHeader(line).startsWith(`${key}:`));
-      if (start < 0) return "";
-      const first = normalizeHeader(lines[start]).slice(key.length + 1).trim();
-      const values = [first];
-      for (let i = start + 1; i < lines.length; i++) {
-        if (globalLabels.some(label => normalizeHeader(lines[i]).startsWith(`${label}:`))) break;
-        values.push(lines[i]);
-      }
-      return values.join("\n").trim();
-    };
-
-    setGlobalMetadata({
-      genreEraSceneTags: extractGlobal("Genre, Era & Scene Tags"),
-      genreEraScene: extractGlobal("Genre, Era & Scene"),
-      tempoRhythmGrooveTags: extractGlobal("Tempo, Rhythm & Groove Tags"),
-      tempoRhythmGroove: extractGlobal("Tempo, Rhythm & Groove"),
-      harmonyChordsKeyTags: extractGlobal("Harmony, Chords & Key Tags"),
-      harmonyChordsKey: extractGlobal("Harmony, Chords & Key"),
-      instrumentationTags: extractGlobal("Instrumentation Tags"),
-      instrumentation: extractGlobal("Instrumentation"),
-      playingStyleTags: extractGlobal("Playing Style Tags"),
-      playingStyle: extractGlobal("Playing Style"),
-      wowFactorTags: extractGlobal("Wow Factor Tags"),
-      wowFactor: extractGlobal("Wow Factor"),
-      emotionVibeSettingTags: extractGlobal("Emotion, Vibe & Setting Tags"),
-      emotionVibeSetting: extractGlobal("Emotion, Vibe & Setting"),
-      mixTags: extractGlobal("Mix & Production Tags"),
-      mix: extractGlobal("Mix & Production"),
-      fidelityTags: extractGlobal("Sonic Fidelity Tags"),
-      fidelity: extractGlobal("Sonic Fidelity"),
-      vocalTags: extractGlobal("Vocal Expression Tags"),
-      vocal: extractGlobal("Vocal Expression"),
-      lyricsTags: extractGlobal("Lyrical Evocation Tags"),
-      lyrics: extractGlobal("Lyrical Evocation"),
-    });
-
-    setSections(parsed);
-  };
-
-  const serializeAnnotation = (currentSections: any[], currentMetadata: typeof globalMetadata) => {
-    let text = "Timeline Sections\n\n";
-    currentSections.forEach((s) => {
-      text += `- **Start Time:** ${s.startTime || "00:00"}\n`;
-      text += `- **Section Type:** ${s.type || ""}\n`;
-      text += `- **Narrative Description:** ${s.description || ""}\n`;
-      text += `- **Instruments:** ${s.instruments || ""}\n`;
-      text += `- **Vibe Tags:** ${s.vibe || ""}\n`;
-      text += `- **Melody:** ${s.melody || ""}\n\n`;
-    });
-
-    text += "Global Musical Matrix\n";
-    text += `1. Genre, Era & Scene Tags: ${currentMetadata.genreEraSceneTags || ""}\n`;
-    text += `2. Genre, Era & Scene: ${currentMetadata.genreEraScene || ""}\n`;
-    text += `3. Tempo, Rhythm & Groove Tags: ${currentMetadata.tempoRhythmGrooveTags || ""}\n`;
-    text += `4. Tempo, Rhythm & Groove: ${currentMetadata.tempoRhythmGroove || ""}\n`;
-    text += `5. Harmony, Chords & Key Tags: ${currentMetadata.harmonyChordsKeyTags || ""}\n`;
-    text += `6. Harmony, Chords & Key: ${currentMetadata.harmonyChordsKey || ""}\n`;
-    text += `7. Instrumentation Tags: ${currentMetadata.instrumentationTags || ""}\n`;
-    text += `8. Instrumentation: ${currentMetadata.instrumentation || ""}\n`;
-    text += `9. Playing Style Tags: ${currentMetadata.playingStyleTags || ""}\n`;
-    text += `10. Playing Style: ${currentMetadata.playingStyle || ""}\n`;
-    text += `11. Wow Factor Tags: ${currentMetadata.wowFactorTags || ""}\n`;
-    text += `12. Wow Factor: ${currentMetadata.wowFactor || ""}\n`;
-    text += `13. Emotion, Vibe & Setting Tags: ${currentMetadata.emotionVibeSettingTags || ""}\n`;
-    text += `14. Emotion, Vibe & Setting: ${currentMetadata.emotionVibeSetting || ""}\n`;
-    text += `15. Mix & Production Tags: ${currentMetadata.mixTags || ""}\n`;
-    text += `16. Mix & Production: ${currentMetadata.mix || ""}\n`;
-    text += `17. Sonic Fidelity Tags: ${currentMetadata.fidelityTags || ""}\n`;
-    text += `18. Sonic Fidelity: ${currentMetadata.fidelity || ""}\n`;
-    text += `19. Vocal Expression Tags: ${currentMetadata.vocalTags || ""}\n`;
-    text += `20. Vocal Expression: ${currentMetadata.vocal || ""}\n`;
-    text += `21. Lyrical Evocation Tags: ${currentMetadata.lyricsTags || ""}\n`;
-    text += `22. Lyrical Evocation: ${currentMetadata.lyrics || ""}\n`;
-
-    return attachResearch(text.trim(), research, audioQaIncomplete);
-  };
+  const parseSections = useCallback((text: string) => {
+    const parsed = parseAnnotation(text);
+    setSections(parsed.sections);
+    setGlobalMetadata(parsed.globalMetadata);
+  }, []);
 
   const handleToggleEditing = () => {
     setHumanizationNotice("");
     if (isEditing) {
-      if (editTab === "raw") {
-        parseSections(result || "");
-      } else {
-        const serialized = serializeAnnotation(sections, globalMetadata);
-        setResult(serialized);
-        parseSections(serialized);
-      }
+      const text = editTab === "raw"
+        ? result || ""
+        : serializeAnnotation(sections, globalMetadata, research, audioQaIncomplete);
+      setResult(text);
+      parseSections(text);
+      saveAnnotation(text, file, duration);
       setIsEditing(false);
     } else {
       setIsEditing(true);
-    }
-  };
-
-  const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActive(true);
-    } else if (e.type === "dragleave") {
-      setDragActive(false);
-    }
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFileSelection(e.dataTransfer.files[0]);
     }
   };
 
@@ -458,7 +288,6 @@ export default function App() {
       audioRef.current?.pause();
       setCurrentTime(0); setDuration(0); setIsPlaying(false); setActiveSegment(null);
       setFile(selectedFile);
-      if (audioUrl) URL.revokeObjectURL(audioUrl);
       setSplitMarkers([]);
       setAudioUrl(URL.createObjectURL(selectedFile));
       setResult(null);
@@ -497,7 +326,7 @@ export default function App() {
       items.push(`- Instruments Used: ${accurateData.instruments.trim()}`);
     }
     if (accurateData.vocals.trim()) {
-      items.push(`- Vocals Identity: ${accurateData.vocals.trim()}`);
+      items.push(`- Audible vocal qualities: ${accurateData.vocals.trim()}`);
     }
     return items.join("\n");
   };
@@ -537,7 +366,7 @@ export default function App() {
         duration,
         selectedModel,
       );
-      saveAnnotation(draft); // Keep a completed draft if the page closes during the wording pass.
+      saveAnnotation(draft, file, duration); // Keep a completed draft if the page closes during the wording pass.
       setAnalysisStage("Humanizing wording");
       const polished = await automaticallyHumanize(draft,selectedModel);
       const annotation = polished.text;
@@ -553,7 +382,7 @@ export default function App() {
           deletedAudioPaths.current.add(savedPath);
         }catch{setError('Annotation completed, but stored audio cleanup failed. Analyze again to retry cleanup.');}
       }
-      saveAnnotation(annotation);
+      saveAnnotation(annotation, file, duration);
       parseSections(annotation);
       playNotificationSound();
     } catch (err) {
@@ -630,10 +459,10 @@ export default function App() {
     }catch(error){setError(error instanceof Error?error.message:'Could not open saved audio.');}
   };
 
-  const applyWordingResult = (text:string) => {
+  const applyWordingResult = useCallback((text:string) => {
     setHumanizationNotice("");
-    setResult(text);parseSections(text);saveAnnotation(text);
-  };
+    setResult(text);parseSections(text);saveAnnotation(text, file, duration);
+  }, [parseSections, saveAnnotation, file, duration]);
 
   const handleRefine = async () => {
     if (!file || !result || !userFeedback.trim() || isProcessing || isRefining || isHumanizing) return;
@@ -656,14 +485,14 @@ export default function App() {
         duration,
         selectedModel,
       );
-      saveAnnotation(draft); // Keep a completed draft if the page closes during the wording pass.
+      saveAnnotation(draft, file, duration); // Keep a completed draft if the page closes during the wording pass.
       setAnalysisStage("Humanizing wording");
       const polished = await automaticallyHumanize(draft,selectedModel);
       const refinedAnnotation = polished.text;
       setHumanizationNotice(polished.notice);
       setCredits((prev) => prev - REFINE_COST);
       setResult(refinedAnnotation);
-      saveAnnotation(refinedAnnotation);
+      saveAnnotation(refinedAnnotation, file, duration);
       parseSections(refinedAnnotation);
       setUserFeedback("");
       playNotificationSound();
@@ -681,54 +510,11 @@ export default function App() {
     }
   };
 
-  const CopyBadge = ({
-    text,
-    label,
-    className,
-  }: {
-    text: string;
-    label: string;
-    className?: string;
-  }) => {
-    const [copied, setCopied] = useState(false);
-
-    const handleCopy = async (e: React.MouseEvent) => {
-      e.stopPropagation();
-      try { await navigator.clipboard.writeText(text); } catch { setError("Copy failed. Select and copy the annotation manually."); return; }
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    };
-
-    return (
-      <Button
-        onClick={handleCopy}
-        aria-label={label.toLowerCase().startsWith("copy ") ? label : `Copy ${label.toLowerCase()}`}
-        title={copied ? "Copied" : label.toLowerCase().startsWith("copy ") ? label : `Copy ${label.toLowerCase()}`}
-        className={cn(
-          "copy-button",
-          copied
-            ? "bg-green-500/20 text-green-500 border border-green-500/30"
-            : "bg-bg-card text-dim border border-border-dim hover:border-accent/40 hover:text-accent",
-          className,
-        )}
-      >
-        {copied ? (
-          <CheckCircle2 className="w-2 h-2" />
-        ) : (
-          <Copy className="w-2 h-2" />
-        )}
-        {copied ? "Copied" : label}
-      </Button>
-    );
-  };
-
   const reset = () => {
     importedSource.current = null;
     audioRef.current?.pause();
-    if(audioUrl) URL.revokeObjectURL(audioUrl);
     setCurrentTime(0); setDuration(0); setIsPlaying(false); setActiveSegment(null);
     setFile(null);
-    if (audioUrl) URL.revokeObjectURL(audioUrl);
     setSplitMarkers([]);
     setAudioUrl(null);
     setResult(null);
@@ -745,7 +531,7 @@ export default function App() {
     return 0;
   };
 
-  const seekAndPlaySegment = (index: number) => {
+  const seekAndPlaySegment = useCallback((index: number) => {
     if (audioRef.current) {
       const currentSection = sections[index];
       const nextSection = sections[index + 1];
@@ -764,7 +550,7 @@ export default function App() {
         audioRef.current.play().catch(() => setError("Playback could not start. Try another audio file."));
       }
     }
-  };
+  }, [sections, activeSegment?.index]);
 
   const handleTimeUpdate = () => {
     if (audioRef.current) {
@@ -800,14 +586,7 @@ export default function App() {
     }
   };
 
-  const handleProgressBarClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (audioRef.current && duration) {
-      const rect = e.currentTarget.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const percentage = Math.max(0, Math.min(1, x / rect.width));
-      audioRef.current.currentTime = percentage * duration;
-    }
-  };
+
 
   useEffect(() => {
     if (audioRef.current) {
@@ -815,10 +594,326 @@ export default function App() {
     }
   }, [volume, audioUrl]);
 
-  const toggleMute = () => {
-    setVolume((v) => (v === 0 ? 1 : 0));
-  };
 
+
+
+  const revisionBusy = isProcessing || isRefining || isHumanizing || importing;
+  const matrixView = useMemo(() => result && !isEditing ? (
+    <div className="matrix-section">
+      <div className="section-heading">
+        <h2 className="text-xs uppercase tracking-wide text-accent font-bold mb-0">
+          Global Musical Matrix
+        </h2>
+        <CopyBadge onCopyError={setError}
+          text={JSON.stringify(globalMetadata, null, 2)}
+          label="Copy JSON"
+        />
+      </div>
+
+      <div className="matrix-grid">
+        {[
+          {
+            category: "Genre, Era & Scene",
+            tags: globalMetadata.genreEraSceneTags,
+            desc: globalMetadata.genreEraScene,
+            id: "genreEraScene",
+          },
+          {
+            category: "Tempo, Rhythm & Groove",
+            tags: globalMetadata.tempoRhythmGrooveTags,
+            desc: globalMetadata.tempoRhythmGroove,
+            id: "tempoRhythmGroove",
+          },
+          {
+            category: "Harmony, Chords & Key",
+            tags: globalMetadata.harmonyChordsKeyTags,
+            desc: globalMetadata.harmonyChordsKey,
+            id: "harmonyChordsKey",
+          },
+          {
+            category: "Instrumentation",
+            tags: globalMetadata.instrumentationTags,
+            desc: globalMetadata.instrumentation,
+            id: "instrumentation",
+          },
+          {
+            category: "Playing Style",
+            tags: globalMetadata.playingStyleTags,
+            desc: globalMetadata.playingStyle,
+            id: "playingStyle",
+          },
+          {
+            category: "Wow Factor",
+            tags: globalMetadata.wowFactorTags,
+            desc: globalMetadata.wowFactor,
+            id: "wowFactor",
+          },
+          {
+            category: "Emotion, Vibe & Setting",
+            tags: globalMetadata.emotionVibeSettingTags,
+            desc: globalMetadata.emotionVibeSetting,
+            id: "emotionVibeSetting",
+          },
+          {
+            category: "Mix & Production",
+            tags: globalMetadata.mixTags,
+            desc: globalMetadata.mix,
+            id: "mix",
+          },
+          {
+            category: "Sonic Fidelity",
+            tags: globalMetadata.fidelityTags,
+            desc: globalMetadata.fidelity,
+            id: "fidelity",
+          },
+          {
+            category: "Vocal Expression",
+            tags: globalMetadata.vocalTags,
+            desc: globalMetadata.vocal,
+            id: "vocal",
+          },
+          {
+            category: "Lyrical Evocation",
+            tags: globalMetadata.lyricsTags,
+            desc: globalMetadata.lyrics,
+            id: "lyrics",
+          },
+        ].map(
+          (item) =>
+            (item.tags || item.desc) && (
+              <div
+                key={item.id}
+                className="matrix-card"
+              >
+                <div className="flex justify-between items-center mb-1 pb-1 border-b border-border-dim">
+                  <h4 className="text-sm font-bold uppercase tracking-[0.2em] text-accent">
+                    {item.category}
+                  </h4>
+                </div>
+
+                {item.tags && (
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-black uppercase tracking-[0.15em] text-primary">
+                        Tags
+                      </span>
+                      <CopyBadge onCopyError={setError}
+                        text={item.tags}
+                        label="Tags"
+                        className="bg-accent/10 border-accent/20 text-accent hover:bg-accent hover:text-bg-main text-sm px-2 py-0.5"
+                      />
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {item.tags
+                        .split(",")
+                        .map((t) => t.trim())
+                        .filter(Boolean)
+                        .map((tag, i) => (
+                          <span
+                            key={i}
+                            className="text-sm font-mono font-bold tracking-tight bg-accent/5 hover:bg-accent/10 text-accent/80 border border-accent/25 px-2 py-0.5 rounded-full transition-colors uppercase"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                    </div>
+                  </div>
+                )}
+
+                {item.desc && (
+                  <div className={cn("space-y-2", item.tags ? "mt-3 border-t border-white/[0.03] pt-3" : "")}>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-black uppercase tracking-[0.15em] text-primary">
+                        Description
+                      </span>
+                      <CopyBadge onCopyError={setError}
+                        text={item.desc}
+                        label="Description"
+                        className="bg-accent/10 border-accent/20 text-accent hover:bg-accent hover:text-bg-main text-sm px-2 py-0.5"
+                      />
+                    </div>
+                    <div className="text-xs text-primary font-medium leading-relaxed markdown-body mt-1">
+                      <AnnotationMarkdown text={item.desc} />
+                    </div>
+                    <DescriptionRevision source={result} fieldId={proseFields.find(field=>field.label===item.category)?.id} label={item.category} model={selectedModel} disabled={revisionBusy} onBusy={setIsHumanizing} onApply={applyWordingResult} />
+                  </div>
+                )}
+              </div>
+            ),
+        )}
+      </div>
+    </div>
+  ) : null, [result, isEditing, globalMetadata, proseFields, selectedModel, revisionBusy, applyWordingResult]);
+
+  const timelineView = useMemo(() => result && !isEditing && (
+    sections.length > 0 && (
+      <div className="space-y-4">
+        <div className="section-heading">
+          <h2 className="text-xs uppercase tracking-wide text-accent font-bold mb-0 flex items-center gap-4">
+            Timeline Segmentation
+          </h2>
+          <div className="section-actions">
+            <CopyBadge onCopyError={setError}
+              text={sections
+                .map(
+                  (s) =>
+                    `[${s.startTime}] ${s.type}: ${s.description}`,
+                )
+                .join("\n")}
+              label="Copy All Segments"
+            />
+            <span className="text-sm font-mono text-dim uppercase tracking-widest">
+              {sections.length} segments
+            </span>
+          </div>
+        </div>
+        <div className="grid gap-3">
+          {sections.map((section, idx) => (
+            <motion.div
+              key={idx}
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: idx * 0.05 }}
+              className="segment-card group"
+            >
+              <div className="flex flex-col items-center gap-2">
+                <span className="mono text-sm text-accent font-bold mb-1">
+                  {section.startTime}
+                </span>
+                <Button
+                  aria-label={`${activeSegment?.index === idx && isPlaying ? "Pause" : "Play"} segment ${idx + 1}`}
+                  disabled={!audioUrl}
+                  onClick={() => seekAndPlaySegment(idx)}
+                  className={cn(
+                    "w-10 h-10 rounded-full flex items-center justify-center transition-all group-hover:scale-110 active:scale-95",
+                    activeSegment?.index === idx && isPlaying
+                      ? "bg-accent text-bg-main"
+                      : "bg-accent/10 text-accent hover:bg-accent hover:text-bg-main",
+                  )}
+                >
+                  {activeSegment?.index === idx &&
+                  isPlaying ? (
+                    <Pause size={14} fill="currentColor" />
+                  ) : (
+                    <Play size={14} fill="currentColor" />
+                  )}
+                </Button>
+              </div>
+              <div className="segment-body space-y-2">
+                <div className="segment-heading">
+                  <div className="segment-title">
+                    <h4 className="text-sm font-bold text-primary uppercase tracking-wider">
+                      {section.type}
+                    </h4>
+                    {section.isUnsure && (
+                      <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-accent/5 border border-accent/25 text-accent text-sm font-bold uppercase tracking-widest animate-pulse">
+                        <AlertCircle className="w-2.5 h-2.5" />{" "}
+                        Identity uncertain
+                      </div>
+                    )}
+                    {(() => {
+                      const startSec = parseTimeToSeconds(
+                        section.startTime,
+                      );
+                      const nextSec = sections[idx + 1]
+                        ? parseTimeToSeconds(
+                            sections[idx + 1].startTime,
+                          )
+                        : duration;
+                      const segmentDuration =
+                        nextSec > startSec
+                          ? nextSec - startSec
+                          : 0;
+                      if (segmentDuration > 50) {
+                        return (
+                          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/20 text-rose-500 text-sm font-bold uppercase tracking-widest animate-pulse">
+                            <AlertTriangle className="w-2.5 h-2.5" />{" "}
+                            LONG SEGMENT PLEASE SPLIT
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </div>
+                  {section.vibe && (
+                    <span className="text-sm px-2 py-0.5 rounded bg-accent/10 text-accent/80 border border-accent/20">
+                      {section.vibe}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-primary leading-relaxed font-medium">
+                  {section.description}
+                </p>
+                <DescriptionRevision source={result} fieldId={proseFields.find(field=>field.label===`Section ${idx+1}: Narrative Description` || field.label===`Section ${idx+1}: Description`)?.id} label={`Segment ${idx+1} at ${section.startTime}`} model={selectedModel} disabled={revisionBusy} onBusy={setIsHumanizing} onApply={applyWordingResult} />
+                {section.melody && (
+                  <div className="bg-bg-card p-3 rounded border-l-2 border-accent/20 relative group/melody">
+                    <p className="text-sm uppercase text-accent/60 font-bold mb-1 tracking-wider">
+                      Melody
+                    </p>
+                    <p className="text-sm text-primary italic">
+                      {section.melody}
+                    </p>
+                  </div>
+                )}
+                <div className="pt-2 flex flex-wrap gap-2 items-center">
+                  {section.instruments
+                    .split(",")
+                    .filter((inst: string) => inst.trim())
+                    .map((inst: string, i: number) => {
+                      return (
+                        <div
+                          key={i}
+                          className="flex items-center gap-1"
+                        >
+                          <span className="text-sm text-dim uppercase tracking-tighter border border-border-dim px-1.5 py-0.5 rounded bg-bg-card">
+                            {inst.trim()}
+                          </span>
+                        </div>
+                      );
+                    })}
+                </div>
+
+                <div className="pt-3 mt-3 border-t border-border-dim flex flex-wrap gap-2 items-center">
+                  <span className="text-sm uppercase tracking-widest text-primary font-bold mr-1">
+                    Copy:
+                  </span>
+                  <CopyBadge onCopyError={setError}
+                    text={section.startTime}
+                    label="Time"
+                  />
+                  <CopyBadge onCopyError={setError}
+                    text={section.description}
+                    label="Description"
+                  />
+                  <CopyBadge onCopyError={setError}
+                    text={
+                      section.instruments.endsWith(",")
+                        ? section.instruments
+                        : `${section.instruments}${section.instruments ? "," : ""}`
+                    }
+                    label="Instruments"
+                  />
+                  {section.vibe && (
+                    <CopyBadge onCopyError={setError}
+                      text={section.vibe}
+                      label="Vibe"
+                    />
+                  )}
+                  {section.melody && (
+                    <CopyBadge onCopyError={setError}
+                      text={section.melody}
+                      label="Melody"
+                    />
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+    )
+  ), [result, isEditing, sections, duration, activeSegment?.index, isPlaying, audioUrl,
+      seekAndPlaySegment, proseFields, selectedModel, revisionBusy, applyWordingResult]);
 
   return (
     <div className="app-shell">
@@ -1055,7 +1150,7 @@ export default function App() {
                         <Button
                           disabled={isHumanizing}
                           onClick={() => {
-                            setResult(serializeAnnotation(sections, globalMetadata));
+                            if (editTab === "form") setResult(serializeAnnotation(sections, globalMetadata, research, audioQaIncomplete));
                             setEditTab("raw");
                           }}
                           className={cn(
@@ -1081,6 +1176,48 @@ export default function App() {
                         </div>
                       ) : (
                         <div className="matrix-editor">
+                          <h2>Timeline Segmentation</h2>
+                          {sections.map((section, index) => (
+                            <section className="matrix-editor-card" key={index} aria-label={`Edit segment ${index + 1}`}>
+                              <h3>Segment {index + 1}</h3>
+                              {([
+                                ["startTime", "Start time"], ["type", "Section type"],
+                                ["description", "Narrative description"], ["instruments", "Instruments"],
+                                ["vibe", "Vibe tags"], ["melody", "Melody"],
+                              ] as const).map(([key, label]) => {
+                                const change = (value: string) => setSections(previous => previous.map((item, i) => {
+                                  if (i !== index) return item;
+                                  const next = { ...item, [key]: value };
+                                  return { ...next, isUnsure: isSectionUnsure(next.instruments, next.description) };
+                                }));
+                                const props = {
+                                  value: section[key], disabled: revisionBusy,
+                                  className: "w-full bg-bg-card border border-border-dim rounded px-4 py-2.5 text-sm",
+                                  onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => change(event.target.value),
+                                };
+                                return (
+                                  <div key={key}>
+                                    <label className="editor-label block">
+                                      {label}
+                                      {key === "description" ? <textarea {...props} rows={4} /> : <input {...props} />}
+                                    </label>
+                                    {key === "description" && (
+                                      <DescriptionRevision
+                                        source={`- **Start Time:** ${section.startTime}\n- **Narrative Description:** ${section.description}`}
+                                        fieldId="f0" label={`Segment ${index + 1} at ${section.startTime}`}
+                                        model={selectedModel} disabled={revisionBusy} onBusy={setIsHumanizing}
+                                        onApply={text => {
+                                          const field = musicProseFields(text)[0];
+                                          if (field) change(field.text);
+                                        }}
+                                      />
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </section>
+                          ))}
+                          <h2>Global Musical Matrix</h2>
                           {[
                             {
                               id: "genreEraScene",
@@ -1112,7 +1249,7 @@ export default function App() {
                               tagLabel: "Harmony, Chords & Key Tags *",
                               descLabel: "Harmony, Chords & Key *",
                               tagPlaceholder: "Examples: repeating chords, blues chords, bright, tense (comma-separated)",
-                              descPlaceholder: "Describe the key, chords, harmonic progression, or harmonic feel...",
+                              descPlaceholder: "Describe tonal stability, chord movement, harmonic color, and tension...",
                               help: "Do the chords repeat or change? Do they sound bright, dark, tense, or relaxed? Avoid guessing an exact key or chord sequence."
                             },
                             {
@@ -1189,7 +1326,7 @@ export default function App() {
                               tagLabel: "Vocal Expression Tags *",
                               descLabel: "Vocal Expression *",
                               tagPlaceholder: "Examples: raspy, breathy, soft, shouting, spoken, harmonies (comma-separated)",
-                              descPlaceholder: "Describe the vocal performance, delivery style, timbre, and processing...",
+                              descPlaceholder: "Describe audible register, pitch range, timbre, phrasing, and delivery...",
                               help: "Is the voice raspy, breathy, soft, loud, spoken, or layered with harmonies? Use N/A if there is no voice."
                             },
                             {
@@ -1282,7 +1419,7 @@ export default function App() {
                           <textarea
                             aria-label="Correction instructions" value={userFeedback}
                             onChange={(e) => setUserFeedback(e.target.value)}
-                            placeholder="Describe any inaccuracies in instrumentation, segmentation, or vocal gender (e.g., 'The section at 1:15 is actually a bridge, and the vocal is female'...)"
+                            placeholder="Describe what to correct, such as a bridge starting at 1:15 or a shift to a higher vocal register."
                             className="w-full bg-bg-main/50 border border-border-dim rounded p-4 text-xs text-primary focus:outline-none focus:border-accent/30 min-h-[80px] resize-none"
                             disabled={isRefining}
                           />
@@ -1322,331 +1459,20 @@ export default function App() {
 
                       <ResearchContext research={research} />
 
-                      {/* Global Analysis Matrix */}
-                      <div className="matrix-section">
-                        <div className="section-heading">
-                          <h2 className="text-xs uppercase tracking-wide text-accent font-bold mb-0">
-                            Global Musical Matrix
-                          </h2>
-                          <CopyBadge
-                            text={JSON.stringify(globalMetadata, null, 2)}
-                            label="Copy JSON"
-                          />
-                        </div>
-
-                        <div className="matrix-grid">
-                          {[
-                            {
-                              category: "Genre, Era & Scene",
-                              tags: globalMetadata.genreEraSceneTags,
-                              desc: globalMetadata.genreEraScene,
-                              id: "genreEraScene",
-                            },
-                            {
-                              category: "Tempo, Rhythm & Groove",
-                              tags: globalMetadata.tempoRhythmGrooveTags,
-                              desc: globalMetadata.tempoRhythmGroove,
-                              id: "tempoRhythmGroove",
-                            },
-                            {
-                              category: "Harmony, Chords & Key",
-                              tags: globalMetadata.harmonyChordsKeyTags,
-                              desc: globalMetadata.harmonyChordsKey,
-                              id: "harmonyChordsKey",
-                            },
-                            {
-                              category: "Instrumentation",
-                              tags: globalMetadata.instrumentationTags,
-                              desc: globalMetadata.instrumentation,
-                              id: "instrumentation",
-                            },
-                            {
-                              category: "Playing Style",
-                              tags: globalMetadata.playingStyleTags,
-                              desc: globalMetadata.playingStyle,
-                              id: "playingStyle",
-                            },
-                            {
-                              category: "Wow Factor",
-                              tags: globalMetadata.wowFactorTags,
-                              desc: globalMetadata.wowFactor,
-                              id: "wowFactor",
-                            },
-                            {
-                              category: "Emotion, Vibe & Setting",
-                              tags: globalMetadata.emotionVibeSettingTags,
-                              desc: globalMetadata.emotionVibeSetting,
-                              id: "emotionVibeSetting",
-                            },
-                            {
-                              category: "Mix & Production",
-                              tags: globalMetadata.mixTags,
-                              desc: globalMetadata.mix,
-                              id: "mix",
-                            },
-                            {
-                              category: "Sonic Fidelity",
-                              tags: globalMetadata.fidelityTags,
-                              desc: globalMetadata.fidelity,
-                              id: "fidelity",
-                            },
-                            {
-                              category: "Vocal Expression",
-                              tags: globalMetadata.vocalTags,
-                              desc: globalMetadata.vocal,
-                              id: "vocal",
-                            },
-                            {
-                              category: "Lyrical Evocation",
-                              tags: globalMetadata.lyricsTags,
-                              desc: globalMetadata.lyrics,
-                              id: "lyrics",
-                            },
-                          ].map(
-                            (item) =>
-                              (item.tags || item.desc) && (
-                                <div
-                                  key={item.id}
-                                  className="matrix-card"
-                                >
-                                  <div className="flex justify-between items-center mb-1 pb-1 border-b border-border-dim">
-                                    <h4 className="text-sm font-bold uppercase tracking-[0.2em] text-accent">
-                                      {item.category}
-                                    </h4>
-                                  </div>
-
-                                  {item.tags && (
-                                    <div className="space-y-2">
-                                      <div className="flex justify-between items-center">
-                                        <span className="text-sm font-black uppercase tracking-[0.15em] text-primary">
-                                          Tags
-                                        </span>
-                                        <CopyBadge
-                                          text={item.tags}
-                                          label="Tags"
-                                          className="bg-accent/10 border-accent/20 text-accent hover:bg-accent hover:text-bg-main text-sm px-2 py-0.5"
-                                        />
-                                      </div>
-                                      <div className="flex flex-wrap gap-1.5">
-                                        {item.tags
-                                          .split(",")
-                                          .map((t) => t.trim())
-                                          .filter(Boolean)
-                                          .map((tag, i) => (
-                                            <span
-                                              key={i}
-                                              className="text-sm font-mono font-bold tracking-tight bg-accent/5 hover:bg-accent/10 text-accent/80 border border-accent/25 px-2 py-0.5 rounded-full transition-colors uppercase"
-                                            >
-                                              {tag}
-                                            </span>
-                                          ))}
-                                      </div>
-                                    </div>
-                                  )}
-
-                                  {item.desc && (
-                                    <div className={cn("space-y-2", item.tags ? "mt-3 border-t border-white/[0.03] pt-3" : "")}>
-                                      <div className="flex justify-between items-center">
-                                        <span className="text-sm font-black uppercase tracking-[0.15em] text-primary">
-                                          Description
-                                        </span>
-                                        <CopyBadge
-                                          text={item.desc}
-                                          label="Description"
-                                          className="bg-accent/10 border-accent/20 text-accent hover:bg-accent hover:text-bg-main text-sm px-2 py-0.5"
-                                        />
-                                      </div>
-                                      <div className="text-xs text-primary font-medium leading-relaxed markdown-body mt-1">
-                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{item.desc}</ReactMarkdown>
-                                      </div>
-                                      <DescriptionRevision source={result} fieldId={proseFields.find(field=>field.label===item.category)?.id} label={item.category} model={selectedModel} disabled={isProcessing || isRefining || isHumanizing || importing} onBusy={setIsHumanizing} onApply={applyWordingResult} />
-                                    </div>
-                                  )}
-                                </div>
-                              ),
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Sections List */}
-                      {sections.length > 0 && (
-                        <div className="space-y-4">
-                          <div className="section-heading">
-                            <h2 className="text-xs uppercase tracking-wide text-accent font-bold mb-0 flex items-center gap-4">
-                              Timeline Segmentation
-                            </h2>
-                            <div className="section-actions">
-                              <CopyBadge
-                                text={sections
-                                  .map(
-                                    (s) =>
-                                      `[${s.startTime}] ${s.type}: ${s.description}`,
-                                  )
-                                  .join("\n")}
-                                label="Copy All Segments"
-                              />
-                              <span className="text-sm font-mono text-dim uppercase tracking-widest">
-                                {sections.length} segments
-                              </span>
-                            </div>
-                          </div>
-                          <div className="grid gap-3">
-                            {sections.map((section, idx) => (
-                              <motion.div
-                                key={idx}
-                                initial={{ opacity: 0, x: -10 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                transition={{ delay: idx * 0.05 }}
-                                className="segment-card group"
-                              >
-                                <div className="flex flex-col items-center gap-2">
-                                  <span className="mono text-sm text-accent font-bold mb-1">
-                                    {section.startTime}
-                                  </span>
-                                  <Button
-                                    aria-label={`${activeSegment?.index === idx && isPlaying ? "Pause" : "Play"} segment ${idx + 1}`}
-                                    disabled={!audioUrl}
-                                    onClick={() => seekAndPlaySegment(idx)}
-                                    className={cn(
-                                      "w-10 h-10 rounded-full flex items-center justify-center transition-all group-hover:scale-110 active:scale-95",
-                                      activeSegment?.index === idx && isPlaying
-                                        ? "bg-accent text-bg-main"
-                                        : "bg-accent/10 text-accent hover:bg-accent hover:text-bg-main",
-                                    )}
-                                  >
-                                    {activeSegment?.index === idx &&
-                                    isPlaying ? (
-                                      <Pause size={14} fill="currentColor" />
-                                    ) : (
-                                      <Play size={14} fill="currentColor" />
-                                    )}
-                                  </Button>
-                                </div>
-                                <div className="segment-body space-y-2">
-                                  <div className="segment-heading">
-                                    <div className="segment-title">
-                                      <h4 className="text-sm font-bold text-primary uppercase tracking-wider">
-                                        {section.type}
-                                      </h4>
-                                      {section.isUnsure && (
-                                        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-accent/5 border border-accent/25 text-accent text-sm font-bold uppercase tracking-widest animate-pulse">
-                                          <AlertCircle className="w-2.5 h-2.5" />{" "}
-                                          Identity uncertain
-                                        </div>
-                                      )}
-                                      {(() => {
-                                        const startSec = parseTimeToSeconds(
-                                          section.startTime,
-                                        );
-                                        const nextSec = sections[idx + 1]
-                                          ? parseTimeToSeconds(
-                                              sections[idx + 1].startTime,
-                                            )
-                                          : duration;
-                                        const segmentDuration =
-                                          nextSec > startSec
-                                            ? nextSec - startSec
-                                            : 0;
-                                        if (segmentDuration > 50) {
-                                          return (
-                                            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/20 text-rose-500 text-sm font-bold uppercase tracking-widest animate-pulse">
-                                              <AlertTriangle className="w-2.5 h-2.5" />{" "}
-                                              LONG SEGMENT PLEASE SPLIT
-                                            </div>
-                                          );
-                                        }
-                                        return null;
-                                      })()}
-                                    </div>
-                                    {section.vibe && (
-                                      <span className="text-sm px-2 py-0.5 rounded bg-accent/10 text-accent/80 border border-accent/20">
-                                        {section.vibe}
-                                      </span>
-                                    )}
-                                  </div>
-                                  <p className="text-xs text-primary leading-relaxed font-medium">
-                                    {section.description}
-                                  </p>
-                                  <DescriptionRevision source={result} fieldId={proseFields.find(field=>field.label===`Section ${idx+1}: Narrative Description` || field.label===`Section ${idx+1}: Description`)?.id} label={`Segment ${idx+1} at ${section.startTime}`} model={selectedModel} disabled={isProcessing || isRefining || isHumanizing || importing} onBusy={setIsHumanizing} onApply={applyWordingResult} />
-                                  {section.melody && (
-                                    <div className="bg-bg-card p-3 rounded border-l-2 border-accent/20 relative group/melody">
-                                      <p className="text-sm uppercase text-accent/60 font-bold mb-1 tracking-wider">
-                                        Melody
-                                      </p>
-                                      <p className="text-sm text-primary italic">
-                                        {section.melody}
-                                      </p>
-                                    </div>
-                                  )}
-                                  <div className="pt-2 flex flex-wrap gap-2 items-center">
-                                    {section.instruments
-                                      .split(",")
-                                      .filter((inst: string) => inst.trim())
-                                      .map((inst: string, i: number) => {
-                                        return (
-                                          <div
-                                            key={i}
-                                            className="flex items-center gap-1"
-                                          >
-                                            <span className="text-sm text-dim uppercase tracking-tighter border border-border-dim px-1.5 py-0.5 rounded bg-bg-card">
-                                              {inst.trim()}
-                                            </span>
-                                          </div>
-                                        );
-                                      })}
-                                  </div>
-
-                                  <div className="pt-3 mt-3 border-t border-border-dim flex flex-wrap gap-2 items-center">
-                                    <span className="text-sm uppercase tracking-widest text-primary font-bold mr-1">
-                                      Copy:
-                                    </span>
-                                    <CopyBadge
-                                      text={section.startTime}
-                                      label="Time"
-                                    />
-                                    <CopyBadge
-                                      text={section.description}
-                                      label="Description"
-                                    />
-                                    <CopyBadge
-                                      text={
-                                        section.instruments.endsWith(",")
-                                          ? section.instruments
-                                          : `${section.instruments}${section.instruments ? "," : ""}`
-                                      }
-                                      label="Instruments"
-                                    />
-                                    {section.vibe && (
-                                      <CopyBadge
-                                        text={section.vibe}
-                                        label="Vibe"
-                                      />
-                                    )}
-                                    {section.melody && (
-                                      <CopyBadge
-                                        text={section.melody}
-                                        label="Melody"
-                                      />
-                                    )}
-                                  </div>
-                                </div>
-                              </motion.div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
+                      {matrixView}
+                      {timelineView}
 
                       {/* Raw Markdown Output */}
                       <details className="full-annotation">
                         <summary>Full annotation</summary>
                         <div className="full-annotation-actions">
-                          <CopyBadge
+                          <CopyBadge onCopyError={setError}
                             text={annotationText + researchAsMarkdown(research)}
                             label="Copy full annotation"
                           />
                         </div>
                         <div className="markdown-body">
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{annotationText}</ReactMarkdown>
+                          <AnnotationMarkdown text={annotationText} />
                         </div>
                       </details>
                     </motion.div>

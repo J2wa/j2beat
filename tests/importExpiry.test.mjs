@@ -1,15 +1,26 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import ts from 'typescript';
-import { IMPORT_LIFETIME_MS, importedAudioExpiresAt } from '../shared/importExpiry.ts';
+import { DIRECT_UPLOAD_LIFETIME_MS, IMPORT_LIFETIME_MS, importedAudioExpiresAt } from '../shared/importExpiry.ts';
 
 const now = Date.now();
 const path = n => `music/${String(n).padStart(36, '0')}.mp3`;
+const directPath = n => `audio/${String(n).padStart(36, '0')}.wav`;
 const deleted = [];
 const listed = [];
 const mockBlob = {
   list: async options => {
     listed.push(options);
+    if (options.prefix === 'audio/') {
+      return options.cursor
+        ? { blobs: [{ pathname: directPath(4), uploadedAt: new Date(now - DIRECT_UPLOAD_LIFETIME_MS - 1000) }], hasMore: false }
+        : { blobs: [
+            { pathname: directPath(1), uploadedAt: new Date(now - DIRECT_UPLOAD_LIFETIME_MS - 1000) },
+            { pathname: directPath(2), uploadedAt: new Date(now - DIRECT_UPLOAD_LIFETIME_MS + 60_000) },
+            { pathname: 'audio/keep.wav', uploadedAt: new Date(0) },
+            { pathname: path(9), uploadedAt: new Date(0) },
+          ], hasMore: true, cursor: 'next-audio-page' };
+    }
     return options.cursor
       ? { blobs: [{ pathname: path(4), uploadedAt: new Date(now - IMPORT_LIFETIME_MS - 1000) }], hasMore: false }
       : {
@@ -49,10 +60,13 @@ assert.equal(listed.length, 0);
 
 const accepted = await cleanup({ method: 'GET', headers: { authorization: 'Bearer test-cleanup-secret' } }, response());
 assert.equal(accepted.code, 200);
-assert.deepEqual(accepted.body, { deleted: 2 });
-assert.deepEqual(deleted, [path(1), path(4)]);
+assert.deepEqual(accepted.body, { deleted: 4 });
+assert.deepEqual(deleted, [path(1), path(4), directPath(1), directPath(4)]);
 assert.equal(listed[0].prefix, 'music/');
 assert.equal(listed[1].cursor, 'next-page');
+assert.equal(listed[2].prefix, 'audio/');
+assert.equal(listed[2].cursor, undefined);
+assert.equal(listed[3].cursor, 'next-audio-page');
 
 let canceled = false;
 mockBlob.get = async () => ({

@@ -6,7 +6,7 @@ export default async function handler(req: any, res: any) {
  if (req.method === 'GET') return res.status(200).json({ configured: configured(), user: session(req)?.name || null });
  if (!['POST', 'DELETE'].includes(req.method)) { res.setHeader('Allow', 'GET, POST, DELETE'); return res.status(405).end(); }
  if (!sameOrigin(req)) return res.status(403).json({ error: 'Request origin is not allowed.' });
- if (req.method === 'DELETE') { res.setHeader('Set-Cookie', clearCookie()); return res.status(200).json({ ok: true }); }
+ if (req.method === 'DELETE') { res.setHeader('Set-Cookie', clearCookie(req)); return res.status(200).json({ ok: true }); }
  if (!configured()) return res.status(503).json({ error: 'Sign-in is not configured. The owner must set USER_PASSWORD in Vercel and redeploy.' });
  const ip = String(req.headers['x-real-ip'] || req.socket?.remoteAddress || 'unknown');
  const now = Date.now();
@@ -21,6 +21,6 @@ export default async function handler(req: any, res: any) {
   return res.status(401).json({error:'Incorrect password.'});
  }
  attempts.delete(ip);
- res.setHeader('Set-Cookie', sessionCookie(name.trim()));
+ res.setHeader('Set-Cookie', sessionCookie(name.trim(), req));
  return res.status(200).json({user:name.trim()});
 }

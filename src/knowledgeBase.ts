@@ -80,14 +80,9 @@ Tempo label guidelines by BPM:
 
 --- KEY DETECTION TRICKS ---
 
-To identify the key:
-- Hum or identify the note the melody most naturally resolves to, especially at phrase endings. That resolution note is almost always the tonic.
-- The bass note at the start and end of each phrase typically outlines the root.
-- If the song sounds tense, unresolved, or dark, suspect a minor key. If it sounds settled and bright, suspect major.
-- Common major key chord progressions: I-V-vi-IV, I-IV-V, I-vi-IV-V.
-- Common minor key chord progressions: i-VII-VI-VII, i-VI-III-VII, i-iv-V, i-VII-VI-V.
-- When uncertain between two relative keys (e.g. C Major vs A Minor), listen for where the bass and melody land at the end of a full phrase. The landing note is the tonic.
-- Do not force a key if truly ambiguous. Write the most likely option followed by: or relative key.
+Listen for where the melody and bass repeatedly settle. Describe whether the music has a stable tonal center, shifts its center, or leaves it ambiguous.
+- Discuss major or minor color only when the pitch relationships support it. Mood alone cannot establish tonality.
+- Describe how phrase endings resolve or leave tension open. Avoid exact key names.
 
 --- INSTRUMENT IDENTIFICATION TRICKS ---
 
@@ -138,23 +133,11 @@ Vocal processing identification:
 
 --- HARMONY AND CHORD RECOGNITION TRICKS ---
 
-When identifying chords without formal training:
-- Listen to the bass note as the likely root of the chord.
-- If the overall sound is stable and resolved, treat it as a tonic chord.
-- If it sounds tense or expectant, it is likely a dominant function chord wanting to resolve.
-- If it sounds slightly sad or unresolved but not tense, it is likely a subdominant or minor chord.
-- Write chord progressions using Roman numerals when the exact pitches are uncertain. Example: I-V-vi-IV rather than C-G-Am-F if the key is ambiguous.
-- When a song holds one chord for a long time with no movement, label it as a vamp in both the Harmony field and Section Type.
-- Modal tracks often have a flat VII chord prominently used. Note this as it distinguishes Mixolydian or Dorian character from pure major or minor.
-
-Common genre-chord fingerprints:
-- Pop: I-V-vi-IV or I-IV-V
-- R&B/Soul: ii-V-I with added 7ths, 9ths. Lush extended chords.
-- Hip-hop: minor vamp or minor i-VII-VI loop. Often static or two-chord.
-- Blues: I7-IV7-V7 twelve-bar pattern.
-- Jazz: ii-V-I with chromatic movement and substitutions.
-- EDM/House: typically diatonic, four-chord loops, often staying in major or natural minor.
-- Trap: almost always minor, often stays on i or i-VII.
+Describe audible harmonic movement in plain language.
+- Say whether the chords cycle, shift between sections, stay on a single harmony, or form a repeating vamp.
+- Listen for bass movement, held tones, changes in harmonic density, and how tension resolves. The lowest pitch is not always the chord root.
+- Describe the effect of those changes, such as a darker repeating verse progression opening into brighter, more sustained chorus chords.
+- Leave exact key names, chord names, and Roman numeral progressions out of the analysis. Do not assume a progression from the genre.
 
 --- PRODUCTION ANALYSIS TRICKS ---
 

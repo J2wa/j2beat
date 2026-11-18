@@ -37,11 +37,12 @@ const annotationSource=readFileSync(annotationFile,'utf8')
  .replace(/from (["'])(\.{1,2}\/[^"']+)\.js\1/g,(_,quote,path)=>'from '+JSON.stringify(new URL(path+'.ts',annotationFile).href));
 const annotationJs=ts.transpileModule(annotationSource,{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
 const server=await import('data:text/javascript;base64,'+Buffer.from(annotationJs).toString('base64'));
-await server.annotateAudio(body.audio,true,true,'Check shaker entry',45,'gemini-2.5-flash','Song.wav');
-await server.refineAnnotation(body.audio,'prior draft','Check bass',false,false,'',45,'gemini-2.5-flash','Song.wav');
+await server.annotateAudio(body.audio,true,true,'Check shaker entry',210.84,'gemini-2.5-flash','Song.wav');
+await server.refineAnnotation(body.audio,'prior draft','Check bass',false,false,'',210.84,'gemini-2.5-flash','Song.wav');
 for (const {request,duration} of assembled) {
  assert.equal(request.model,'gemini-2.5-flash');
- assert.equal(duration,45);
+ assert.equal(duration,210);
+ assert.match(request.contents[0].parts[0].text,/3:30 \(210 seconds\)/);
  assert.match(request.config.systemInstruction,/NATURAL MUSIC WRITING/);
  assert.doesNotMatch(request.config.systemInstruction,/Template \d|#### Formulas|Use this emphasis|sentence quota:/);
  assert.equal(request.contents[0].parts[1].inlineData.data,'YQ==');

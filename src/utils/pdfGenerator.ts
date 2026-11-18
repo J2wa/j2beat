@@ -1,46 +1,13 @@
 import { jsPDF } from "jspdf";
 import { researchAsMarkdown, splitResearch, type ResearchReport } from '../../shared/research';
 
-interface Section {
-  startTime: string;
-  type: string;
-  description: string;
-  instruments: string;
-  vibe: string;
-  melody: string;
-  isUnsure: boolean;
-}
-
-interface GlobalMetadata {
-  genreEraSceneTags?: string;
-  genreEraScene?: string;
-  tempoRhythmGrooveTags?: string;
-  tempoRhythmGroove?: string;
-  harmonyChordsKeyTags?: string;
-  harmonyChordsKey?: string;
-  instrumentationTags?: string;
-  instrumentation?: string;
-  playingStyleTags?: string;
-  playingStyle?: string;
-  wowFactorTags?: string;
-  wowFactor?: string;
-  emotionVibeSettingTags?: string;
-  emotionVibeSetting?: string;
-  mixTags?: string;
-  mix?: string;
-  fidelityTags?: string;
-  fidelity?: string;
-  vocalTags?: string;
-  vocal?: string;
-  lyricsTags?: string;
-  lyrics?: string;
-}
+import type { AnnotationSection, GlobalMetadata } from "./annotationForm";
 
 export function generatePDF(
   fileName: string,
   durationStr: string,
   globalMetadata: GlobalMetadata,
-  sections: Section[],
+  sections: AnnotationSection[],
   research?: ResearchReport
 ) {
   const doc = new jsPDF({
@@ -143,20 +110,22 @@ export function generatePDF(
     { label: "Vocal Expression", value: globalMetadata.vocal },
     { label: "Lyrical Evocation Tags", value: globalMetadata.lyricsTags },
     { label: "Lyrical Evocation", value: globalMetadata.lyrics },
+    { label: "Song title", value: globalMetadata.songTitle },
+    { label: "Song by", value: globalMetadata.songBy },
+    { label: "Performing Artists", value: globalMetadata.performingArtists },
+    { label: "Lyrics & Song Structure", value: globalMetadata.lyricsAndStructure },
   ];
 
   globalFields.forEach((field) => {
     if (!field.value) return;
 
     // Estimate height needed
-    const labelLines = doc.splitTextToSize(`${field.label}:`, contentWidth);
     // Keep compact citation markers here; full source URLs appear in research.
     const readableValue = field.value.replace(/\[([^\]]+)\]\(<?([^)>]+)>?\)/g, '[$1]');
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
     const valueLines = doc.splitTextToSize(readableValue, contentWidth - 10);
-    const totalLines = labelLines.length + valueLines.length;
-    const blockHeight = totalLines * 4.5 + 4;
-
-    checkPageBreak(blockHeight);
+    checkPageBreak(Math.min(valueLines.length * 4 + 6, pageHeight - 2 * margin - 10));
 
     // Render Label
     doc.setFont("helvetica", "bold");
@@ -166,13 +135,14 @@ export function generatePDF(
     y += 4;
 
     // Render Value
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.setTextColor(80, 80, 80);
-    valueLines.forEach((line: string) => {
+    for (const line of valueLines) {
+      checkPageBreak(4);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(80, 80, 80);
       doc.text(line, margin + 4, y);
       y += 4;
-    });
+    }
 
     y += 2; // small spacer between fields
   });
