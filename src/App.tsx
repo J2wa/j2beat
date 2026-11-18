@@ -979,48 +979,78 @@ export default function App() {
         </SectionContainer>
       )}
       {view === 'archive' && <SectionContainer className="document-view"><p className="eyebrow"></p><h2>Saved annotations</h2><p>Annotations are saved in this browser. Unannotated imports expire after 24 hours. Successful analysis removes the stored audio and keeps the annotation.</p>{archive.length === 0 ? <p className="archive-empty">No saved annotations yet.</p> : archive.map(item => <article className="archive-row" key={item.id}><div><h3>{item.name}</h3><p>{new Date(item.date).toLocaleString()}</p>{item.audioPath && item.text === IMPORTED_TRACK_NOTE && <p>Expires {new Date(item.expiresAt ?? importedAudioExpiresAt(item.date)).toLocaleString()}</p>}</div><div className="archive-actions"><Button disabled={isProcessing||isRefining||isHumanizing||importing} onClick={()=>openSaved(item)}><FileAudio />{item.audioPath?'Open & play':'Open annotation'}</Button>{item.text !== IMPORTED_TRACK_NOTE && <Button onClick={async()=>{try{(await import('./utils/pdfGenerator')).exportSavedPDF(item.name,item.text,item.date);}catch{setError('PDF export failed. Please retry.');}}}><Download/>Export PDF</Button>}{item.audioPath&&<a className="aces-button aces-button--secondary" href={'/api/audio?path='+encodeURIComponent(item.audioPath)} download={item.name}>Download audio</a>}</div></article>)}</SectionContainer>}
-      {(isProcessing || isRefining) && <section className="analysis-progress-panel" aria-label="Annotation progress">
+      {!manualMode && (isProcessing || isRefining) && <section className="analysis-progress-panel" aria-label="Annotation progress">
         <div className="analysis-progress-heading"><div><span className="analysis-pulse"/><strong>{isRefining ? 'Refining annotation' : 'Analyzing track'}</strong></div><time>{Math.floor(elapsedSeconds/60)}:{String(elapsedSeconds%60).padStart(2,'0')}</time></div>
         <p role="status" aria-live="polite">{analysisStage}</p>
         <div className="analysis-stage-track" aria-label="Processing stages">{['Upload','Analyze','Research','Write','Review','Humanize'].map((label,i)=>{const stage=/Humanizing/i.test(analysisStage)?5:/Reviewing/i.test(analysisStage)?4:/Writing|Repairing/i.test(analysisStage)?3:/Searching/i.test(analysisStage)?2:/Analyzing|Retrying|Preparing AI|Rechecking/i.test(analysisStage)?1:0;return <span key={label} className={i<stage?'complete':i===stage?'active':''}>{i<stage?'✓':i+1} {label}</span>;})}</div>
         <div className="analysis-meter" role="progressbar" aria-label="Current operation" aria-valuenow={/Uploading audio.*%/.test(analysisStage)?Number(analysisStage.match(/(\d+)%/)?.[1]):undefined} aria-valuemin={0} aria-valuemax={100} aria-valuetext={analysisStage}><span className={/Uploading audio.*%/.test(analysisStage)?'determinate':'indeterminate'} style={/Uploading audio.*%/.test(analysisStage)?{width:`${analysisStage.match(/(\d+)%/)?.[1]}%`}:undefined}/></div>
         <small>{elapsedSeconds>90?'Taking longer than usual. Progress and retries appear above.':'You can listen, seek, and loop while the annotation runs.'} Analysis may take several minutes, followed by the automatic wording pass.</small>
       </section>}
-      {view === 'workspace' && <section className="annotation-mode-picker" aria-label="Choose annotation mode">
+      {view === 'workspace' && <section className={cn("annotation-mode-picker", manualMode && "annotation-mode-picker--compact")} aria-label="Choose annotation mode">
         <button type="button" aria-pressed={!manualMode} disabled={isProcessing||isRefining||isHumanizing} onClick={()=>setManualMode(false)}><span className="mode-icon">✦</span><strong>Automatic annotation</strong><span>Upload your audio. AI listens and drafts the full annotation.</span><small>{!manualMode?'Selected':'Choose automatic →'}</small></button>
         <button type="button" aria-pressed={manualMode} disabled={isProcessing||isRefining||isHumanizing} onClick={()=>setManualMode(true)}><span className="mode-icon">✎</span><strong>Manual annotation</strong><span>Mark sections, add listening notes, then let AI complete the draft.</span><small>{manualMode?'Selected':'Choose manual →'}</small></button>
       </section>}
-      <div className="player-section" hidden={view !== 'workspace'}>
-        <MusicPlayer markersActionLabel={manualMode ? "Use split marks in Manual" : "Use in specific timestamps"} linkImport={
-          <form onSubmit={event => { event.preventDefault(); void importSpotify(); }}>
-            <label htmlFor="spotify-link">Spotify track link</label>
-            <div className="track-link-controls">
-              <input id="spotify-link" type="url" value={spotifyLink} placeholder="https://open.spotify.com/track/…" onChange={event => setSpotifyLink(event.target.value)} disabled={importing || isProcessing || isRefining || isHumanizing} required />
-              <Button type="submit" disabled={!spotifyLink.trim() || !rightsConfirmed || importing || isProcessing || isRefining || isHumanizing}>{importing ? 'Importing…' : 'Import track'}</Button>
-            </div>
-            <p className="field-hint">Loads a matched recording into the player. Check the version before analyzing. Unannotated imports expire after 24 hours.</p>
-            <label className="import-permission"><input type="checkbox" checked={rightsConfirmed} disabled={importing || isProcessing || isRefining || isHumanizing} onChange={event => setRightsConfirmed(event.target.checked)} />I have permission to download and analyze this recording.</label>
-          </form>
-        } importStatus={importing && <div className="track-import-status" role="status">
-          <p>{importProgress.stage}{importProgress.percent !== null ? ` · ${importProgress.percent}%` : '…'}</p>
-          <progress aria-label={importProgress.stage} max={100} value={importProgress.percent ?? undefined} />
-        </div>} onPrevSegment={sections.length>0?()=>{const idx=activeSegment?activeSegment.index:Math.max(0,sections.reduce((acc,s,i)=>parseTimeToSeconds(s.startTime)<=currentTime+0.5?i:acc,0));const target=Math.max(0,idx-1);if(activeSegment?.index===target&&audioRef.current){audioRef.current.currentTime=parseTimeToSeconds(sections[target].startTime);}else{seekAndPlaySegment(target);}}:undefined} onNextSegment={sections.length>0?()=>{const idx=activeSegment?activeSegment.index:Math.max(0,sections.reduce((acc,s,i)=>parseTimeToSeconds(s.startTime)<=currentTime+0.5?i:acc,0));const target=Math.min(sections.length-1,idx+1);if(activeSegment?.index===target&&audioRef.current){audioRef.current.currentTime=parseTimeToSeconds(sections[target].startTime);}else{seekAndPlaySegment(target);}}:undefined} markers={splitMarkers} onMark={time=>{
-          if (!Number.isFinite(time) || !duration || time < 0 || time >= duration) return;
-          const second = Math.floor(time);
-          const next=[...new Set([...splitMarkers,second])].sort((a,b)=>a-b);setSplitMarkers(next);const withZero=[...new Set([0,...next])].sort((a,b)=>a-b);setAccurateData(previous=>({...previous,timestamps:withZero.map(formatTime).join(', ')}));setManualMarks(previous=>({id:previous.id+1,times:withZero}));
-        }} onRemoveMarker={time=>{const next=splitMarkers.filter(value=>value!==time);setSplitMarkers(next);const withZero=[...new Set([0,...next])].sort((a,b)=>a-b);setAccurateData(previous=>({...previous,timestamps:withZero.map(formatTime).join(', ')}));setManualMarks(previous=>({id:previous.id+1,times:withZero}));}} onClearMarkers={()=>{setSplitMarkers([]);setAccurateData(previous=>({...previous,timestamps:'0:00'}));setManualMarks(previous=>({id:previous.id+1,times:[0]}));}} onUseMarkers={()=>{
-          if(manualMode){setManualMarks(previous=>({id:previous.id+1,times:[...splitMarkers]}));requestAnimationFrame(()=>document.getElementById('manual-annotation')?.scrollIntoView({behavior:'smooth',block:'start'}));return;}
-          const times=[...new Set([0,...splitMarkers])].sort((a,b)=>a-b).map(formatTime);
-          setAccurateData(previous=>{
-            const existing=previous.timestamps.trim();
-            const present=new Set(existing.match(/\b\d+:\d{2}\b/g) || []);
-            const added=times.filter(time=>!present.has(time));
-            return {...previous,timestamps:existing+(existing && added.length ? ', ' : '')+added.join(', ')};
-          });
-          setGuidanceDialog("form");
-        }} file={file} audioUrl={audioUrl} audioRef={audioRef} currentTime={currentTime} duration={duration} isPlaying={isPlaying} volume={volume} onFile={handleFileSelection} onSeek={seekTo} onToggle={togglePlay} onVolume={setVolume} onReset={reset} onTimeUpdate={handleTimeUpdate} onLoadedMetadata={handleLoadedMetadata} onPlaying={setIsPlaying} onError={setError} segments={sections} activeSegment={activeSegment} busy={isProcessing || isRefining || isHumanizing || importing}/>
-      </div>
-      <div hidden={!manualMode || view !== 'workspace'}><ManualMode marksRequest={manualMarks} file={file} duration={duration} currentTime={currentTime} onSeek={seekTo} onBusy={setIsProcessing} onComplete={text=>{applyWordingResult(text);setManualMode(false);}}/></div>
+      <ManualMode
+        active={manualMode && view === 'workspace'}
+        marksRequest={manualMarks}
+        playerMarks={splitMarkers}
+        file={file}
+        duration={duration}
+        currentTime={currentTime}
+        onSeek={seekTo}
+        onPlaySection={(start, end) => {
+          const audio = audioRef.current;
+          if (!audio || !Number.isFinite(start) || end <= start) return;
+          audio.playbackRate = 0.5;
+          audio.currentTime = start;
+          setActiveSegment({start, end, index: -1});
+          audio.play().catch(() => setError("Playback could not start. Try another audio file."));
+        }}
+        onBusy={setIsProcessing}
+        onComplete={text => {
+          applyWordingResult(text);
+          setIsEditing(true);
+          setEditTab('form');
+          setManualMode(false);
+        }}
+        renderPlayer={(manualStarts, canMark) => (
+          <div className="player-section" hidden={view !== 'workspace'}>
+            <MusicPlayer guided={manualMode} markersActionLabel="Use in specific timestamps" linkImport={
+              <form onSubmit={event => { event.preventDefault(); void importSpotify(); }}>
+                <label htmlFor="spotify-link">Spotify track link</label>
+                <div className="track-link-controls">
+                  <input id="spotify-link" type="url" value={spotifyLink} placeholder="https://open.spotify.com/track/…" onChange={event => setSpotifyLink(event.target.value)} disabled={importing || isProcessing || isRefining || isHumanizing} required />
+                  <Button type="submit" disabled={!spotifyLink.trim() || !rightsConfirmed || importing || isProcessing || isRefining || isHumanizing}>{importing ? 'Importing…' : 'Import track'}</Button>
+                </div>
+                <p className="field-hint">Loads a matched recording into the player. Check the version before analyzing. Unannotated imports expire after 24 hours.</p>
+                <label className="import-permission"><input type="checkbox" checked={rightsConfirmed} disabled={importing || isProcessing || isRefining || isHumanizing} onChange={event => setRightsConfirmed(event.target.checked)} />I have permission to download and analyze this recording.</label>
+              </form>
+            } importStatus={importing && <div className="track-import-status" role="status">
+              <p>{importProgress.stage}{importProgress.percent !== null ? ` · ${importProgress.percent}%` : '…'}</p>
+              <progress aria-label={importProgress.stage} max={100} value={importProgress.percent ?? undefined} />
+            </div>} onPrevSegment={!manualMode && sections.length>0?()=>{const idx=activeSegment?activeSegment.index:Math.max(0,sections.reduce((acc,s,i)=>parseTimeToSeconds(s.startTime)<=currentTime+0.5?i:acc,0));const target=Math.max(0,idx-1);if(activeSegment?.index===target&&audioRef.current){audioRef.current.currentTime=parseTimeToSeconds(sections[target].startTime);}else{seekAndPlaySegment(target);}}:undefined} onNextSegment={!manualMode && sections.length>0?()=>{const idx=activeSegment?activeSegment.index:Math.max(0,sections.reduce((acc,s,i)=>parseTimeToSeconds(s.startTime)<=currentTime+0.5?i:acc,0));const target=Math.min(sections.length-1,idx+1);if(activeSegment?.index===target&&audioRef.current){audioRef.current.currentTime=parseTimeToSeconds(sections[target].startTime);}else{seekAndPlaySegment(target);}}:undefined} markers={manualMode ? manualStarts : splitMarkers} onMark={time=>{
+              if (!Number.isFinite(time) || !duration || time < 0 || time >= duration) return;
+              const second = Math.floor(time);
+              if (manualMode) {
+                if (canMark && !isProcessing && !importing) setManualMarks(previous => ({id: previous.id + 1, times: [second]}));
+                return;
+              }
+              const next = [...new Set([...splitMarkers, second])].sort((a, b) => a - b);
+              setSplitMarkers(next);
+              setAccurateData(previous => ({ ...previous, timestamps: [...new Set([0, ...next])].map(formatTime).join(', ') }));
+            }} onRemoveMarker={time=>{const next=splitMarkers.filter(value=>value!==time);setSplitMarkers(next);const withZero=[...new Set([0,...next])].sort((a,b)=>a-b);setAccurateData(previous=>({...previous,timestamps:withZero.map(formatTime).join(', ')}));}} onClearMarkers={()=>{setSplitMarkers([]);setAccurateData(previous=>({...previous,timestamps:'0:00'}));}} onUseMarkers={()=>{
+              const times=[...new Set([0,...splitMarkers])].sort((a,b)=>a-b).map(formatTime);
+              setAccurateData(previous=>{
+                const existing=previous.timestamps.trim();
+                const present=new Set(existing.match(/\b\d+:\d{2}\b/g) || []);
+                const added=times.filter(time=>!present.has(time));
+                return {...previous,timestamps:existing+(existing && added.length ? ', ' : '')+added.join(', ')};
+              });
+              setGuidanceDialog("form");
+            }} file={file} audioUrl={audioUrl} audioRef={audioRef} currentTime={currentTime} duration={duration} isPlaying={isPlaying} volume={volume} onFile={handleFileSelection} onSeek={seekTo} onToggle={togglePlay} onVolume={setVolume} onReset={reset} onTimeUpdate={handleTimeUpdate} onLoadedMetadata={handleLoadedMetadata} onPlaying={setIsPlaying} onError={setError} segments={manualMode ? [] : sections} activeSegment={activeSegment} busy={isProcessing || isRefining || isHumanizing || importing}/>
+          </div>
+        )}
+      />
       <main id="workspace" hidden={manualMode || view !== "workspace"} className="studio-grid">
         <section className="settings-panel" aria-labelledby="analysis-settings-title">
           <div className="settings-heading"><span className="section-eyebrow">Configure</span><h2 id="analysis-settings-title">Analysis settings</h2><p className="small muted">Choose how to describe this recording.</p></div>

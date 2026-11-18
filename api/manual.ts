@@ -1,3 +1,4 @@
+import { INPUT_LANGUAGE_RULES } from '../shared/inputLanguage.js';
 import { geminiApiKeys } from '../server/apiKeys.js';
 import { requireSession } from '../server/auth.js';
 import { generateWithFallback } from '../server/providers.js';
@@ -13,7 +14,7 @@ export default async function handler(req:any,res:any) {
   return res.status(503).json({error:'The selected AI provider is not configured.'});
  }
  try {
- const result=await generateWithFallback({model,contents:[{parts:[{text}]}],config:{systemInstruction:MANUAL_MODE_PROMPT}}, {deadline:Date.now()+110000,copyeditOnly:true});
+ const result=await generateWithFallback({model,contents:[{parts:[{text}]}],config:{systemInstruction:MANUAL_MODE_PROMPT+'\n'+INPUT_LANGUAGE_RULES}}, {deadline:Date.now()+110000,copyeditOnly:true});
  if(!result.text?.trim() || !result.text.includes('Global Musical Matrix'))throw Error('Empty or incomplete response');
  return res.status(200).json({text:result.text});
  }catch{return res.status(502).json({error:'Writing failed. Your input sheet is unchanged. Please retry.'});}

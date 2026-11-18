@@ -3,6 +3,7 @@ import { AudioLines, Upload, Play, Pause, RotateCcw, RotateCw, Repeat2, Volume2,
 import { Button } from './BrandSystem';
 export const formatTime = (value: number) => { const s = Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0; return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 type Props = {
+ guided?: boolean;
  markersActionLabel?: string;
  busy?: boolean;
  linkImport?: ReactNode;
@@ -35,6 +36,7 @@ export function MusicPlayer(p: Props) {
  const lastVolume = useRef(.8);
  const largeFile = !!p.file && p.file.size > 30 * 1024 * 1024;
  const looped = loopStart !== null && loopEnd !== null;
+ const skipSeconds = p.guided ? 5 : 10;
  const progress = p.duration > 0 ? Math.min(100,p.currentTime/p.duration*100) : 0;
  useEffect(() => {
    setShowLinkImport(false);
@@ -103,12 +105,13 @@ export function MusicPlayer(p: Props) {
     <input className="wave-seek" type="range" aria-label="Seek audio waveform" aria-valuetext={formatTime(p.currentTime)} min={0} max={p.duration||1} step={.01} value={p.currentTime} disabled={!p.duration} onChange={e=>p.onSeek(Number(e.target.value))}/>
    </div>
    <div className="wave-times"><span>0:00</span><span>{formatTime(p.duration/4)}</span><span>{formatTime(p.duration/2)}</span><span>{formatTime(p.duration*3/4)}</span><span>{formatTime(p.duration)}</span></div>
-   <div className="marker-controls" aria-label="Segment split markers">
+   {!p.guided && <div className="marker-controls" aria-label="Segment split markers">
     <div className="marker-actions"><Button disabled={!p.duration} onClick={()=>p.onMark(p.audioRef.current?.currentTime ?? p.currentTime)}>Mark split · {formatTime(p.currentTime)}</Button><Button disabled={!p.markers.length || p.busy} onClick={p.onUseMarkers}>{p.markersActionLabel || "Use in specific timestamps"}</Button><Button variant="text" disabled={!p.markers.length} onClick={p.onClearMarkers}>Clear markers</Button></div>
     <p className="muted small">Seek on the waveform, then mark a split, or press M while listening. Times use whole seconds. 0:00 is included when adding to the form.</p>
     <div className="marker-list" aria-label="Marked split times">{p.markers.map(time=><span className="marker-chip" key={time}><Button variant="text" onClick={()=>p.onSeek(time)} aria-label={`Seek to split ${formatTime(time)}`}>{formatTime(time)}</Button><Button variant="text" onClick={()=>p.onRemoveMarker(time)} aria-label={`Remove split ${formatTime(time)}`}><X size={14}/></Button></span>)}</div>
     <span role="status" className="sr-only">{p.markers.length} split markers</span>
    </div>
+   }
    {p.segments.length>0&&<div className="segment-chips" aria-label="Jump to segment">{p.segments.map((s,i)=><button key={i} onClick={()=>{const parts=s.startTime.replace(/[\[\]]/g,'').split(':').map(Number);p.onSeek(parts[0]*60+parts[1]);}}>{s.startTime} <span>{s.type||s.sectionType||`Segment ${i+1}`}</span></button>)}</div>}
    <div className="loop-controls"><span className="muted small">Loop selection</span><Button aria-pressed={loopStart!==null} disabled={!p.duration} onClick={()=>{setLoopStart(p.currentTime);setLoopEnd(null);p.onSeek(p.currentTime);}}>A {loopStart!==null?formatTime(loopStart):'Start'}</Button><Button aria-pressed={loopEnd!==null} disabled={loopStart===null || p.currentTime<=loopStart+.1} onClick={()=>setLoopEnd(p.currentTime)}>B {loopEnd!==null?formatTime(loopEnd):'End'}</Button>{loopStart!==null&&<Button variant="text" aria-label="Clear loop selection" onClick={()=>{setLoopStart(null);setLoopEnd(null);}}><X/></Button>}<span className="loop-state">{looped?'Loop active':''}</span><Button className="remove-track" disabled={p.busy} variant="text" onClick={p.onReset}><X/>Remove</Button></div>
    </> : <div className="track-source-options" role="group" aria-label="Ways to add a track">
@@ -128,9 +131,9 @@ export function MusicPlayer(p: Props) {
  </section>
  <footer className="player-dock" aria-label="Playback controls" style={{ position: 'sticky', top: 12, zIndex: 30 }}>
   <div className="dock-track"><span className="dock-art"><AudioLines/></span><div><strong>{p.file?.name||'No track selected'}</strong><span>{p.isPlaying?'Playing':p.file?'Paused':'Add a track to begin'}</span></div></div>
-  <div className="dock-center"><div className="transport"><Button variant="text" disabled={!p.audioUrl} aria-label="Skip back 10 seconds" title="Back 10 seconds" onClick={()=>p.onSeek(p.currentTime-10)}><RotateCcw/><span className="skip-label">10</span></Button><Button className="play-button" variant="primary" disabled={!p.audioUrl} aria-label={p.isPlaying?'Pause audio':'Play audio'} onClick={p.onToggle}>{p.isPlaying?<Pause fill="currentColor"/>:<Play fill="currentColor"/>}</Button><Button variant="text" disabled={!p.audioUrl} aria-label="Skip forward 10 seconds" title="Forward 10 seconds" onClick={()=>p.onSeek(p.currentTime+10)}><RotateCw/><span className="skip-label">10</span></Button><Button className={repeat?'is-active':''} variant="text" aria-label="Repeat track" title="Repeat track" aria-pressed={repeat} disabled={!p.audioUrl} onClick={()=>setRepeat(!repeat)}><Repeat2/></Button></div><div className="dock-progress"><time>{formatTime(p.currentTime)}</time><input type="range" aria-label="Playback position" min={0} max={p.duration||1} step={.01} value={p.currentTime} disabled={!p.duration} onChange={e=>p.onSeek(Number(e.target.value))} style={{'--progress':`${progress}%`} as React.CSSProperties}/><time>{formatTime(p.duration)}</time></div></div>
+  <div className="dock-center"><div className="transport"><Button variant="text" disabled={!p.audioUrl} aria-label={`Skip back ${skipSeconds} seconds`} title={`Back ${skipSeconds} seconds`} onClick={()=>p.onSeek(p.currentTime-skipSeconds)}><RotateCcw/><span className="skip-label">{skipSeconds}</span></Button><Button className="play-button" variant="primary" disabled={!p.audioUrl} aria-label={p.isPlaying?'Pause audio':'Play audio'} onClick={p.onToggle}>{p.isPlaying?<Pause fill="currentColor"/>:<Play fill="currentColor"/>}</Button><Button variant="text" disabled={!p.audioUrl} aria-label={`Skip forward ${skipSeconds} seconds`} title={`Forward ${skipSeconds} seconds`} onClick={()=>p.onSeek(p.currentTime+skipSeconds)}><RotateCw/><span className="skip-label">{skipSeconds}</span></Button><Button className={repeat?'is-active':''} variant="text" aria-label="Repeat track" title="Repeat track" aria-pressed={repeat} disabled={!p.audioUrl} onClick={()=>setRepeat(!repeat)}><Repeat2/></Button></div><div className="dock-progress"><time>{formatTime(p.currentTime)}</time><input type="range" aria-label="Playback position" min={0} max={p.duration||1} step={.01} value={p.currentTime} disabled={!p.duration} onChange={e=>p.onSeek(Number(e.target.value))} style={{'--progress':`${progress}%`} as React.CSSProperties}/><time>{formatTime(p.duration)}</time></div></div>
   <div className="dock-tools"><label className="speed-control"><span className="sr-only">Playback speed</span><select aria-label="Playback speed" value={rate} disabled={!p.audioUrl} onChange={e=>setRate(Number(e.target.value))}>{[.5,.75,1,1.25,1.5,2].map(v=><option key={v} value={v}>{v}×</option>)}</select></label><Button variant="text" onClick={mute} aria-label={p.volume===0?'Unmute':'Mute'}>{p.volume===0?<VolumeX/>:<Volume2/>}</Button><input type="range" aria-label="Volume" min={0} max={1} step={.01} value={p.volume} onChange={e=>p.onVolume(Number(e.target.value))} style={{'--progress':`${p.volume*100}%`} as React.CSSProperties}/></div>
  </footer>
- {p.audioUrl&&<audio ref={p.audioRef} src={p.audioUrl} loop={repeat&&!looped} onTimeUpdate={update} onLoadedMetadata={p.onLoadedMetadata} onPlay={()=>p.onPlaying(true)} onPause={()=>p.onPlaying(false)} onEnded={()=>p.onPlaying(false)} onError={()=>p.onError('This audio format could not be played. Try an MP3 or WAV file.')} />}
+ {p.audioUrl&&<audio ref={p.audioRef} src={p.audioUrl} loop={repeat&&!looped} onTimeUpdate={update} onLoadedMetadata={p.onLoadedMetadata} onPlay={()=>p.onPlaying(true)} onPause={()=>p.onPlaying(false)} onRateChange={event=>setRate(event.currentTarget.playbackRate)} onEnded={()=>p.onPlaying(false)} onError={()=>p.onError('This audio format could not be played. Try an MP3 or WAV file.')} />}
  </>;
 }
