@@ -11,7 +11,10 @@ type Props = {
  onFile: (file: File) => void; onSeek: (time: number) => void; onToggle: () => void; onVolume: (v: number) => void; onReset: () => void;
  onTimeUpdate: () => void; onLoadedMetadata: () => void; onPlaying: (playing: boolean) => void; onError: (message: string) => void;
  markers: number[]; onMark: (time: number) => void; onRemoveMarker: (time: number) => void; onClearMarkers: () => void; onUseMarkers: () => void;
- segments: {startTime: string; type?: string; sectionType?: string}[]; onPrevSegment?: () => void; onNextSegment?: () => void;
+ segments: {startTime: string; type?: string; sectionType?: string}[];
+ activeSegment?: {start: number; end: number | null} | null;
+ onPrevSegment?: () => void;
+ onNextSegment?: () => void;
 };
 export function MusicPlayer(p: Props) {
  const picker = useRef<HTMLInputElement>(null);
@@ -54,10 +57,27 @@ export function MusicPlayer(p: Props) {
      if(e.code==='KeyM' && !e.repeat){e.preventDefault();p.onMark(p.audioRef.current?.currentTime ?? p.currentTime);}
      if(e.code==='Space'){e.preventDefault();p.onToggle();}
      if(e.code==='ArrowLeft'){e.preventDefault();p.onSeek(p.currentTime-5);}
-     if(e.code==='ArrowRight'){e.preventDefault();p.onSeek(p.currentTime+5);}if(e.code==='KeyJ' && p.onPrevSegment){e.preventDefault();p.onPrevSegment();}if(e.code==='KeyK' && p.onNextSegment){e.preventDefault();p.onNextSegment();}if(e.code==='KeyL' && p.activeSegment){e.preventDefault();if(looped && loopStart===p.activeSegment.start && loopEnd===p.activeSegment.end){setLoopStart(null);setLoopEnd(null);}else{setLoopStart(p.activeSegment.start);setLoopEnd(p.activeSegment.end);if(p.audioRef.current && (p.audioRef.current.currentTime<p.activeSegment.start || p.audioRef.current.currentTime>=p.activeSegment.end)){p.onSeek(p.activeSegment.start);}}}
+     if(e.code==='ArrowRight'){e.preventDefault();p.onSeek(p.currentTime+5);}
+     if(e.code==='KeyJ' && p.onPrevSegment){e.preventDefault();p.onPrevSegment();}
+     if(e.code==='KeyK' && p.onNextSegment){e.preventDefault();p.onNextSegment();}
+     if(e.code==='KeyL' && !e.repeat && p.activeSegment){
+       const { start } = p.activeSegment;
+       const end = p.activeSegment.end ?? p.duration;
+       if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return;
+       e.preventDefault();
+       if (looped && loopStart === start && loopEnd === end) {
+         setLoopStart(null);
+         setLoopEnd(null);
+       } else {
+         setLoopStart(start);
+         setLoopEnd(end);
+         const time = p.audioRef.current?.currentTime ?? p.currentTime;
+         if (time < start || time >= end) p.onSeek(start);
+       }
+     }
    };
    window.addEventListener('keydown',onKey);return ()=>window.removeEventListener('keydown',onKey);
- },[p.audioUrl,p.currentTime,p.onToggle,p.onSeek,p.onMark,p.onPrevSegment,p.onNextSegment,p.activeSegment,looped,loopStart,loopEnd]);
+ },[p.audioUrl,p.currentTime,p.onToggle,p.onSeek,p.onMark,p.onPrevSegment,p.onNextSegment,p.activeSegment,p.duration,p.audioRef,looped,loopStart,loopEnd]);
  function mute(){if(p.volume>0){lastVolume.current=p.volume;p.onVolume(0);}else p.onVolume(lastVolume.current);}
  function update(){
    if(looped && p.audioRef.current && p.audioRef.current.currentTime>=loopEnd){p.audioRef.current.currentTime=loopStart;}
@@ -106,7 +126,7 @@ export function MusicPlayer(p: Props) {
    {p.linkImport && <div ref={linkPanel} id="track-link-panel" className="track-link-import" hidden={!showLinkImport}>{p.linkImport}</div>}
    {p.importStatus}
  </section>
- <footer className="player-dock" aria-label="Playback controls"> style={{ position: 'sticky', top: 12, zIndex: 30 }}
+ <footer className="player-dock" aria-label="Playback controls" style={{ position: 'sticky', top: 12, zIndex: 30 }}>
   <div className="dock-track"><span className="dock-art"><AudioLines/></span><div><strong>{p.file?.name||'No track selected'}</strong><span>{p.isPlaying?'Playing':p.file?'Paused':'Add a track to begin'}</span></div></div>
   <div className="dock-center"><div className="transport"><Button variant="text" disabled={!p.audioUrl} aria-label="Skip back 10 seconds" title="Back 10 seconds" onClick={()=>p.onSeek(p.currentTime-10)}><RotateCcw/><span className="skip-label">10</span></Button><Button className="play-button" variant="primary" disabled={!p.audioUrl} aria-label={p.isPlaying?'Pause audio':'Play audio'} onClick={p.onToggle}>{p.isPlaying?<Pause fill="currentColor"/>:<Play fill="currentColor"/>}</Button><Button variant="text" disabled={!p.audioUrl} aria-label="Skip forward 10 seconds" title="Forward 10 seconds" onClick={()=>p.onSeek(p.currentTime+10)}><RotateCw/><span className="skip-label">10</span></Button><Button className={repeat?'is-active':''} variant="text" aria-label="Repeat track" title="Repeat track" aria-pressed={repeat} disabled={!p.audioUrl} onClick={()=>setRepeat(!repeat)}><Repeat2/></Button></div><div className="dock-progress"><time>{formatTime(p.currentTime)}</time><input type="range" aria-label="Playback position" min={0} max={p.duration||1} step={.01} value={p.currentTime} disabled={!p.duration} onChange={e=>p.onSeek(Number(e.target.value))} style={{'--progress':`${progress}%`} as React.CSSProperties}/><time>{formatTime(p.duration)}</time></div></div>
   <div className="dock-tools"><label className="speed-control"><span className="sr-only">Playback speed</span><select aria-label="Playback speed" value={rate} disabled={!p.audioUrl} onChange={e=>setRate(Number(e.target.value))}>{[.5,.75,1,1.25,1.5,2].map(v=><option key={v} value={v}>{v}×</option>)}</select></label><Button variant="text" onClick={mute} aria-label={p.volume===0?'Unmute':'Mute'}>{p.volume===0?<VolumeX/>:<Volume2/>}</Button><input type="range" aria-label="Volume" min={0} max={1} step={.01} value={p.volume} onChange={e=>p.onVolume(Number(e.target.value))} style={{'--progress':`${p.volume*100}%`} as React.CSSProperties}/></div>

@@ -835,8 +835,23 @@ export default function App() {
                       return null;
                     })()}
                   </div>
-                  <button type="button" onClick={(e)=>{e.stopPropagation();setUserFeedback(prev=>{const prefix='Refine segment '+section.startTime+': ';return prev.includes(section.startTime)?prev:(prev.trim()?prev.trim()+'
-'+prefix:prefix);});document.querySelector('.correction-panel')?.scrollIntoView({behavior:'smooth',block:'center'});}} className="text-xs px-2 py-0.5 rounded bg-bg-card border border-border-subtle hover:border-accent/50 text-secondary hover:text-primary transition-colors">Refine</button> {section.vibe && (
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      const prefix = `Refine segment ${section.startTime}: `;
+                      setUserFeedback(previous => {
+                        if (previous.includes(prefix)) return previous;
+                        const trimmed = previous.trim();
+                        return trimmed ? `${trimmed}\n${prefix}` : prefix;
+                      });
+                      document.querySelector(".correction-panel")?.scrollIntoView({ behavior: "smooth", block: "center" });
+                    }}
+                    className="text-xs px-2 py-0.5 rounded bg-bg-card border border-border-subtle hover:border-accent/50 text-secondary hover:text-primary transition-colors"
+                  >
+                    Refine
+                  </button>
+                  {section.vibe && (
                     <span className="text-sm px-2 py-0.5 rounded bg-accent/10 text-accent/80 border border-accent/20">
                       {section.vibe}
                     </span>
@@ -1003,7 +1018,7 @@ export default function App() {
             return {...previous,timestamps:existing+(existing && added.length ? ', ' : '')+added.join(', ')};
           });
           setGuidanceDialog("form");
-        }} file={file} audioUrl={audioUrl} audioRef={audioRef} currentTime={currentTime} duration={duration} isPlaying={isPlaying} volume={volume} onFile={handleFileSelection} onSeek={seekTo} onToggle={togglePlay} onVolume={setVolume} onReset={reset} onTimeUpdate={handleTimeUpdate} onLoadedMetadata={handleLoadedMetadata} onPlaying={setIsPlaying} onError={setError} segments={sections} busy={isProcessing || isRefining || isHumanizing || importing}/>
+        }} file={file} audioUrl={audioUrl} audioRef={audioRef} currentTime={currentTime} duration={duration} isPlaying={isPlaying} volume={volume} onFile={handleFileSelection} onSeek={seekTo} onToggle={togglePlay} onVolume={setVolume} onReset={reset} onTimeUpdate={handleTimeUpdate} onLoadedMetadata={handleLoadedMetadata} onPlaying={setIsPlaying} onError={setError} segments={sections} activeSegment={activeSegment} busy={isProcessing || isRefining || isHumanizing || importing}/>
       </div>
       <div hidden={!manualMode || view !== 'workspace'}><ManualMode marksRequest={manualMarks} file={file} duration={duration} currentTime={currentTime} onSeek={seekTo} onBusy={setIsProcessing} onComplete={text=>{applyWordingResult(text);setManualMode(false);}}/></div>
       <main id="workspace" hidden={manualMode || view !== "workspace"} className="studio-grid">
