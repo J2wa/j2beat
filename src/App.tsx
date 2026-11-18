@@ -146,7 +146,7 @@ export default function App() {
   const [spotifyLink,setSpotifyLink]=useState('');
   const [importing,setImporting]=useState(false);
   const [importProgress,setImportProgress]=useState<{stage:string;percent:number|null}>({stage:'Preparing import',percent:null});
-  const [rightsConfirmed,setRightsConfirmed]=useState(false);
+  const [rightsConfirmed,setRightsConfirmed]=useState(()=>{try{return sessionStorage.getItem('aces_spotify_rights')==='1';}catch{return false;}});useEffect(()=>{try{if(rightsConfirmed)sessionStorage.setItem('aces_spotify_rights','1');else sessionStorage.removeItem('aces_spotify_rights');}catch{}},[rightsConfirmed]);
   const deletedAudioPaths=useRef(new Set<string>());
   const saveAnnotation = useCallback((text: string, audioFile: File | null, audioDuration: number) => {
     const next = [{id: crypto.randomUUID(), name: audioFile?.name || 'Untitled annotation', text, date: new Date().toISOString(), duration:audioDuration, audioPath:importedSource.current?.path, expiresAt:importedSource.current?.expiresAt, sourceUrl:importedSource.current?.sourceUrl}, ...archive.filter(item => item.text !== IMPORTED_TRACK_NOTE || !deletedAudioPaths.current.has(item.audioPath || ''))
@@ -828,14 +828,15 @@ export default function App() {
                         return (
                           <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/20 text-rose-500 text-sm font-bold uppercase tracking-widest animate-pulse">
                             <AlertTriangle className="w-2.5 h-2.5" />{" "}
-                            LONG SEGMENT PLEASE SPLIT
+                            LONG SEGMENT PLEASE SPLIT <button type="button" onClick={(e)=>{e.stopPropagation();const splitSec=currentTime>startSec+1&&currentTime<nextSec-1?Math.round(currentTime):Math.round((startSec+nextSec)/2);const nextSections=[...sections.slice(0,idx+1),{...section,startTime:formatTime(splitSec)},...sections.slice(idx+1)];setSections(nextSections);const serialized=serializeAnnotation(nextSections,globalMetadata,research,audioQaIncomplete);setResult(serialized);saveAnnotation(serialized,file,duration);}} className="ml-1.5 px-1.5 py-0.5 rounded bg-rose-500 text-white hover:bg-rose-600 transition-colors text-xs font-semibold">Split segment</button>
                           </div>
                         );
                       }
                       return null;
                     })()}
                   </div>
-                  {section.vibe && (
+                  <button type="button" onClick={(e)=>{e.stopPropagation();setUserFeedback(prev=>{const prefix='Refine segment '+section.startTime+': ';return prev.includes(section.startTime)?prev:(prev.trim()?prev.trim()+'
+'+prefix:prefix);});document.querySelector('.correction-panel')?.scrollIntoView({behavior:'smooth',block:'center'});}} className="text-xs px-2 py-0.5 rounded bg-bg-card border border-border-subtle hover:border-accent/50 text-secondary hover:text-primary transition-colors">Refine</button> {section.vibe && (
                     <span className="text-sm px-2 py-0.5 rounded bg-accent/10 text-accent/80 border border-accent/20">
                       {section.vibe}
                     </span>
@@ -855,7 +856,7 @@ export default function App() {
                     </p>
                   </div>
                 )}
-                <div className="pt-2 flex flex-wrap gap-2 items-center">
+                <div className="pt-1 flex flex-wrap gap-1.5 items-center">{['Synthesizer','Synth keys','Female vocals','Backing vocals','Drum kit','Synth bass'].map(pill=>{const list=section.instruments.split(',').map((s:string)=>s.trim()).filter(Boolean);const active=list.some((item:string)=>item.toLowerCase()===pill.toLowerCase());return(<button key={pill} type="button" onClick={(e)=>{e.stopPropagation();const nextList=active?list.filter((item:string)=>item.toLowerCase()!==pill.toLowerCase()):[...list,pill];const nextSections=sections.map((s,sIdx)=>sIdx===idx?{...s,instruments:nextList.join(', ')}:s);setSections(nextSections);const serialized=serializeAnnotation(nextSections,globalMetadata,research,audioQaIncomplete);setResult(serialized);saveAnnotation(serialized,file,duration);}} className={'text-xs px-2 py-0.5 rounded-full border transition-colors '+(active?'bg-accent/20 border-accent text-accent font-semibold':'bg-bg-card border-border-subtle text-secondary hover:text-primary hover:border-accent/40')}>{(active?'✓ ':'+ ')+pill}</button>);})}</div><div className="pt-2 flex flex-wrap gap-2 items-center">
                   {section.instruments
                     .split(",")
                     .filter((inst: string) => inst.trim())
@@ -988,11 +989,11 @@ export default function App() {
         } importStatus={importing && <div className="track-import-status" role="status">
           <p>{importProgress.stage}{importProgress.percent !== null ? ` · ${importProgress.percent}%` : '…'}</p>
           <progress aria-label={importProgress.stage} max={100} value={importProgress.percent ?? undefined} />
-        </div>} markers={splitMarkers} onMark={time=>{
+        </div>} onPrevSegment={sections.length>0?()=>{const idx=activeSegment?activeSegment.index:Math.max(0,sections.reduce((acc,s,i)=>parseTimeToSeconds(s.startTime)<=currentTime+0.5?i:acc,0));const target=Math.max(0,idx-1);if(activeSegment?.index===target&&audioRef.current){audioRef.current.currentTime=parseTimeToSeconds(sections[target].startTime);}else{seekAndPlaySegment(target);}}:undefined} onNextSegment={sections.length>0?()=>{const idx=activeSegment?activeSegment.index:Math.max(0,sections.reduce((acc,s,i)=>parseTimeToSeconds(s.startTime)<=currentTime+0.5?i:acc,0));const target=Math.min(sections.length-1,idx+1);if(activeSegment?.index===target&&audioRef.current){audioRef.current.currentTime=parseTimeToSeconds(sections[target].startTime);}else{seekAndPlaySegment(target);}}:undefined} markers={splitMarkers} onMark={time=>{
           if (!Number.isFinite(time) || !duration || time < 0 || time >= duration) return;
           const second = Math.floor(time);
-          setSplitMarkers(previous=>[...new Set([...previous,second])].sort((a,b)=>a-b));
-        }} onRemoveMarker={time=>setSplitMarkers(previous=>previous.filter(value=>value!==time))} onClearMarkers={()=>setSplitMarkers([])} onUseMarkers={()=>{
+          const next=[...new Set([...splitMarkers,second])].sort((a,b)=>a-b);setSplitMarkers(next);const withZero=[...new Set([0,...next])].sort((a,b)=>a-b);setAccurateData(previous=>({...previous,timestamps:withZero.map(formatTime).join(', ')}));setManualMarks(previous=>({id:previous.id+1,times:withZero}));
+        }} onRemoveMarker={time=>{const next=splitMarkers.filter(value=>value!==time);setSplitMarkers(next);const withZero=[...new Set([0,...next])].sort((a,b)=>a-b);setAccurateData(previous=>({...previous,timestamps:withZero.map(formatTime).join(', ')}));setManualMarks(previous=>({id:previous.id+1,times:withZero}));}} onClearMarkers={()=>{setSplitMarkers([]);setAccurateData(previous=>({...previous,timestamps:'0:00'}));setManualMarks(previous=>({id:previous.id+1,times:[0]}));}} onUseMarkers={()=>{
           if(manualMode){setManualMarks(previous=>({id:previous.id+1,times:[...splitMarkers]}));requestAnimationFrame(()=>document.getElementById('manual-annotation')?.scrollIntoView({behavior:'smooth',block:'start'}));return;}
           const times=[...new Set([0,...splitMarkers])].sort((a,b)=>a-b).map(formatTime);
           setAccurateData(previous=>{
