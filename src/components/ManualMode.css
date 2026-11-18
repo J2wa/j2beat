@@ -88,6 +88,11 @@
 .guide-group-body { padding: 0 24px 16px; }
 .guide-question { display: grid; gap: 8px; padding: 14px 0; border-top: 1px solid var(--guide-line); }
 .guide-question textarea + input { font-size: 13px; }
+.guide-technique-picker,.guide-ai-candidate { border: 1px solid var(--guide-line); border-radius: 9px; padding: 12px; background: var(--guide-input); }
+.guide-technique-picker summary { color: var(--guide-ink); }
+.guide-technique-panel,.guide-ai-candidate { display: grid; gap: 9px; }
+.guide-technique-panel { margin-top: 12px; }
+.guide-ai-candidate p { overflow-wrap: anywhere; }
 .guide-gap-card ol { padding: 0; margin: 8px 0 0; list-style: none; }
 .guide-gap-card li { color: #f5d9a0; border-top: 1px solid #594725; padding: 7px 0; }
 .guide-gap-card li span { flex: 1 1 210px; }

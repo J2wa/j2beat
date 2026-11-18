@@ -1,5 +1,5 @@
 import { DIRECT_UPLOAD_AUDIO_PATH } from '../shared/importExpiry.js';
-import { suggestMusic } from '../server/musicSuggestions.js';
+import { suggestGlobalMusic, suggestMusic } from '../server/musicSuggestions.js';
 import { geminiApiKeys } from '../server/apiKeys.js';
 import { progressContext } from '../server/progress.js';
 import { AnalysisError } from '../server/providers.js';
@@ -26,22 +26,28 @@ export default async function handler(req: any, res: any) {
   }catch{return res.status(400).json({error:'Could not read the audio upload. Please upload again.'});}
   finally{await del(path).catch(()=>{});}
  }
- if (!b || !['annotate','refine','suggest'].includes(b.action) || !b.audio || typeof b.audio.data !== 'string' || !/^[A-Za-z0-9+/]+={0,2}$/.test(b.audio.data) || typeof b.audio.type !== 'string' || !/^audio\/[a-z0-9.+-]+$/i.test(b.audio.type)) return res.status(400).json({error:'Provide a valid audio file.'});
+ if (!b || !['annotate','refine','suggest','suggest-global'].includes(b.action) || !b.audio || typeof b.audio.data !== 'string' || !/^[A-Za-z0-9+/]+={0,2}$/.test(b.audio.data) || typeof b.audio.type !== 'string' || !/^audio\/[a-z0-9.+-]+$/i.test(b.audio.type)) return res.status(400).json({error:'Provide a valid audio file.'});
  if (!b.audio.path && b.audio.data.length > 4194304) return res.status(413).json({error:'Use the direct upload flow for this file.'});
  if (b.songHint !== undefined && (typeof b.songHint !== 'string' || b.songHint.length > 500)) return res.status(400).json({error:'Invalid song filename clue.'});
  if (![b.creativeGuidance,b.feedback,b.previousResult].every(v => v === undefined || (typeof v === 'string' && v.length <= 120000))) return res.status(400).json({error:'The supplied text is invalid or too long.'});
  if (b.action === 'refine' && (!b.previousResult || !b.feedback?.trim())) return res.status(400).json({error:'Provide an annotation and correction instructions.'});
  // Legacy profile fields from cached clients are accepted but no longer affect writing.
  if (typeof b.audioDuration !== 'number' || !Number.isFinite(b.audioDuration) || b.audioDuration < 0) return res.status(400).json({error:'Invalid analysis settings.'});
+ if (b.action === 'suggest-global' && b.audioDuration < 1) return res.status(400).json({error:'Load a track with a measured duration to suggest whole-song answers.'});
  if(b.action==='suggest' && (!(b.audioDuration>1) || (b.suggestionStarts!==undefined && (!Array.isArray(b.suggestionStarts)||!b.suggestionStarts.length||b.suggestionStarts.length>200||b.suggestionStarts.some((n:any,i:number)=>typeof n!=='number'||!Number.isFinite(n)||n<0||n>=Math.floor(b.audioDuration)||(i>0&&n<=b.suggestionStarts[i-1]))))))return res.status(400).json({error:'Provide valid section starts and audio duration.'});
  const streaming = req.headers.accept === 'application/x-ndjson';
  const emit = (event:any) => { if (!res.destroyed && !res.writableEnded) res.write(JSON.stringify(event)+'\n'); };
  if(streaming) { res.setHeader('Content-Type','application/x-ndjson'); res.setHeader('X-Accel-Buffering','no'); res.flushHeaders(); emit({stage:'Preparing AI analysis'}); }
  try {
    const args = [b.audio, !!b.isSimplified, !!b.isHighAccuracy, b.creativeGuidance || '', b.audioDuration, b.model ?? DEFAULT_MODEL, b.songHint || ''] as const;
-   const text = await progressContext.run(stage => {if(streaming) emit({stage});}, async () => b.action === 'suggest' ? await suggestMusic(b.audio,b.audioDuration,b.model??DEFAULT_MODEL,b.suggestionStarts) : b.action === 'refine'
-    ? await refineAnnotation(b.audio,b.previousResult,b.feedback,...args.slice(1) as [boolean,boolean,string,number,ModelId,string])
-    : await annotateAudio(...args));
+   const text = await progressContext.run(stage => {if(streaming) emit({stage});}, async () => {
+    switch (b.action) {
+     case 'suggest': return suggestMusic(b.audio,b.audioDuration,b.model??DEFAULT_MODEL,b.suggestionStarts);
+     case 'suggest-global': return suggestGlobalMusic(b.audio,b.audioDuration,b.model??DEFAULT_MODEL);
+     case 'refine': return refineAnnotation(b.audio,b.previousResult,b.feedback,...args.slice(1) as [boolean,boolean,string,number,ModelId,string]);
+     default: return annotateAudio(...args);
+    }
+   });
    if(streaming) {emit({text}); return res.end();}
    return res.status(200).json({text});
  } catch (error) { if(streaming) { emit({error:error instanceof AnalysisError ? error.message+' Your input has been preserved.' : 'AI analysis failed. Your input is preserved. Please retry.'}); return res.end(); } if (error instanceof AnalysisError) return res.status(error.status).json({code:error.code,error:error.message+' Your input has been preserved.'}); return res.status(502).json({error:'The AI provider could not complete the analysis. Please retry, or ask the project owner to check the API key and model availability. Your input has been preserved.'}); }

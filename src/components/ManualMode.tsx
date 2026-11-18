@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ArrowLeft, ArrowRight, Check, Flag, Play, X } from 'lucide-react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { ArrowLeft, ArrowRight, Check, Flag, Play, Sparkles, X } from 'lucide-react';
 import { parseMusicSuggestions, addConfirmedInstrument, type MusicSuggestion } from '../../shared/musicSuggestions';
+import { parseGlobalSuggestions, type GlobalSuggestion, type GlobalSuggestionField, type GlobalSuggestions } from '../../shared/globalSuggestions';
 import { mergeSplitMarks, displayTimestamp, timestampSeconds } from '../../shared/manualSegments';
 import { splitResearch, researchAsMarkdown } from '../../shared/research';
-import { annotateAudio, suggestAudio } from '../services/geminiService';
+import { annotateAudio, suggestAudio, suggestGlobalAudio } from '../services/geminiService';
 import { automaticallyHumanize } from '../services/humanizerService';
 import { DEFAULT_MODEL, MODEL_OPTIONS, type ModelId } from '../../shared/models';
 import { parseAnnotation } from '../utils/annotationForm';
@@ -14,6 +15,7 @@ import {
 } from '../utils/manualEvaluation';
 
 const STORAGE_KEY = 'aces_guided_manual';
+const PlayingTechniquePicker = lazy(() => import('./PlayingTechniquePicker'));
 const STEPS = ['Mark sections', 'Describe each section', 'Whole song', 'Finish'];
 const TITLES = ['Mark where the song changes', 'Describe what you hear', 'Tell us about the whole song', 'Check the write-up, then copy it'];
 const INSTRUCTIONS = [
@@ -50,6 +52,7 @@ function loadSheet(): ManualSheet {
 }
 
 type Gap = {message: string; step: number; section?: number; group?: number};
+type WholeSongQuestion = typeof QUESTIONS[number];
 
 function reviewText(text: string) {
   return text.split(/(\[NEEDS INPUT:[^\]]+\])/gi).map((part, index) => /^\[NEEDS INPUT:/i.test(part)
@@ -75,6 +78,10 @@ export function ManualMode({active, marksRequest, playerMarks, file, duration, c
   const [confirmed, setConfirmed] = useState(false);
   const [draft, setDraft] = useState<{text: string; sheet: ManualSheet; track: File; useAudio: boolean}>();
   const [suggestions, setSuggestions] = useState<{kind: 'splits' | 'instruments'; sections: MusicSuggestion[]}>();
+  const [techniquesOpen, setTechniquesOpen] = useState(false);
+  const [globalSuggestions, setGlobalSuggestions] = useState<{track: File; duration: number; model: ModelId; values: GlobalSuggestions}>();
+  const [globalSuggestionField, setGlobalSuggestionField] = useState<GlobalSuggestionField>();
+  const [globalSuggestionError, setGlobalSuggestionError] = useState('');
   const lastMarks = useRef(0);
   const heading = useRef<HTMLHeadingElement>(null);
   const instrumentInput = useRef<HTMLInputElement>(null);
@@ -95,6 +102,9 @@ export function ManualMode({active, marksRequest, playerMarks, file, duration, c
   const unanswered = applicable.filter(question => !notes[question.label]?.trim());
   const review = useMemo(() => draft ? parseAnnotation(draft.text) : undefined, [draft]);
   const stale = !!draft && (draft.sheet !== sheet || draft.track !== file || draft.useAudio !== useAudio);
+  const wholeSongCandidates = globalSuggestions && globalSuggestions.track === file && globalSuggestions.duration === duration && globalSuggestions.model === model
+    ? globalSuggestions.values : undefined;
+  const trackInstruments = useMemo(() => [...new Set(rows.flatMap(row => itemList(row.instruments)).filter(name => name.toLowerCase() !== 'none'))], [rows]);
 
   useEffect(() => {
     try {
@@ -105,6 +115,10 @@ export function ManualMode({active, marksRequest, playerMarks, file, duration, c
 
   useEffect(() => {
     setSuggestions(undefined);
+    setGlobalSuggestions(undefined);
+    setGlobalSuggestionField(undefined);
+    setGlobalSuggestionError('');
+    setTechniquesOpen(false);
     setConfirmed(false);
     setDraft(undefined);
     setStep(0);
@@ -179,6 +193,39 @@ export function ManualMode({active, marksRequest, playerMarks, file, duration, c
       setBusy(false);
       onBusy(false);
     }
+  }
+
+  async function requestGlobalSuggestion(field: GlobalSuggestionField) {
+    if (!file || trackEnd < 1 || busy) return;
+    setGlobalSuggestionField(field);
+    setGlobalSuggestionError('');
+    if (wholeSongCandidates) return;
+    setBusy(true);
+    onBusy(true);
+    setStage('Listening for whole-song suggestions');
+    setError('');
+    setNotice('');
+    try {
+      const values = parseGlobalSuggestions(await suggestGlobalAudio(file, duration, model));
+      if (currentFile.current === file) setGlobalSuggestions({track: file, duration, model, values});
+    } catch (cause) {
+      if (currentFile.current === file) setGlobalSuggestionError(cause instanceof Error ? cause.message : 'Could not suggest an answer. Please try again.');
+    } finally {
+      setBusy(false);
+      onBusy(false);
+    }
+  }
+
+  function addGlobalObservation(question: WholeSongQuestion, observation: GlobalSuggestion) {
+    setSheet(previous => {
+      const notes = previous.notes[question.label] ?? '';
+      const tags = previous.tags[question.key] ?? '';
+      const alreadyNoted = notes.split('\n').some(line => line.trim().toLowerCase() === observation.notes.toLowerCase());
+      const nextNotes = alreadyNoted ? notes : [notes.trimEnd(), observation.notes].filter(Boolean).join('\n');
+      const nextTags = observation.tags.reduce(addConfirmedInstrument, tags);
+      if (nextNotes === notes && nextTags === tags) return previous;
+      return {...previous, notes: {...previous.notes, [question.label]: nextNotes}, tags: {...previous.tags, [question.key]: nextTags}};
+    });
   }
 
   async function writeUp() {
@@ -510,21 +557,54 @@ export function ManualMode({active, marksRequest, playerMarks, file, duration, c
                       </button>
                       <div id={`guide-group-${index}`} hidden={group !== index} className="guide-group-body">
                         {!questions.length && <p>Voice and lyrics will be marked N/A.</p>}
-                        {questions.map(question => (
-                          <div className="guide-question" key={question.key}>
-                            <label className="guide-field">
-                              <span>{question.prompt}</span>
-                              <small>{question.hint}</small>
-                              <textarea rows={2} value={notes[question.label] ?? ''} onChange={event => setSheet(previous => ({...previous, notes: {...previous.notes, [question.label]: event.target.value}}))}/>
-                            </label>
-                            <input aria-label={`${question.label} tags`} placeholder="Tags, separated by commas (optional)" value={tags[question.key] ?? ''} onChange={event => setSheet(previous => ({...previous, tags: {...previous.tags, [question.key]: event.target.value}}))}/>
-                            {question.key === 'instrumentation' && <button type="button" className="aces-button aces-button--text" onClick={() => {
-                              const names = [...new Set(rows.flatMap(row => itemList(row.instruments)).filter(name => name.toLowerCase() !== 'none'))];
-                              const value = names.reduce((previous, name) => addConfirmedInstrument(previous, name), tags.instrumentation ?? '');
-                              setSheet(previous => ({...previous, tags: {...previous.tags, instrumentation: value}}));
-                            }}>Add instrument tags from sections</button>}
-                          </div>
-                        ))}
+                        {questions.map(question => {
+                          const open = globalSuggestionField === question.key;
+                          const candidate = wholeSongCandidates?.[question.key];
+                          return (
+                            <div className="guide-question" key={question.key}>
+                              <label className="guide-field">
+                                <span>{question.prompt}</span>
+                                <small>{question.hint}</small>
+                                <textarea rows={2} value={notes[question.label] ?? ''} onChange={event => setSheet(previous => ({...previous, notes: {...previous.notes, [question.label]: event.target.value}}))}/>
+                              </label>
+                              <input aria-label={`${question.label} tags`} placeholder="Tags, separated by commas (optional)" value={tags[question.key] ?? ''} onChange={event => setSheet(previous => ({...previous, tags: {...previous.tags, [question.key]: event.target.value}}))}/>
+                              <div className="guide-actions">
+                                <button type="button" className="aces-button" aria-label={`Suggest ${question.label} with AI`} aria-expanded={open} aria-controls={`guide-ai-${question.key}`} disabled={!file || trackEnd < 1} onClick={() => void requestGlobalSuggestion(question.key)}><Sparkles size={15} aria-hidden="true"/> Suggest with AI</button>
+                                {question.key === 'instrumentation' && <button type="button" className="aces-button aces-button--text" onClick={() => {
+                                  const value = trackInstruments.reduce(addConfirmedInstrument, tags.instrumentation ?? '');
+                                  setSheet(previous => ({...previous, tags: {...previous.tags, instrumentation: value}}));
+                                }}>Add instrument tags from sections</button>}
+                              </div>
+                              <div id={`guide-ai-${question.key}`} hidden={!open}>
+                                {open && <div className="guide-ai-candidate">
+                                  {busy ? <p role="status">Listening to the recording…</p>
+                                    : globalSuggestionError ? <p role="alert">{globalSuggestionError}</p>
+                                    : candidate ? <>
+                                      <p><strong>AI suggestion</strong></p>
+                                      <p>{candidate.notes}</p>
+                                      {candidate.tags.length > 0 && <p><small>Suggested tags: {candidate.tags.join(', ')}</small></p>}
+                                    </> : <p>No clear suggestion for this field. Add what you can hear.</p>}
+                                  {!busy && <div className="guide-actions">
+                                    {candidate && <button type="button" className="aces-button aces-button--primary" onClick={() => {
+                                      addGlobalObservation(question, candidate);
+                                      setGlobalSuggestionField(undefined);
+                                    }}>Add suggestion</button>}
+                                    <button type="button" className="aces-button aces-button--text" onClick={() => setGlobalSuggestionField(undefined)}>Dismiss</button>
+                                  </div>}
+                                </div>}
+                              </div>
+                              {question.key === 'playingStyle' && <details className="guide-technique-picker" onToggle={event => setTechniquesOpen(event.currentTarget.open)}>
+                                <summary>Choose playing techniques</summary>
+                                {techniquesOpen && <Suspense fallback={<p role="status">Loading playing techniques…</p>}>
+                                  <PlayingTechniquePicker trackInstruments={trackInstruments} onAdd={(technique, instrument) => addGlobalObservation(question, {
+                                    notes: instrument ? `${instrument}: ${technique}` : technique,
+                                    tags: [technique.replace(/,/g, ' /')],
+                                  })}/>
+                                </Suspense>}
+                              </details>}
+                            </div>
+                          );
+                        })}
                       </div>
                     </section>
                   );
@@ -533,7 +613,11 @@ export function ManualMode({active, marksRequest, playerMarks, file, duration, c
                   <summary>Write-up settings</summary>
                   <label className="guide-check"><input type="checkbox" checked={useAudio} onChange={event => setUseAudio(event.target.checked)}/> Let AI listen and fill in audible gaps</label>
                   <p>{useAudio ? 'This sends the recording to the selected AI provider for analysis.' : 'The writer receives your notes and marks unresolved fields as Missing.'} English, Tagalog, and Taglish notes are welcome.</p>
-                  <label className="guide-field"><span>AI model</span><select value={model} onChange={event => setModel(event.target.value as ModelId)}>{MODEL_OPTIONS.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label>
+                  <label className="guide-field"><span>AI model</span><select value={model} onChange={event => {
+                    setModel(event.target.value as ModelId);
+                    setGlobalSuggestionField(undefined);
+                    setGlobalSuggestionError('');
+                  }}>{MODEL_OPTIONS.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label>
                 </details>
               </div>
             )}

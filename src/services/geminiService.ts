@@ -90,3 +90,7 @@ export function refineAnnotation(audioFile: File, previousResult: string, feedba
 export function suggestAudio(audioFile:File,audioDuration:number,model:ModelId=DEFAULT_MODEL,suggestionStarts?:number[]){
  return request(audioFile,{action:'suggest',audioDuration,model,suggestionStarts});
 }
+
+export function suggestGlobalAudio(audioFile: File, audioDuration: number, model: ModelId = DEFAULT_MODEL) {
+  return request(audioFile, {action: 'suggest-global', audioDuration, model, songHint: undefined});
+}

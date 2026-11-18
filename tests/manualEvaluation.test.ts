@@ -4,6 +4,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { ManualMode } from '../src/components/ManualMode.tsx';
 import { parseAnnotation, serializeAnnotation } from '../src/utils/annotationForm.ts';
 import { buildManualInput, emptySong, manualRow, missingInstruments, prepareManualDraft, type ManualSheet } from '../src/utils/manualEvaluation.ts';
+import PlayingTechniquePicker from '../src/components/PlayingTechniquePicker.tsx';
+import {families, instruments, techniqueCategories, techniques, universalTechniques} from '../src/data/playingTechniques.ts';
 
 const sheet: ManualSheet = {
   rows: [{...manualRow('0:00'), type: 'intro', instruments: 'Guitar', vibe: 'Warm', parts: 'Guitar, picks slowly\nTambourine, on the backbeat'}],
@@ -50,3 +52,16 @@ assert.match(html, /Mark a section here/);
 assert.match(html, /aria-current="step"/);
 assert.doesNotMatch(html, /Which instruments can you hear\?/);
 console.log('Passed manual guide rendering, instrument gaps, and notes-only write-up validation.');
+
+const techniqueIds = new Set(techniques.map(technique => technique.id));
+assert.equal(techniqueIds.size, 202);
+assert.equal(instruments.length, 116);
+assert.ok(universalTechniques.every(id => techniqueIds.has(id)));
+assert.ok(instruments.every(instrument => families.some(family => family.id === instrument.family)
+  && [...instrument.playing_methods, ...instrument.techniques].every(id => techniqueIds.has(id))));
+assert.ok(techniques.every(technique => Object.hasOwn(techniqueCategories, technique.category)));
+const picker = renderToStaticMarkup(createElement(PlayingTechniquePicker, {trackInstruments:['Lead vocals', 'Grand piano'], onAdd() {}}));
+assert.match(picker, /<optgroup label="In your section notes"><option value="piano">Piano<\/option><option value="lead_vocal">Lead vocal/);
+assert.match(picker, /<option value="fingerpicked">Fingerpicked/);
+assert.match(picker, /<option value="pizzicato">Pizzicato/);
+console.log('Passed complete playing-technique catalog, instrument aliases, and dropdown rendering.');

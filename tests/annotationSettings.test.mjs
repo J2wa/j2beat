@@ -5,10 +5,11 @@ import {sessionCookie} from '../server/auth.ts';
 process.env.USER_PASSWORD='test-settings-password';
 process.env.GEMINI_API_KEY='test-settings-key';
 let calls=[];
-globalThis.settingsMock={annotateAudio:async(...args)=>{calls.push(['annotate',...args]);return 'draft';},refineAnnotation:async(...args)=>{calls.push(['refine',...args]);return 'revised';}};
+globalThis.settingsMock={annotateAudio:async(...args)=>{calls.push(['annotate',...args]);return 'draft';},refineAnnotation:async(...args)=>{calls.push(['refine',...args]);return 'revised';},suggestGlobalMusic:async(...args)=>{calls.push(['suggest-global',...args]);return '{"suggestions":{}}';}};
 const file=new URL('../api/annotate.ts',import.meta.url);
 const source=readFileSync(file,'utf8')
  .replace("import { annotateAudio, refineAnnotation } from '../server/annotation.js';",'const {annotateAudio,refineAnnotation}=globalThis.settingsMock;')
+ .replace("import { suggestGlobalMusic, suggestMusic } from '../server/musicSuggestions.js';",'const {suggestGlobalMusic}=globalThis.settingsMock; const suggestMusic=()=>{throw Error("Unexpected segment request")};')
  .replace("import { get, del } from '@vercel/blob';",'const get=()=>{throw Error("Unexpected upload")}; const del=async()=>{};')
  .replace(/from '(\.\.\/[^']+)\.js'/g,(_,path)=>'from '+JSON.stringify(new URL(path+'.ts',file).href));
 const js=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
@@ -26,6 +27,11 @@ assert.equal((await invoke({...body,action:'refine',previousResult:'prior draft'
 assert.deepEqual(calls[2],['refine',body.audio,'prior draft','Check the bass',true,true,'Check shaker entry',45,'gemini-2.5-flash','Song.wav']);
 assert.equal((await invoke({...body,model:'invalid'})).statusCode,400);
 assert.equal((await invoke({...body,audioDuration:NaN})).statusCode,400);
+const wholeSong = await invoke({...body,action:'suggest-global'});
+assert.equal(wholeSong.statusCode,200);
+assert.equal(wholeSong.body.text,'{"suggestions":{}}');
+assert.deepEqual(calls[3],['suggest-global',body.audio,45,'gemini-2.5-flash']);
+assert.equal((await invoke({...body,action:'suggest-global',audioDuration:0})).statusCode,400);
 console.log('Passed template-free analysis/refinement settings, ignored stale profile fields, correct model argument forwarding, and retained settings validation.');
 
 // Check the server assembly as well as the HTTP argument contract.
