@@ -334,7 +334,7 @@ export default function App() {
   const hasGuidance = Boolean(generalGuidance.trim() || Object.values(accurateData).some(value => value.trim()));
   const canAnalyze = Boolean(file && !importing && !isProcessing && !isRefining && !isHumanizing && serviceReady === true);
 
-  const handleProcess = async (allowEmptyGuidance = false) => {
+  const handleProcess = async () => {
     if (!file || !canAnalyze) return;
     if (credits < GENERATE_COST) {
       setError(
@@ -344,10 +344,6 @@ export default function App() {
     }
 
     const compiledGuidance = compileCreativeGuidance();
-    if (!compiledGuidance && !allowEmptyGuidance) {
-      setGuidanceDialog("confirm");
-      return;
-    }
 
     setGuidanceDialog(null);
     setCreativeGuidance(compiledGuidance);
@@ -1594,7 +1590,7 @@ export default function App() {
         onDetailChange={(field, value) => setAccurateData(previous => ({ ...previous, [field]: value }))}
         onClose={() => setGuidanceDialog(null)}
         onAddGuidance={() => setGuidanceDialog("form")}
-        onProceed={() => void handleProcess(true)}
+        onProceed={() => void handleProcess()}
       />}
 
     </div>
