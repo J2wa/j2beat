@@ -18,7 +18,7 @@ export interface AnnotationResult {
 }
 
 function annotationInstruction(simplified: boolean, highAccuracy: boolean) {
-  const tone = simplified ? "\nUse plain musical terms and clear phrasing while preserving supported detail and sentence variety." : "";
+  const tone = simplified ? "\nIn Simple language mode, favor everyday equivalents for specialist terms where the meaning is preserved. Keep precise instrument names and supported details." : "";
   const timing = highAccuracy ? "\nListen closely around audible structural boundaries and place start times as precisely as the evidence allows. Keep incidental changes within the row." : "";
   return SYSTEM_PROMPT + "\n\n" + KNOWLEDGE_BASE + tone + timing + "\n" + INPUT_LANGUAGE_RULES;
 }

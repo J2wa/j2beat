@@ -1,13 +1,19 @@
+/** Wording guidance for descriptions based on listening evidence or supplied notes. */
+export const PLAIN_MUSIC_PROSE = `
+Use plain, direct English. Start with what can be heard or what the notes say a part does. Use concrete verbs such as plays, repeats, strums, holds, enters, and drops out.
+Aim for one or two short sentences per description. Add a sentence when needed to keep a distinct supported detail. Keep related parts together when their roles are clear.
+Keep details that explain how the music works, such as what leads or supports, how a part is played, how parts fit together, and what changes. Keep familiar musical terms when they are the clearest option.
+Cut filler, stacked adjectives, ornate metaphors, and vague praise. If a mood or quality matters, tie it to a specific observation. Preserve uncertainty.
+`;
+
 /** Shared policy for fresh annotation prose, separate from the locked data schema. */
 export const NATURAL_MUSIC_WRITING = `
 NATURAL MUSIC WRITING
+${PLAIN_MUSIC_PROSE}
 Write each segment from its own musical evidence, with fresh sentence construction rather than a reusable prose template.
 Choose the most informative supported observation to lead; there is no fixed order for instruments, rhythm, vocals, texture or changes.
 Vary grammatical subjects, opening words, clause order and sentence lengths across adjacent segments.
-Mix short observations with fuller explanations where the evidence warrants them; avoid giving every row the same sentence count or cadence.
-Use everyday, precise musical language. Keep useful terms such as syncopation, palm muting and backing harmony when supported.
-Do not replace accurate instrument names or musical terms with ornate synonyms just to sound different.
-Describe every tagged part's role, technique and interaction where audible, including vocal phrasing and arrangement changes.
+Describe every tagged part's role. Add clear playing techniques, rhythmic patterns or interactions where they help explain the part, including vocal phrasing and arrangement changes.
 Keep returning sections self-contained. If they are musically alike, say so plainly while retaining their details; never invent a difference for variety.
 Avoid stock openings, forced contrasts, filler transitions, vague praise, artificial errors and first-person listening claims.
 Preserve meaning, uncertainty, chronology, timestamps, labels, tags and the required output format.
