@@ -91,7 +91,7 @@ NARRATIVE DESCRIPTION:
 - Use a matching instrument tag for every part named in the narrative and describe every tagged part. Drum kit components can illustrate the role of a tagged kit. Use a broader permitted tag when the exact source is uncertain, or omit the claim if it cannot be supported.
 - Describe meaningful entrances, exits, fills, changes in delivery or technique, and shifts in density. Include an approximate timestamp within the row when it helps locate a change. Keep brief changes inside the row.
 - Make every row understandable by itself, including returning sections. Say what stays in the arrangement and what changes, when audible.
-- Wording examples only. Use the recording for musical facts: "The drums and bass drop out. The piano repeats a short pattern under the vocal." / "The bass follows the kick while the guitar strums chords. The lead vocal holds the last word of each line."
+- Wording examples only. Use the recording for musical facts: "The drums and bass drop out. The piano repeats a short pattern with a long echo, which makes the section feel more atmospheric." / "The bass follows the kick while the guitar strums chords on the offbeats. That offbeat strum gives the section a bouncy groove."
 
 CRITICAL FORMATTING REQUIREMENT: 
 You MUST format each section EXACTLY as follows, replacing the brackets with your actual analysis. Do NOT use markdown bold outside of the specified labels. Each section MUST be separated by a blank line.
@@ -204,10 +204,10 @@ Tag the overall emotional tone, vibe, and listening context.
 
 ### ## 14. Emotion, Vibe & Setting
 
-How does the track feel (e.g., Happy, Anxious, Triumphant, Chill, Dark, Nostalgic), and how does that energy evolve across the song? Setting can be a full sentence (e.g. What setting, occasion, or listening context fits this track best?).
+Describe how the track feels, which parts create that feel, and how it shifts across the song when audible. Name the playing, arrangement, or production detail behind the mood or energy. Mention a fitting setting if the sound suggests one.
 
 * **Format:** Text field (complete sentences).
-* *Example:* "The quiet piano and soft vocal give the verse a reflective feel. The chorus gets brighter when the drums and backing vocals enter."
+* *Example:* "The quiet piano and soft vocal give the verse a reflective feel. The chorus feels more upbeat when the drums enter and the backing vocals answer the lead."
 
 ### ## 15. Mix & Production Tags
 

@@ -2,8 +2,9 @@
 export const PLAIN_MUSIC_PROSE = `
 Use plain, direct English. Start with what can be heard or what the notes say a part does. Use concrete verbs such as plays, repeats, strums, holds, enters, and drops out.
 Aim for one or two short sentences per description. Add a sentence when needed to keep a distinct supported detail. Keep related parts together when their roles are clear.
-Keep details that explain how the music works, such as what leads or supports, how a part is played, how parts fit together, and what changes. Keep familiar musical terms when they are the clearest option.
-Cut filler, stacked adjectives, ornate metaphors, and vague praise. If a mood or quality matters, tie it to a specific observation. Preserve uncertainty.
+Work from four observations when describing a section: what each instrument or voice does, how it is played or delivered, what changes, and how those sounds shape or change the feel. Keep familiar musical terms when they are the clearest option.
+Tie the feel to a specific sound or change. For example, what makes the music feel atmospheric, happy, or groovy? Use the feel that fits the evidence or the supplied notes. If the feel stays steady, say what keeps it steady when useful. Skip mood wording when it has no clear support or does not answer the field.
+Cut filler, stacked adjectives, ornate metaphors, and vague praise. Preserve uncertainty.
 `;
 
 /** Shared policy for fresh annotation prose, separate from the locked data schema. */

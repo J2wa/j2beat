@@ -22,7 +22,9 @@ assert.ok(calls[1].r.contents.every((c:any)=>c.parts.every((p:any)=>!p.inlineDat
 assert.equal(calls[1].options.metadataOnly,true);
 assert.ok(calls[1].r.config.systemInstruction.includes('Segment 1:'));
 assert.ok(calls[1].r.config.systemInstruction.includes('OPTIONAL WORDING CUES'));
+assert.match(calls[0].r.config.systemInstruction, /shape or change the section's feel/);
 assert.ok(calls[2].r.config.systemInstruction.includes('AUDIO QA'));
+assert.match(calls[2].r.config.systemInstruction, /arrangement change makes it feel that way/);
 assert.ok(calls[2].r.contents[0].parts.some((part:any)=>part.inlineData?.data==='YQ=='));
 assert.ok(calls[2].r.contents[0].parts[0].text.includes(finalText));
 assert.ok(calls[2].options.deadline > calls[1].options.deadline);
