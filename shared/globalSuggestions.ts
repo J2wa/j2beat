@@ -5,7 +5,7 @@ export const GLOBAL_SUGGESTION_FIELDS = {
   instrumentation: 'Recognizable sound sources and their roles across the arrangement.',
   playingStyle: 'Audible techniques and articulation, tied to the instruments or voices that use them.',
   wowFactor: 'A specific standout musical moment and what makes it stand out.',
-  emotionVibeSetting: 'Perceived mood and a plausible listening setting, grounded in the sound.',
+  emotionVibeSetting: 'Perceived mood, the audible parts or playing choices that create it, and how it changes across the song. Include a fitting listening setting when supported.',
   mix: 'Relative levels, placement, space, and audible effects. Avoid guessing equipment or studio methods.',
   fidelity: 'Audible clarity, noise, distortion, or masking.',
   vocal: 'Audible register, pitch range, timbre, and phrasing. Omit when absent. Never infer gender or identity.',

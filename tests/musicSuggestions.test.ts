@@ -3,6 +3,7 @@ import {parseMusicSuggestions,addConfirmedInstrument} from '../shared/musicSugge
 import {suggestGlobalMusic,suggestMusic} from '../server/musicSuggestions.js';
 import {DEFAULT_MODEL} from '../shared/models.js';
 import {parseGlobalSuggestions} from '../shared/globalSuggestions.js';
+import {PLAIN_MUSIC_PROSE} from '../shared/naturalMusicWriting.js';
 const candidate={start:0,label:'intro',reason:'Guitar entrance',instruments:[{name:'Guitar',reason:'Sounds like picked strings; uncertain'}]};
 const json=JSON.stringify({sections:[candidate]});
 assert.equal(parseMusicSuggestions(json,120,[0])[0].instruments[0].name,'Guitar');
@@ -51,4 +52,5 @@ assert.equal(requests[0].request.contents[0].parts[1].inlineData, requests[1].re
 assert.match(requests[0].request.contents[0].parts[0].text, /120 seconds/);
 assert.match(requests[0].request.config.systemInstruction, /Avoid exact keys/);
 assert.match(requests[0].request.config.systemInstruction, /Never infer gender or identity/);
+assert.ok(requests.every(({request}) => request.config.systemInstruction.includes(PLAIN_MUSIC_PROSE)));
 console.log('Passed whole-song suggestion validation, unsupported field handling, and shared audio across format retries.');
