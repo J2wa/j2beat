@@ -1,7 +1,9 @@
+import { TEMPO_BUCKETS } from './goldenAnnotation.js';
+
 export const GLOBAL_SUGGESTION_FIELDS = {
-  genreEraScene: 'A plausible broad genre and the audible features that support it. Omit era and scene when they require outside knowledge.',
-  tempoRhythmGroove: 'Perceived pace, pulse, accents, swing, or syncopation. Use a tempo bucket or an explicit estimate.',
-  harmonyChordsKey: 'Tonal color, chord movement, stability, or tension and release. Avoid exact keys and progressions.',
+  genreEraScene: 'A plausible broad genre and the audible features that support it. Era and cultural scene require reliable context unavailable in this listening-only pass.',
+  tempoRhythmGroove: `Describe pace, pulse, accents, and how the parts create the groove. Put the supported tempo bucket in tags: ${TEMPO_BUCKETS.join(' / ')}. Mark any BPM as approximate.`,
+  harmonyChordsKey: 'Tonal color, chord movement, stability, or tension and release. Exact keys or progressions require reliable confirmation.',
   instrumentation: 'Recognizable sound sources and their roles across the arrangement.',
   playingStyle: 'Audible techniques and articulation, tied to the instruments or voices that use them.',
   wowFactor: 'A specific standout musical moment and what makes it stand out.',

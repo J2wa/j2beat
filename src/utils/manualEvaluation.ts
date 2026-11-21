@@ -2,14 +2,13 @@ import { displayTimestamp, timestampSeconds } from '../../shared/manualSegments'
 import { splitResearch } from '../../shared/research';
 import { isSectionUnsure, parseAnnotation, serializeAnnotation, type GlobalMetadata } from './annotationForm';
 
-export const SECTION_TYPES = ['intro', 'verse', 'pre-chorus', 'chorus', 'refrain', 'post-chorus', 'hook', 'interlude', 'instrumental', 'breakdown', 'bridge', 'solo', 'build-up', 'drop', 'outro'];
 export const COMMON_INSTRUMENTS = ['Acoustic guitar', 'Electric guitar', 'Bass', 'Synth bass', 'Piano', 'Electric piano', 'Synthesizer', 'Drum kit', 'Kick', 'Snare', 'Shaker', 'Tambourine', 'Lead vocals', 'Backing vocals'];
 export const MOODS = ['Warm', 'Calm', 'Bright', 'Tense', 'Reflective', 'Energetic'];
 
 export const QUESTIONS = [
-  { key: 'genreEraScene', tagKey: 'genreEraSceneTags', group: 0, label: 'Genre, Era & Scene', prompt: 'What style of music is it?', hint: 'Acoustic pop with a folk feel. Add an era only if you are sure.' },
-  { key: 'tempoRhythmGroove', tagKey: 'tempoRhythmGrooveTags', group: 0, label: 'Tempo, Rhythm & Groove', prompt: 'How fast is it, and what is the rhythm like?', hint: 'About 100 BPM with a steady backbeat.' },
-  { key: 'harmonyChordsKey', tagKey: 'harmonyChordsKeyTags', group: 0, label: 'Harmony, Chords & Key', prompt: 'How do the chords feel?', hint: 'Warm and open, then brighter in the chorus.' },
+  { key: 'genreEraScene', tagKey: 'genreEraSceneTags', group: 0, label: 'Genre, Era & Scene', prompt: 'What style of music is it?', hint: 'Name the style and what you hear that supports it. Add the original release era and cultural scene when known.' },
+  { key: 'tempoRhythmGroove', tagKey: 'tempoRhythmGrooveTags', group: 0, label: 'Tempo, Rhythm & Groove', prompt: 'How fast is it, and what is the rhythm like?', hint: 'Choose a tempo bucket and describe the pulse, accents, and groove.' },
+  { key: 'harmonyChordsKey', tagKey: 'harmonyChordsKeyTags', group: 0, label: 'Harmony, Chords & Key', prompt: 'How do the chords feel?', hint: 'Describe how the chords move or feel. Name the key or progression only when verified.' },
   { key: 'instrumentation', tagKey: 'instrumentationTags', group: 0, label: 'Instrumentation', prompt: 'Which instruments carry the song?', hint: 'Who leads, and who supports?' },
   { key: 'playingStyle', tagKey: 'playingStyleTags', group: 0, label: 'Playing Style', prompt: 'How are the main parts played?', hint: 'Soft fingerpicking, with steady shaker hits.' },
   { key: 'vocal', tagKey: 'vocalTags', group: 1, label: 'Vocal Expression', prompt: 'What does the singing sound like?', hint: 'A close, quiet lead with harmony in the chorus.' },

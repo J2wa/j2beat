@@ -50,7 +50,7 @@ assert.equal(requests.length, 2);
 assert.equal(requests[0].options.audioFiles, requests[1].options.audioFiles);
 assert.equal(requests[0].request.contents[0].parts[1].inlineData, requests[1].request.contents[0].parts[1].inlineData);
 assert.match(requests[0].request.contents[0].parts[0].text, /120 seconds/);
-assert.match(requests[0].request.config.systemInstruction, /Avoid exact keys/);
+assert.match(requests[0].request.config.systemInstruction, /Exact keys or progressions require reliable confirmation/);
 assert.match(requests[0].request.config.systemInstruction, /Never infer gender or identity/);
 assert.ok(requests.every(({request}) => request.config.systemInstruction.includes(PLAIN_MUSIC_PROSE)));
 console.log('Passed whole-song suggestion validation, unsupported field handling, and shared audio across format retries.');

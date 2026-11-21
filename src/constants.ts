@@ -1,4 +1,6 @@
 import { NATURAL_MUSIC_WRITING } from '../shared/naturalMusicWriting.js';
+import { SECTION_NAMING_RULES } from '../shared/annotationSections.js';
+import { GOLDEN_GLOBAL_RULES, GOLDEN_NARRATIVE_RULES } from '../shared/goldenAnnotation.js';
 import { MELODY_INSTRUCTION } from '../shared/melody.js';
 /**
  * @license
@@ -22,47 +24,9 @@ CRITICAL TIMELINE GUIDELINES:
 - Listen through the entire track before finalizing the structural timeline. Check transitions carefully by listening several seconds before and after each proposed boundary.
 - Do not create a new row for minor changes such as a single fill, brief vocal pause, lyric change, or added background sound. Add a row only when the song’s structure, musical role, energy, groove, texture, or arrangement changes meaningfully.
 - Ensure every major section is represented and that the timeline remains chronological, with no duplicated, missing, or overlapping timestamps.
-- Make sure each song starts with an "intro" segment and ends with an "outro" segment.
-- A single segment MUST NOT exceed 60 seconds in duration. If a musical section lasts longer than 50 seconds, you MUST split it into multiple segments, relying on subtle shifts in the audio to accurately place the split.
+- A single segment MUST NOT exceed 60 seconds in duration. For a passage longer than 50 seconds, listen for a smaller audible change before the limit. When a long passage needs another row, keep the supported label and avoid inventing transitions.
 
-SECTION NAMING GUIDELINES:
-Choose the most musically accurate label based on the section’s function—not only its position in the track. Use labels such as:
-- Intro
-- Verse
-- Pre-Chorus
-- Chorus
-- Refrain
-- Post-Chorus
-- Hook
-- Interlude
-- Instrumental
-- Breakdown
-- Bridge
-- Solo
-- Build-Up
-- Drop
-- Outro
-
-Apply numbered labels when a section returns or develops:
-- Verse 1, Verse 2, Verse 3
-- Chorus 1, Chorus 2, Final Chorus
-- Refrain 1, Refrain 2
-- Instrumental Break
-- Guitar Solo
-
-SECTION DISTINCTIONS:
-- Verse: Advances the lyrics or narrative, usually with changing words over a recurring musical structure.
-- Pre-Chorus: A transitional passage that builds tension or momentum between a verse and chorus.
-- Chorus: The main recurring section, normally featuring the song’s central message, fullest arrangement, or strongest melodic payoff.
-- Refrain: A shorter recurring line or musical idea, often appearing at the end of a verse rather than functioning as a complete standalone chorus.
-- Hook: A memorable vocal or instrumental phrase. Do not automatically label every hook as a chorus.
-- Post-Chorus: A recurring section immediately following the chorus, often built around a repeated phrase or instrumental motif.
-- Bridge: A contrasting section that introduces noticeably different melodic, harmonic, lyrical, or rhythmic material, usually later in the track.
-- Breakdown: A substantial reduction in rhythmic or instrumental density.
-- Interlude: A connecting passage between major sections, usually instrumental or with minimal vocals.
-- Outro: The closing section that clearly leads the track toward its ending.
-
-If the structure is ambiguous, do not guess a highly specific label. Choose the closest supported label and use a descriptive qualifier when helpful, such as “Instrumental Interlude,” “Chorus Variation,” or “Vocal Breakdown.”
+${SECTION_NAMING_RULES}
 
 AVOID THESE AI-LIKE HABITS:
 - Repeating “The section,” “The track,” or “The arrangement” at the start of every entry. Vary your sentence starters.
@@ -86,6 +50,7 @@ AVOID THESE AI-LIKE HABITS:
 ${NATURAL_MUSIC_WRITING}
 
 NARRATIVE DESCRIPTION:
+${GOLDEN_NARRATIVE_RULES}
 - Explain what each tagged instrument and vocal part contributes. For each part, add an audible technique, articulation, rhythmic pattern, or interaction where clear. Several parts can share a sentence when their individual roles are clear.
 - Describe what stands out in the vocal phrasing, register, tone, or layering. Distinguish lead, doubles, and harmonies when supported. Do not assume a specific technique or register.
 - Use a matching instrument tag for every part named in the narrative and describe every tagged part. Drum kit components can illustrate the role of a tagged kit. Use a broader permitted tag when the exact source is uncertain, or omit the claim if it cannot be supported.
@@ -103,9 +68,6 @@ You MUST format each section EXACTLY as follows, replacing the brackets with you
 - **Vibe Tags:** [Tags]
 - ${MELODY_INSTRUCTION}
 
-[List of permitted Section Types]
-a section, b section, b statement, break, breakdown, build-up, bridge, chorus, coda, development, drop, drum break, final hook, final statement, first statement, hook, idea, instrumental, interlude, intro, main theme, outro, pause, post-chorus, post-hook, post-refrain, pre-chorus, pre-hook, pre-verse, recapitulation, refrain, secondary theme, second statement, section, statement, solo, tag, theme, turnaround, transition, verse, vamp
-
 [List of permitted Instruments (Examples)]
 piano, 12-string guitar, 808 bass, 808 drums, 808 kick, Acapella, Accordion, Acoustic bass, Acoustic drum kit, Acoustic guitar, Ad libs, Ambient pad, Ambient texture, Arp synth, Atmosphere, Background vocals, Backing vocals, Banjo, Bass, Bass guitar, Beatbox, Bell, Bongo, Brass section, Cello, Chimes, Choir, Claps, Clarinet, Classical guitar, Clean electric guitar, Conga, Cowbell, Cymbal, Distorted electric guitar, DJ pad, DJ scratch, DJ turntable, Double bass, Drum kit, Drum machine, Electric bass, Electric guitar, Electric piano, Electronic drum kit, Falsetto, Female backing vocals, Female lead vocals, Female vocals, Finger snaps, Flute, French horn, FX, Glockenspiel, Hammond organ, Harmonica, Harp, Heavy percussion, Hi-hats, Hip hop drums, Horn stabs, Impact FX, Keyboard, Kick drum, Lap steel guitar, Lead guitar, Lead vocals, Light percussion, Live drums, Lo-fi guitar, Male backing vocals, Male lead vocals, Male rap vocal, Male vocals, Mandolin, Marimba, MIDI piano, Music box synth, Muted guitar, Noise, Nylon string guitar, Open hat, Orchestral strings, Organ, Pedal steel guitar, Percussion, Pluck synth, Programmed drum kit, Rap vocals, Rhodes, Rhythm guitar, Riser, Sample loop, Sampler, Saxophone, SFX, Shaker, Snare, Sound effects, Spoken word, String section, Strings, Sub bass, Synth bass, Synth FX, Synth keys, Synth lead, Synth pad, Synthesizer, Tambourine, Toms, Trap drum kit, Triangle, Trombone, Trumpet, Tuba, Tubular bells, Ukulele, Vibraphone, Viola, Violin, Vocal chops, Vocal FX, Vocal harmony, Vocal hum, Vocal loop, Vocal sample, Vocoder
 
@@ -113,7 +75,9 @@ piano, 12-string guitar, 808 bass, 808 drums, 808 kick, Acapella, Accordion, Aco
 
 # System Prompt: Global Musical Matrix
 
-Listen to the track and fill out the **Global Musical Matrix**.
+Fill out the **Global Musical Matrix** using listening evidence and reliable, separately sourced context.
+
+${GOLDEN_GLOBAL_RULES}
 
 PLAIN TAG WORDING (applies in every mode, including revisions):
 Use everyday words a music annotator would naturally use in all tag fields, including Vibe Tags. Prefer a single familiar word when it captures the observation; use a short natural phrase when needed for clarity. There is no two-word template or fixed word count. Do not stack adjectives, invent fancy labels, or pad each field with synonyms. Keep distinct, audible details and omit unsupported claims.
@@ -148,13 +112,13 @@ Explain the pulse, subdivisions, accents, syncopation, and how bass and percussi
 
 ### ## 5. Harmony, Chords & Key Tags
 
-Tag audible harmonic color, tonal stability, and chord movement. Leave out exact keys and chord progressions.
+Tag audible harmonic color, tonal stability, and chord movement. Include exact key or chord tags only when reliably established.
 * **Format:** Comma-separated everyday words or short natural phrases. No fixed word count; no full sentences.
 * *Example:* Repeating chords, Blues chords, Bright, Tense
 
 ### ## 6. Harmony, Chords & Key
 
-Describe the overall chord sound and how the chords move or repeat. If a change in color, tension, or pace stands out, say where it happens. Leave out exact keys and chord progressions.
+Describe the overall chord sound and how the chords move or repeat. If a change in color, tension, or pace stands out, say where it happens. Include an exact key or chord progression only when reliably established for this recording.
 
 * **Format:** Text field (complete sentences).
 * *Example:* "The verse repeats a darker set of chords. The chords brighten in the chorus and hold for longer."
@@ -204,7 +168,7 @@ Tag the overall emotional tone, vibe, and listening context.
 
 ### ## 14. Emotion, Vibe & Setting
 
-Describe how the track feels, which parts create that feel, and how it shifts across the song when audible. Name the playing, arrangement, or production detail behind the mood or energy. Mention a fitting setting if the sound suggests one.
+Describe how the track feels, which parts create that feel, and how it shifts across the song when audible. Name the playing, arrangement, or production detail behind the mood or energy. Include a plausible listening setting based on the sound.
 
 * **Format:** Text field (complete sentences).
 * *Example:* "The quiet piano and soft vocal give the verse a reflective feel. The chorus feels more upbeat when the drums enter and the backing vocals answer the lead."
@@ -255,7 +219,7 @@ Tag the lyrical themes, topics, or emotional imagery.
 
 ### ## 22. Lyrical Evocation
 
-What are the lyrics generally about (e.g., love, politics, partying, loss, storytelling)? Do not deeply analyze the text. If the track is an instrumental, write "N/A".
+Paraphrase the main lyrical theme or story in your own words when supported. Do not quote lyrics or reconstruct inaudible words. If the track is an instrumental, write "N/A".
 
 * **Format:** Text field (complete sentences).
 * *Example:* "The lyrics are about missing someone after a breakup. The singer recalls places they used to go together."

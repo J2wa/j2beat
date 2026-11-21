@@ -70,5 +70,7 @@ for (const prompt of [SYSTEM_PROMPT, KNOWLEDGE_BASE]) {
 }
 console.log('Passed Google Search tool wiring, citation provenance, uncertain matches, fallback/deadline, draft persistence, evidence separation and melody prompt regression checks.');
 
-assert.ok(MELODY_INSTRUCTION.includes('3–7 word phrase naming the audible instrument or voice'));
-assert.ok(!MELODY_INSTRUCTION.includes('8 to 20'));
+assert.match(MELODY_INSTRUCTION, /one complete sentence/);
+assert.match(MELODY_INSTRUCTION, /voice only for a cappella, aria, or choral music/);
+assert.match(MELODY_INSTRUCTION, /omit rhythm, groove, chords, key, and time signature/);
+assert.match(MELODY_INSTRUCTION, /Leave it blank/);

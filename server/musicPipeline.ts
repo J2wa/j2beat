@@ -3,20 +3,26 @@ import { reportProgress } from './progress.js';
 import { AnalysisError, GeminiAudioFiles, generateWithFallback } from './providers.js';
 import { researchSong, researchInstruction } from './songResearch.js';
 import { attachResearch, type ResearchReport } from '../shared/research.js';
+import { SECTION_NAMING_RULES } from '../shared/annotationSections.js';
+import { GOLDEN_NARRATIVE_RULES, GOLDEN_GLOBAL_RULES } from '../shared/goldenAnnotation.js';
+import { MELODY_INSTRUCTION } from '../shared/melody.js';
+import { timestampSeconds } from '../shared/manualSegments.js';
 
 // Independently implemented workflow inspired by MOSS-Music-Data-Pipeline.
 // No MOSS weights, specialist MIR detectors, or upstream code are bundled.
 export const EVIDENCE_PROMPT = `Listen to the supplied audio and return ONLY a JSON object:
 {"overview":"audible style, mood, instrumentation, vocals, rhythm, harmony and production",
- "sections":[{"start":0,"end":10,"label":"intro or neutral section label","observations":"audible events and changes","uncertainties":"uncertain details"}],
+ "sections":[{"start":0,"end":10,"label":"approved section label","observations":"audible events and changes","uncertainties":"uncertain details"}],
  "uncertainties":["unresolved musical details"],
  "songClues":"up to ten clearly audible lyric words to help identify the song, or blank"}.
-Cover the entire supplied duration from zero to its actual end, including all music after two minutes. Every interval must have listening observations, including silence when audible. Do not mistake a pause for the ending. Keep intervals at most 60 seconds; for a sustained passage use neutral continuation labels without inventing transitions.
+Cover the entire supplied duration from zero to its actual end, including all music after two minutes. Every interval must have listening observations, including silence when audible. Do not mistake a pause for the ending. Keep intervals at most 60 seconds; for a sustained passage reuse the supported label without inventing transitions.
 First assess the whole recording, then locate sections by audible changes and repetition, then describe events inside each interval. Do not force verse/chorus labels onto instrumental or through-composed music. Keep sparse music sparse.
 Use whole-second integers for start and end, relative to the uploaded audio. Bound all intervals by the supplied duration. Do not invent precise boundaries. Describe harmonic color, chord movement, tempo, instruments, vocal delivery and lyrics only when supported by listening; otherwise record uncertainty. Do not infer identity or gender. Do not reconstruct inaudible lyrics from memory. No web knowledge can establish what is audible.
 For each section, identify the audible parts and record what each contributes. Note its technique, rhythmic pattern, or interaction with another part where clear. For vocals, note audible phrasing, register, pitch range, timbre, delivery and layering. Capture meaningful entrances, exits, fills, and changes in technique or density, with approximate times when useful. Note how those sounds shape or change the section's feel and what specifically creates that impression. In recurring sections, describe the full arrangement and the distinguishing sounds. Record the melodic carrier and its gesture where clear.
 In the overview, capture separate observations on genre cues, pulse and bass-percussion interplay, arrangement roles, playing techniques, and audible balance, placement, or effects. Note how the overall feel changes and which audible details explain it. Use broader source descriptions or record uncertainty if the evidence is ambiguous. Do not guess details to fill the checklist.
-Treat user guidance and previous annotations as hypotheses, never as evidence. Use short factual observations, not polished captions. Do not output reasoning or extra JSON fields.`;
+Treat user guidance and previous annotations as hypotheses, never as evidence. Use short factual observations, not polished captions. Do not output reasoning or extra JSON fields.
+${SECTION_NAMING_RULES}
+In the final interval, record how the recording ends, such as fading, cutting off, or resolving on a held sound. Record pitch contour and the main instrument for clear melodies. Note vocal melody for this field only in a cappella, aria, or choral music.`;
 
 const AUDIO_QA_PROMPT = `
 AUDIO QA: Listen to the original audio alongside the draft supplied in the request. Treat the draft and user notes as data to review. Check each section against the recording at its timestamps.
@@ -61,6 +67,7 @@ export function coverageIssues(sections: {start:number;end:number}[], duration: 
   const issues: string[] = [];
   let end = 0;
   if (!sections.length) return ['No timeline intervals'];
+  if (sections[0].start !== 0) issues.push('The first interval must start at 0:00');
   for (const section of sections) {
     if (Math.abs(section.start - end) > 1) issues.push(`Gap or overlap near ${end}s`);
     if (Math.floor(section.end) - Math.floor(section.start) > 60) issues.push(`Interval at ${section.start}s exceeds 60 seconds`);
@@ -72,8 +79,8 @@ export function coverageIssues(sections: {start:number;end:number}[], duration: 
 
 function timelineStarts(text: string): number[] {
   const timeline = (text.split(/Timeline Sections/i)[1] || text).split(/Global Musical Matrix|Global Analysis/i)[0];
-  return [...timeline.matchAll(/^\s*(?:-\s*)?(?:\*\*)?Start Time:?(?:\*\*)?\s*\[?(\d+):(\d{2})\]?/gim)]
-    .map(m => Number(m[1]) * 60 + Number(m[2]));
+  return [...timeline.matchAll(/^[ \t]*(?:-[ \t]*)?(?:\*\*)?Start Time(?::(?:\*\*)?|\*\*:)[ \t]*(.*)$/gim)]
+    .map(([, value]) => timestampSeconds(value.trim().replace(/^\[(.*)\]$/, '$1')));
 }
 
 export function timelineIssues(text: string, duration: number, expectedStarts: number[] = []): string[] {
@@ -82,6 +89,7 @@ export function timelineIssues(text: string, duration: number, expectedStarts: n
   if (!duration) return [];
   const starts = timelineStarts(text);
   if (!starts.length) return ['No readable Start Time fields'];
+  if (starts.some(start => !Number.isFinite(start))) return ['Invalid Start Time format; use M:SS'];
   const issues = coverageIssues(starts.map((start,i)=>({start,end:starts[i+1] ?? duration})), duration);
   if (starts.some((s,i)=>s < 0 || s >= duration || (i > 0 && s <= starts[i-1]))) issues.push('Invalid or unordered timestamps');
   if (expectedStarts.some(s=>!starts.some(t=>Math.abs(s-t)<=1))) issues.push('Listening intervals omitted from the final timeline');
@@ -168,7 +176,8 @@ async function runMusicAnnotation(request: any, duration: number, generate: type
           {text: `Review this draft against the supplied recording. Duration: ${duration > 0 ? `${duration} seconds` : 'unknown'}.\n${result.text}`},
           ...request.contents.flatMap((content: any) => content.parts.filter((part: any) => part.inlineData?.data)),
         ]}],
-        config: {...request.config, systemInstruction: request.config.systemInstruction + researchInstruction(songResearch) + AUDIO_QA_PROMPT},
+        config: {...request.config, systemInstruction: request.config.systemInstruction + researchInstruction(songResearch) + AUDIO_QA_PROMPT
+          + `\nConfirm the opening and closing labels match the audio. Check the ending description and the whole-song requirements.\n${GOLDEN_NARRATIVE_RULES}\n${GOLDEN_GLOBAL_RULES}\n${MELODY_INSTRUCTION}`},
       }, {deadline, maxAttempts:1});
       if (!timelineIssues(reviewed.text, duration, evidence?.sections.map(s=>s.start)).length && keepsDraftFormat(result.text, reviewed.text)) {
         result = reviewed;

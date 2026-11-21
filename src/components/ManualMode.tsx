@@ -2,6 +2,8 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } 
 import { ArrowLeft, ArrowRight, Check, Flag, Play, Sparkles, X } from 'lucide-react';
 import { parseMusicSuggestions, addConfirmedInstrument, type MusicSuggestion } from '../../shared/musicSuggestions';
 import { parseGlobalSuggestions, type GlobalSuggestion, type GlobalSuggestionField, type GlobalSuggestions } from '../../shared/globalSuggestions';
+import { SECTION_GROUPS, SECTION_TYPES } from '../../shared/annotationSections';
+import { TEMPO_BUCKETS } from '../../shared/goldenAnnotation';
 import { mergeSplitMarks, displayTimestamp, timestampSeconds } from '../../shared/manualSegments';
 import { splitResearch, researchAsMarkdown } from '../../shared/research';
 import { annotateAudio, suggestAudio, suggestGlobalAudio } from '../services/geminiService';
@@ -9,7 +11,7 @@ import { automaticallyHumanize } from '../services/humanizerService';
 import { DEFAULT_MODEL, MODEL_OPTIONS, type ModelId } from '../../shared/models';
 import { parseAnnotation } from '../utils/annotationForm';
 import {
-  SECTION_TYPES, COMMON_INSTRUMENTS, MOODS, QUESTIONS, QUESTION_GROUPS, GAP_MARKER,
+  COMMON_INSTRUMENTS, MOODS, QUESTIONS, QUESTION_GROUPS, GAP_MARKER,
   manualRow, emptySong, itemList, missingInstruments, sectionEnd, buildManualInput, prepareManualDraft,
   type ManualSheet, type ManualRow,
 } from '../utils/manualEvaluation';
@@ -40,7 +42,7 @@ type Props = {
 };
 
 function loadSheet(): ManualSheet {
-  const initial = {rows: [{...manualRow('0:00'), type: 'intro'}], notes: {}, tags: {}, song: emptySong};
+  const initial = {rows: [manualRow('0:00')], notes: {}, tags: {}, song: emptySong};
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null');
     if (Array.isArray(saved?.rows) && saved.rows.length &&
@@ -105,6 +107,8 @@ export function ManualMode({active, marksRequest, playerMarks, file, duration, c
   const wholeSongCandidates = globalSuggestions && globalSuggestions.track === file && globalSuggestions.duration === duration && globalSuggestions.model === model
     ? globalSuggestions.values : undefined;
   const trackInstruments = useMemo(() => [...new Set(rows.flatMap(row => itemList(row.instruments)).filter(name => name.toLowerCase() !== 'none'))], [rows]);
+  const tempoTags = itemList(tags.tempoRhythmGroove ?? '');
+  const tempoBucket = TEMPO_BUCKETS.find(bucket => tempoTags.some(tag => tag.toLowerCase() === bucket.toLowerCase()));
 
   useEffect(() => {
     try {
@@ -280,10 +284,6 @@ export function ManualMode({active, marksRequest, playerMarks, file, duration, c
       const unlisted = missingInstruments(row);
       if (unlisted.length) gaps.push({message: `${time}: your notes mention ${unlisted.join(', ')} but the instrument list does not.`, step: 1, section: index});
       for (const flag of written?.description.matchAll(GAP_MARKER) ?? []) gaps.push({message: `${time}: ${flag[1]}`, step: 1, section: index});
-      const melody = row.melody.trim();
-      if (melody && (melody.split(/\s+/).length < 3 || melody.split(/\s+/).length > 7)) {
-        gaps.push({message: `${time}: use 3–7 words for melody or leave it empty.`, step: 1, section: index});
-      }
     });
     for (const question of applicable) {
       const prose = review.globalMetadata[question.key];
@@ -390,7 +390,10 @@ export function ManualMode({active, marksRequest, playerMarks, file, duration, c
                             </div>
                             <select aria-label={`Section ${index + 1} type`} value={row.type} onChange={event => updateRow(index, 'type', event.target.value)}>
                               <option value="">Choose type</option>
-                              {[...new Set([...SECTION_TYPES, row.type].filter(Boolean))].map(type => <option key={type} value={type}>{type.charAt(0).toUpperCase() + type.slice(1)}</option>)}
+                              {row.type && !SECTION_TYPES.includes(row.type) && <option value={row.type}>{row.type} (saved)</option>}
+                              {SECTION_GROUPS.map(({label, sections}) => <optgroup key={label} label={label}>
+                                {sections.map(([type]) => <option key={type} value={type}>{type.charAt(0).toUpperCase() + type.slice(1)}</option>)}
+                              </optgroup>)}
                             </select>
                             <span className={length > 60 ? 'guide-long' : ''}>{length > 0 ? `${length}s` : '—'}</span>
                             <button type="button" className="aces-button aces-button--text" aria-label={`Remove section ${index + 1}`} disabled={index === 0} onClick={() => removeRow(index)}><X size={17}/></button>
@@ -411,6 +414,7 @@ export function ManualMode({active, marksRequest, playerMarks, file, duration, c
                       <li>The singing changes.</li>
                     </ul>
                     <p>Keep brief fills, ad-libs, and slides inside the current section. For a long section, listen for a smaller change near 50 seconds.</p>
+                    <p>Start at 0:00 and choose the label that fits what you hear. When a section returns, add a row and reuse its label.</p>
                   </aside>
                 </div>
               </>
@@ -491,8 +495,11 @@ export function ManualMode({active, marksRequest, playerMarks, file, duration, c
                     <summary>Optional: vocals, melody and changes</summary>
                     <div className="guide-stack">
                       {noteField('vocals', 'What do the vocals sound like?', 'Phrasing, delivery, or harmonies')}
-                      {noteField('melody', 'Melody', '3–7 words, e.g. guitar plays a rising figure', 1)}
-                      {noteField('changes', 'What changes in this section?', 'Something enters, leaves, or shifts. Include a time if known.')}
+                      {noteField('melody', 'Melody', 'Use a full sentence about a clear instrumental melody, or leave this blank.', 2)}
+                      <p>Describe vocal melody here for a cappella, aria, or choral music. Keep rhythm, chords, and key in their own fields.</p>
+                      {noteField('changes', 'What changes in this section?', currentIndex === rows.length - 1
+                        ? 'Include how the recording ends, such as a fade, cut, or held note.'
+                        : 'Something enters, leaves, or shifts. Include a time if known.')}
                     </div>
                   </details>
                 </div>
@@ -511,7 +518,12 @@ export function ManualMode({active, marksRequest, playerMarks, file, duration, c
                         <strong>{displayTimestamp(suggestion.start)} · {suggestion.label}</strong>
                         <div className="guide-actions">
                           <button type="button" className="aces-button" onClick={() => seek(suggestion.start)}>Seek</button>
-                          {suggestions.kind === 'splits' && <button type="button" className="aces-button" disabled={index >= 0} onClick={() => addMarks([suggestion.start], suggestion.label)}>{index >= 0 ? 'Added' : 'Add time'}</button>}
+                          {suggestions.kind === 'splits' && <button type="button" className="aces-button" disabled={index >= 0 && !!rows[index].type} onClick={() => {
+                            const label = suggestion.label.toLowerCase();
+                            const type = SECTION_TYPES.includes(label) ? label : 'section';
+                            if (index >= 0) updateRow(index, 'type', type);
+                            else addMarks([suggestion.start], type);
+                          }}>{index < 0 ? 'Add time' : rows[index].type ? 'Added' : 'Use label'}</button>}
                         </div>
                       </div>
                       <p>{suggestion.reason}</p>
@@ -562,6 +574,18 @@ export function ManualMode({active, marksRequest, playerMarks, file, duration, c
                           const candidate = wholeSongCandidates?.[question.key];
                           return (
                             <div className="guide-question" key={question.key}>
+                              {question.key === 'tempoRhythmGroove' && <label className="guide-field">
+                                <span>Tempo</span>
+                                <select value={tempoBucket ?? ''} onChange={event => {
+                                  const bucket = event.target.value;
+                                  const otherTags = tempoTags.filter(tag => !TEMPO_BUCKETS.some(option => tag.toLowerCase() === option.toLowerCase()));
+                                  const value = [bucket, ...otherTags].filter(Boolean).join(', ');
+                                  setSheet(previous => ({...previous, tags: {...previous.tags, tempoRhythmGroove: value}}));
+                                }}>
+                                  <option value="">Choose a tempo</option>
+                                  {TEMPO_BUCKETS.map(bucket => <option key={bucket}>{bucket}</option>)}
+                                </select>
+                              </label>}
                               <label className="guide-field">
                                 <span>{question.prompt}</span>
                                 <small>{question.hint}</small>

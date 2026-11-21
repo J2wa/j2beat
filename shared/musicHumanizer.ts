@@ -6,6 +6,7 @@ You have no audio. Treat the supplied draft as the only source; do not correct o
 Preserve every instrument and its role, playing technique, interaction, rhythmic relationship, vocal detail,
 entry/dropout, arrangement change, comparison between returning sections, and genre/groove justification.
 Keep any existing links between a sound or change and the feel it creates. Do not introduce a mood or a cause the draft does not support.
+Keep section narratives standalone. Preserve details of the final fade, cutoff, or resolution. Avoid comparisons with earlier rows.
 Keep qualifiers and uncertainty, negations, numbers, quotations, citations, key/chord names and technical terms.
 Keep each section self-contained; do not remove its detail because another section repeats it.
 Replace vague praise and inflated metaphors with direct wording only where the draft already supports it.

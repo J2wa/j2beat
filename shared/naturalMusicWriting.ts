@@ -15,7 +15,7 @@ Write each segment from its own musical evidence, with fresh sentence constructi
 Choose the most informative supported observation to lead; there is no fixed order for instruments, rhythm, vocals, texture or changes.
 Vary grammatical subjects, opening words, clause order and sentence lengths across adjacent segments.
 Describe every tagged part's role. Add clear playing techniques, rhythmic patterns or interactions where they help explain the part, including vocal phrasing and arrangement changes.
-Keep returning sections self-contained. If they are musically alike, say so plainly while retaining their details; never invent a difference for variety.
+Keep returning sections self-contained. Describe their audible details directly without comparing them to another row. Never invent a difference for variety.
 Avoid stock openings, forced contrasts, filler transitions, vague praise, artificial errors and first-person listening claims.
 Preserve meaning, uncertainty, chronology, timestamps, labels, tags and the required output format.
 Wording variety applies only to prose. Never shuffle musical events, change facts, or shorten away observations to satisfy a style cue.

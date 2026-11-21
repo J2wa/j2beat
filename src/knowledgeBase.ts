@@ -4,20 +4,6 @@ export const KNOWLEDGE_BASE = `
 
 Use this knowledge base strictly as a database to check your work. Cross-reference the instruments and segments you detect with the definitions below to ensure high accuracy. Do not copy-paste from this section directly into the output.
 
-## Segments & Structural Sections
-- **Intro**: The opening section of the song, establishing mood, tempo, and key, often instrumental before the vocals/main melody begins.
-- **Verse**: Sections that tell the story or provide details, typically with changing lyrics but a consistent melody.
-- **Pre-Chorus**: A transitional section that builds tension and connects the verse to the chorus.
-- **Chorus**: The emotional and musical climax, containing the main theme/hook, typically repeated with the same lyrics and melody.
-- **Post-Chorus**: A secondary hook or instrumental tag that follows the chorus, keeping the energy high before returning to a verse.
-- **Bridge**: A section providing musical and lyrical contrast, typically occurring after the second chorus, introducing a new chord progression or melody.
-- **Outro**: The final section that brings the song to a close, often fading out or resolving the main theme.
-- **Breakdown**: A sparse section where many instruments drop out, creating a sudden drop in energy.
-- **Build-up**: A section (often in electronic music) characterized by risers, fast snares, and increasing tension leading to a drop.
-- **Drop**: In electronic music, the climax of the track where the bass and main beat enter heavily.
-- **Instrumental / Solo**: A section dedicated to an instrumental performance without lead vocals.
-- **Vamp**: A short, simple chord progression repeated multiple times, often at the end of a song or during a solo.
-
 ## Instruments & Sonic Profiles
 - **808 bass / 808 kick**: Deep sub-bass frequencies characteristic of modern Hip-Hop, Trap, and R&B. Heavy low-end impact.
 - **Acoustic guitar**: Bright, natural plucked or strummed string sound. Used heavily in Folk, Country, and Pop.
@@ -72,7 +58,7 @@ If tempo is unclear, count the kick drum hits or snare hits over 10 seconds and 
 Tempo label guidelines by BPM:
 - Very slow: under 60 BPM
 - Slow: 60-79 BPM
-- Moderate: 80-109 BPM
+- Mid-tempo: 80-109 BPM
 - Upbeat: 110-139 BPM
 - Fast: 140-169 BPM
 - Very fast: 170+ BPM
@@ -82,7 +68,7 @@ Tempo label guidelines by BPM:
 
 Listen for where the melody and bass repeatedly settle. Describe whether the music has a stable tonal center, shifts its center, or leaves it ambiguous.
 - Discuss major or minor color only when the pitch relationships support it. Mood alone cannot establish tonality.
-- Describe how phrase endings resolve or leave tension open. Avoid exact key names.
+- Describe how phrase endings resolve or leave tension open. Name a key only when reliably established for this recording.
 
 --- INSTRUMENT IDENTIFICATION TRICKS ---
 
@@ -137,7 +123,7 @@ Describe audible harmonic movement in plain language.
 - Say whether the chords cycle, shift between sections, stay on a single harmony, or form a repeating vamp.
 - Listen for bass movement, held tones, changes in harmonic density, and how tension resolves. The lowest pitch is not always the chord root.
 - Describe the effect of those changes, such as a darker repeating verse progression opening into brighter, more sustained chorus chords.
-- Leave exact key names, chord names, and Roman numeral progressions out of the analysis. Do not assume a progression from the genre.
+- Use exact chords or a Roman numeral progression only when reliably established for this recording. Genre and mood alone do not establish the chords.
 
 --- PRODUCTION ANALYSIS TRICKS ---
 
@@ -183,33 +169,6 @@ Half-time feel:
 --- MELODY DESCRIPTION GUIDELINES ---
 
 ${MELODY_INSTRUCTION}
-
---- SECTION TYPE SELECTION GUIDE ---
-
-Use this as a decision aid when the correct section label is not immediately obvious:
-
-- intro: opening material before any verse or hook appears. May be purely instrumental or ambient.
-- verse: narrative or story-carrying section. Lyrics change each time it returns.
-- pre-chorus: brief transitional section building tension before the chorus. Usually 2-4 bars.
-- chorus: the main emotional and melodic peak. Lyrics typically repeat each time.
-- post-chorus: a brief release or cool-down section immediately after the chorus. Often instrumental or hook-echo.
-- bridge: a contrasting section that appears once, usually before the final chorus. Different melody and sometimes different harmony.
-- hook: a short, catchy repeating phrase. Can be vocal or instrumental. Used when the primary identifier of the song is not a full chorus.
-- outro: closing material after the final chorus or hook. May fade, strip down, or resolve.
-- breakdown: energy strip-down within an otherwise energetic track. Instrumentation thins significantly.
-- build-up: progressive addition of layers leading toward a drop or chorus. Rising tension.
-- drop: the moment of peak impact after a build-up. Common in EDM and electronic tracks.
-- vamp: a repeated one- or two-chord loop with no harmonic movement. Often used at the end of jazz or soul tracks.
-- interlude: a standalone section that pauses the main song narrative. Not a verse, chorus, or bridge.
-- transition: a very short passage, often only 1-2 bars, connecting two main sections.
-- instrumental: a section with no vocals at all. Instrument-led melody or groove.
-- solo: a featured improvised or composed instrumental passage, typically a single instrument.
-- tag: a short repeated phrase at the end of a song, often the last line of the chorus sung multiple times.
-- coda: formal musical ending material that is distinct from the outro. More common in classical-influenced writing.
-
-When a section contains significant new melodic material but fits no standard label precisely, use: section, idea, or statement.
-
----
 
 ## Writing guidance
 Use the musical definitions above as reference. Narrative wording comes from each segment's actual evidence.

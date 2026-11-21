@@ -56,6 +56,9 @@ assert.equal(coverageIssues(intervals,210).length,0);
 assert.ok(timelineIssues(short210,210).length);
 assert.equal(timelineIssues(final210,210,intervals.map(s=>s.start)).length,0);
 assert.ok(timelineIssues('- **Start Time:** 00:00\n- **Start Time:** 00:00',20).length);
+assert.match(timelineIssues('- **Start Time:** 0:01',20).join(), /first interval must start at 0:00/);
+assert.match(timelineIssues('- **Start Time:** 0:00\n- **Start Time:** 0:60',65).join(), /Invalid Start Time format/);
+assert.deepEqual(timelineIssues('- **Start Time:** 0:00\n- **Section Type:** chorus\n- **Start Time:** 0:12\n- **Section Type:** verse',20), []);
 // An early ending triggers another audio pass, not a text-only guess.
 calls=[];
 await generateMusicAnnotation(request,210,async(r:any,o:any)=>{
