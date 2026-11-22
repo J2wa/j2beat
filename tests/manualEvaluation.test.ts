@@ -35,6 +35,17 @@ assert.equal(notesOnly.globalMetadata.lyrics, 'N/A');
 const assisted = parseAnnotation(prepareManualDraft(generated, sheet, true));
 assert.equal(assisted.globalMetadata.mix, 'Unsupported mix detail');
 assert.throws(() => prepareManualDraft(generated.replace('00:00', '0:03'), sheet, false), /did not match your section times/);
+const unavailable = {
+  ...sheet, song: {...sheet.song, instrumental: false},
+  notes: {...sheet.notes, 'Lyrical Evocation': 'Lyrics unavailable'},
+  tags: {...sheet.tags, lyrics: 'Heartbreak'},
+};
+assert.match(buildManualInput(unavailable, 55), /lyrical evocation tags: \nLyrical themes: Lyrics unavailable/);
+for (const useAudio of [false, true]) {
+  const {globalMetadata} = parseAnnotation(prepareManualDraft(generated, unavailable, useAudio));
+  assert.equal(globalMetadata.lyrics, 'Lyrics unavailable');
+  assert.equal(globalMetadata.lyricsTags, '');
+}
 
 const html = renderToStaticMarkup(createElement(ManualMode, {
   active: true, marksRequest: {id: 0, times: []}, playerMarks: [],

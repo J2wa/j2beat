@@ -1,5 +1,6 @@
 import { displayTimestamp, timestampSeconds } from '../../shared/manualSegments';
 import { splitResearch } from '../../shared/research';
+import { LYRICS_UNAVAILABLE, isLyricsUnavailable } from '../../shared/goldenAnnotation';
 import { isSectionUnsure, parseAnnotation, serializeAnnotation, type GlobalMetadata } from './annotationForm';
 
 export const COMMON_INSTRUMENTS = ['Acoustic guitar', 'Electric guitar', 'Bass', 'Synth bass', 'Piano', 'Electric piano', 'Synthesizer', 'Drum kit', 'Kick', 'Snare', 'Shaker', 'Tambourine', 'Lead vocals', 'Backing vocals'];
@@ -12,7 +13,7 @@ export const QUESTIONS = [
   { key: 'instrumentation', tagKey: 'instrumentationTags', group: 0, label: 'Instrumentation', prompt: 'Which instruments carry the song?', hint: 'Who leads, and who supports?' },
   { key: 'playingStyle', tagKey: 'playingStyleTags', group: 0, label: 'Playing Style', prompt: 'How are the main parts played?', hint: 'Soft fingerpicking, with steady shaker hits.' },
   { key: 'vocal', tagKey: 'vocalTags', group: 1, label: 'Vocal Expression', prompt: 'What does the singing sound like?', hint: 'A close, quiet lead with harmony in the chorus.' },
-  { key: 'lyrics', tagKey: 'lyricsTags', group: 1, label: 'Lyrical Evocation', prompt: 'What are the lyrics about, in general?', hint: 'Themes only, such as looking back or leaving home.' },
+  { key: 'lyrics', tagKey: 'lyricsTags', group: 1, label: 'Lyrical Evocation', prompt: 'What are the English lyrics about?', hint: `Summarize their theme in your own words. Enter "${LYRICS_UNAVAILABLE}" if the lyrics are non-English or you cannot understand them.` },
   { key: 'wowFactor', tagKey: 'wowFactorTags', group: 2, label: 'Wow Factor', prompt: 'What stands out most?', hint: 'One moment a listener might remember.' },
   { key: 'emotionVibeSetting', tagKey: 'emotionVibeSettingTags', group: 2, label: 'Emotion, Vibe & Setting', prompt: 'How does it feel, and where would you listen to it?', hint: 'Reflective, suited to a quiet evening.' },
   { key: 'mix', tagKey: 'mixTags', group: 2, label: 'Mix & Production', prompt: 'How does the mix sound?', hint: 'The vocal is up front, with a wide shaker sound.' },
@@ -56,10 +57,11 @@ export function buildManualInput(sheet: ManualSheet, duration: number) {
   ].join('\n'));
   const global = QUESTIONS.map(question => {
     const instrumental = song.instrumental && question.group === 1;
+    const unavailableLyrics = question.key === 'lyrics' && isLyricsUnavailable(notes[question.label]);
     const label = question.label.toLowerCase().replace(' & ', ' and ');
     const factsLabel = ({harmonyChordsKey: 'Harmony', emotionVibeSetting: 'Emotion and setting', lyrics: 'Lyrical themes'} as Record<string, string>)[question.key] ?? label;
     return [
-      `${label} tags: ${instrumental ? '' : tags[question.key] || ''}`,
+      `${label} tags: ${instrumental || unavailableLyrics ? '' : tags[question.key] || ''}`,
       `${factsLabel}${question.key === 'lyrics' ? '' : ' facts'}: ${instrumental ? 'N/A' : notes[question.label] || ''}`,
     ].join('\n');
   });
@@ -101,6 +103,9 @@ export function prepareManualDraft(text: string, sheet: ManualSheet, useAudio: b
     if (instrumental) {
       globalMetadata[question.key] = 'N/A';
       globalMetadata[question.tagKey] = '';
+    } else if (question.key === 'lyrics' && (isLyricsUnavailable(sheet.notes[question.label]) || isLyricsUnavailable(globalMetadata.lyrics))) {
+      globalMetadata.lyrics = LYRICS_UNAVAILABLE;
+      globalMetadata.lyricsTags = '';
     } else {
       if (!useAudio || sheet.tags[question.key]?.trim()) globalMetadata[question.tagKey] = sheet.tags[question.key] ?? '';
       if ((!useAudio && !sheet.notes[question.label]?.trim()) || !globalMetadata[question.key]?.trim()) {

@@ -1,6 +1,6 @@
 import { NATURAL_MUSIC_WRITING } from '../shared/naturalMusicWriting.js';
 import { SECTION_NAMING_RULES } from '../shared/annotationSections.js';
-import { GOLDEN_GLOBAL_RULES, GOLDEN_NARRATIVE_RULES } from '../shared/goldenAnnotation.js';
+import { GOLDEN_GLOBAL_RULES, GOLDEN_NARRATIVE_RULES, LYRICAL_EVOCATION_RULE } from '../shared/goldenAnnotation.js';
 import { MELODY_INSTRUCTION } from '../shared/melody.js';
 /**
  * @license
@@ -213,13 +213,13 @@ Describe the voice(s) present: audible register and pitch range (low/mid/high), 
 
 ### ## 21. Lyrical Evocation Tags
 
-Tag the lyrical themes, topics, or emotional imagery.
+Tag themes supported by understandable English lyrics. Leave tags empty when lyrics are unavailable or the track is instrumental.
 * **Format:** Comma-separated everyday words or short natural phrases. No fixed word count; no full sentences.
 * *Example:* Love, Heartbreak, Relationship problems, Loss, Storytelling
 
 ### ## 22. Lyrical Evocation
 
-Paraphrase the main lyrical theme or story in your own words when supported. Do not quote lyrics or reconstruct inaudible words. If the track is an instrumental, write "N/A".
+${LYRICAL_EVOCATION_RULE}
 
 * **Format:** Text field (complete sentences).
 * *Example:* "The lyrics are about missing someone after a breakup. The singer recalls places they used to go together."

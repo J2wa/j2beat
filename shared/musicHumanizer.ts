@@ -1,4 +1,5 @@
 import { NATURAL_MUSIC_WRITING } from './naturalMusicWriting.js';
+import { isLyricsUnavailable } from './goldenAnnotation.js';
 /** Original music-specific copyediting rules. No third-party humanizer dependency. */
 export const MUSIC_HUMANIZER_RULES = `You edit music annotations for clear, natural, objective English.
 ${NATURAL_MUSIC_WRITING}
@@ -53,7 +54,7 @@ export function musicProseFields(source: string): MusicProseField[] {
     const raw = annotation.slice(rawStart, rawEnd);
     const leading = raw.length - raw.trimStart().length;
     const text = raw.trim();
-    if (!text || /^(?:none|n\/a|unknown|uncertain)$/i.test(text)) continue;
+    if (!text || /^(?:none|n\/a|unknown|uncertain)$/i.test(text) || (label === 'Lyrical Evocation' && isLyricsUnavailable(text))) continue;
     const start = rawStart + leading;
     fields.push({ id: `f${fields.length}`, label: /^(Narrative Description|Description)$/.test(label) ? `Section ${section}: ${label}` : label, text, start, end: start + text.length });
     i = j - 1;
@@ -73,7 +74,7 @@ export function applyMusicEdits(source: string, edits: unknown): string {
     if (!field || seen.has(field.id) || typeof edit.text !== 'string' || !edit.text.trim()) throw new Error('Invalid humanizer field.');
     seen.add(field.id);
     const text = edit.text.trim();
-    if (/^(?:none|n\/a|unknown|uncertain)$/i.test(text)) throw new Error('Humanizer removed a prose field.');
+    if (/^(?:none|n\/a|unknown|uncertain)$/i.test(text) || (field.label === 'Lyrical Evocation' && isLyricsUnavailable(text))) throw new Error('Humanizer removed a prose field.');
     if (text.length > 20000 || text.includes('<!--') || text.includes('```') || text.split(/\r?\n/).some(isBoundary)) throw new Error('Humanizer changed the annotation format.');
     if (JSON.stringify(numbers(field.text)) !== JSON.stringify(numbers(text)) || JSON.stringify(links(field.text)) !== JSON.stringify(links(text))) throw new Error('Humanizer changed numbers or citations.');
     // Conservative: exact qualifier tokens must survive. This also guards negation.

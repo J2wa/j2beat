@@ -1,5 +1,5 @@
 import { SECTION_NAMING_RULES } from './annotationSections.js';
-import { GOLDEN_GLOBAL_RULES, GOLDEN_NARRATIVE_RULES } from './goldenAnnotation.js';
+import { GOLDEN_GLOBAL_RULES, GOLDEN_NARRATIVE_RULES, LYRICS_UNAVAILABLE } from './goldenAnnotation.js';
 import { MELODY_INSTRUCTION } from './melody.js';
 import { PLAIN_MUSIC_PROSE } from './naturalMusicWriting.js';
 
@@ -48,12 +48,13 @@ ${GOLDEN_GLOBAL_RULES}
 - Harmony, Chords and Key: stay descriptive. Include an exact key or chord progression only when the annotator has supplied it as verified for this recording.
 - Tempo: if the annotator gave a BPM, mark it as approximate.
 - Instrumentation covers the arrangement role of the main parts. Playing Style covers how they are performed. Keep these separate and do not move facts between them.
-- Lyrical Evocation and Vocal Expression: write N/A when the input says the track is instrumental. Otherwise use only the themes and vocal details the annotator provided. Never guess gender or identity. Do not look up lyrics.
+- Lyrical Evocation: summarize only the supplied observations about understandable English lyrics. If the annotator marks lyrics non-English or unintelligible, return exactly "${LYRICS_UNAVAILABLE}" with empty lyric tags. If the notes give no information about the lyrics, flag the missing information. The language of the annotator's notes is separate from the language sung.
+- Vocal Expression: use only the supplied vocal observations. Never guess gender or identity.
 - Mix and Production: do not guess equipment, microphones or recording methods.
 
 FLAGS FOR MISSING OR INCONSISTENT INPUT
 When something you need is missing or the input conflicts, do not guess. Write a marker in the exact form [NEEDS INPUT: short reason] at that spot and continue. Use a marker when:
-- A required field is empty, for example a segment has no Instruments list, or a prose field has no facts.
+- A required field is empty, for example a segment has no Instruments list, or a prose field has no facts. "${LYRICS_UNAVAILABLE}" counts as a completed lyrical evocation.
 - An instrument is mentioned in the notes but missing from the Instruments list, or the reverse.
 - A segment would run longer than 60 seconds, calculated from its start time to the next start time, or the last start time to the track duration.
 - Start times are not in order, two segments share a start time, the first segment does not start at 0:00.

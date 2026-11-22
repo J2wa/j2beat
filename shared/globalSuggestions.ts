@@ -1,4 +1,4 @@
-import { TEMPO_BUCKETS } from './goldenAnnotation.js';
+import { LYRICAL_EVOCATION_RULE, LYRICS_UNAVAILABLE, TEMPO_BUCKETS, isLyricsUnavailable } from './goldenAnnotation.js';
 
 export const GLOBAL_SUGGESTION_FIELDS = {
   genreEraScene: 'A plausible broad genre and the audible features that support it. Era and cultural scene require reliable context unavailable in this listening-only pass.',
@@ -11,7 +11,7 @@ export const GLOBAL_SUGGESTION_FIELDS = {
   mix: 'Relative levels, placement, space, and audible effects. Avoid guessing equipment or studio methods.',
   fidelity: 'Audible clarity, noise, distortion, or masking.',
   vocal: 'Audible register, pitch range, timbre, and phrasing. Omit when absent. Never infer gender or identity.',
-  lyrics: 'Themes supported by clearly audible words. Paraphrase, do not quote. Omit when absent or unclear.',
+  lyrics: `${LYRICAL_EVOCATION_RULE} Return this field with empty tags when the answer is "${LYRICS_UNAVAILABLE}" or "N/A", even if other uncertain fields are omitted.`,
 } as const;
 
 export type GlobalSuggestionField = keyof typeof GLOBAL_SUGGESTION_FIELDS;
@@ -30,6 +30,10 @@ export function parseGlobalSuggestions(text: string): GlobalSuggestions {
     if (!candidate || typeof candidate.notes !== 'string' || !Array.isArray(candidate.tags)) continue;
     const notes = candidate.notes.replace(/\s+/g, ' ').trim();
     if (!notes || notes.length > 1200) continue;
+    if (field === 'lyrics' && isLyricsUnavailable(notes)) {
+      suggestions.lyrics = {notes: LYRICS_UNAVAILABLE, tags: []};
+      continue;
+    }
     const tags = new Map<string, string>();
     for (const item of candidate.tags.slice(0, 8)) {
       if (typeof item !== 'string') continue;

@@ -1340,8 +1340,8 @@ export default function App() {
                               tagLabel: "Lyrical Evocation Tags *",
                               descLabel: "Lyrical Evocation *",
                               tagPlaceholder: "Examples: love, heartbreak, relationship problems, loss, storytelling (comma-separated)",
-                              descPlaceholder: "Describe the lyrical themes, topics, or emotional imagery in detail...",
-                              help: "What are the audible lyrics about: love, heartbreak, loss, a story? Use N/A for instrumental music; do not guess unclear lyrics."
+                              descPlaceholder: "Summarize the theme or story of understandable English lyrics...",
+                              help: "Enter Lyrics unavailable for non-English lyrics or words you cannot understand. Use N/A for instrumental music."
                             }
                           ].map((cat) => (
                             <div

@@ -4,7 +4,7 @@ import { AnalysisError, GeminiAudioFiles, generateWithFallback } from './provide
 import { researchSong, researchInstruction } from './songResearch.js';
 import { attachResearch, type ResearchReport } from '../shared/research.js';
 import { SECTION_NAMING_RULES } from '../shared/annotationSections.js';
-import { GOLDEN_NARRATIVE_RULES, GOLDEN_GLOBAL_RULES } from '../shared/goldenAnnotation.js';
+import { GOLDEN_NARRATIVE_RULES, GOLDEN_GLOBAL_RULES, LYRICAL_EVOCATION_RULE, LYRICS_UNAVAILABLE } from '../shared/goldenAnnotation.js';
 import { MELODY_INSTRUCTION } from '../shared/melody.js';
 import { timestampSeconds } from '../shared/manualSegments.js';
 
@@ -14,12 +14,14 @@ export const EVIDENCE_PROMPT = `Listen to the supplied audio and return ONLY a J
 {"overview":"audible style, mood, instrumentation, vocals, rhythm, harmony and production",
  "sections":[{"start":0,"end":10,"label":"approved section label","observations":"audible events and changes","uncertainties":"uncertain details"}],
  "uncertainties":["unresolved musical details"],
- "songClues":"up to ten clearly audible lyric words to help identify the song, or blank"}.
+ "lyricalEvocation":"short theme or story from understandable English lyrics, ${LYRICS_UNAVAILABLE}, or N/A",
+ "songClues":"up to ten clearly audible English lyric words to help identify the song, or blank"}.
 Cover the entire supplied duration from zero to its actual end, including all music after two minutes. Every interval must have listening observations, including silence when audible. Do not mistake a pause for the ending. Keep intervals at most 60 seconds; for a sustained passage reuse the supported label without inventing transitions.
 First assess the whole recording, then locate sections by audible changes and repetition, then describe events inside each interval. Do not force verse/chorus labels onto instrumental or through-composed music. Keep sparse music sparse.
 Use whole-second integers for start and end, relative to the uploaded audio. Bound all intervals by the supplied duration. Do not invent precise boundaries. Describe harmonic color, chord movement, tempo, instruments, vocal delivery and lyrics only when supported by listening; otherwise record uncertainty. Do not infer identity or gender. Do not reconstruct inaudible lyrics from memory. No web knowledge can establish what is audible.
 For each section, identify the audible parts and record what each contributes. Note its technique, rhythmic pattern, or interaction with another part where clear. For vocals, note audible phrasing, register, pitch range, timbre, delivery and layering. Capture meaningful entrances, exits, fills, and changes in technique or density, with approximate times when useful. Note how those sounds shape or change the section's feel and what specifically creates that impression. In recurring sections, describe the full arrangement and the distinguishing sounds. Record the melodic carrier and its gesture where clear.
 In the overview, capture separate observations on genre cues, pulse and bass-percussion interplay, arrangement roles, playing techniques, and audible balance, placement, or effects. Note how the overall feel changes and which audible details explain it. Use broader source descriptions or record uncertainty if the evidence is ambiguous. Do not guess details to fill the checklist.
+For lyricalEvocation, apply this rule: ${LYRICAL_EVOCATION_RULE} Use songClues only when the English words are clear enough to help establish the song identity.
 Treat user guidance and previous annotations as hypotheses, never as evidence. Use short factual observations, not polished captions. Do not output reasoning or extra JSON fields.
 ${SECTION_NAMING_RULES}
 In the final interval, record how the recording ends, such as fading, cutting off, or resolving on a held sound. Record pitch contour and the main instrument for clear melodies. Note vocal melody for this field only in a cappella, aria, or choral music.`;
@@ -59,7 +61,8 @@ export function cleanEvidence(raw: string, duration: number) {
   const uncertainties = Array.isArray(data.uncertainties) ? data.uncertainties.slice(0,20).map(short).filter(Boolean) : [];
   if (rejected) uncertainties.push(`${rejected} invalid or overlapping intervals discarded; boundaries require human review.`);
   if (!sections.length) uncertainties.push('No valid section intervals; boundaries require human review.');
-  return {overview:short(data.overview), sections, uncertainties, songClues:short(data.songClues).split(/\s+/).slice(0,10).join(' ')};
+  return {overview:short(data.overview), sections, uncertainties, lyricalEvocation:short(data.lyricalEvocation),
+    songClues:short(data.songClues).split(/\s+/).slice(0,10).join(' ')};
 }
 
 export function coverageIssues(sections: {start:number;end:number}[], duration: number): string[] {
@@ -148,7 +151,7 @@ async function runMusicAnnotation(request: any, duration: number, generate: type
   try { songResearch = await research(request, evidence, draftDeadline); }
   catch { songResearch = {status:'unavailable',message:'Google Search is unavailable. Global fields use listening evidence only.',summary:'',sources:[],queries:[]}; }
   const instruction = evidence
-    ? `\n\nValidated preliminary listening notes (model estimates, not ground truth):\n${JSON.stringify(evidence)}\nWRITING PASS: No audio is attached. Use ONLY this metadata as the source for audible musical facts; the separate Google Search context may supplement global fields with citations. Earlier user text controls style and formatting, not musical facts. Do not invent missing details, repair missing intervals, add instruments or supply lyrics from memory. Preserve uncertainties. Write the requested annotation from these observations. Do not print these notes or change output field labels. All final timestamps must stay within the supplied duration; do not fill gaps by inventing events.`
+    ? `\n\nValidated preliminary listening notes (model estimates, not ground truth):\n${JSON.stringify(evidence)}\nWRITING PASS: No audio is attached. Use ONLY this metadata as the source for audible musical facts; the separate Google Search context may supplement other global fields with citations. Use the listening notes' lyricalEvocation for Lyrical Evocation. If those notes have no usable lyrical summary, write "${LYRICS_UNAVAILABLE}" unless the notes establish that the track is instrumental. Song Clues are for identification only. Earlier user text controls style and formatting, not musical facts. Do not invent missing details, repair missing intervals, add instruments or supply lyrics from memory. Preserve uncertainties. Write the requested annotation from these observations. Do not print these notes or change output field labels. All final timestamps must stay within the supplied duration; do not fill gaps by inventing events.`
     : '\n\nPreliminary evidence extraction was unavailable. Analyze the audio directly: whole-track listening, section boundaries, local events, consistency check, then final annotation. Do not claim a separate verification succeeded.';
   const contents = evidence
     ? request.contents.map((c:any) => ({...c, parts:c.parts.filter((p:any) => typeof p.text === 'string')}))

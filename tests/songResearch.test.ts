@@ -56,11 +56,16 @@ assert.equal(calls.length,0);
 calls=[];
 const final = await generateMusicAnnotation(request,20,async(r:any,o:any)=>{
   calls.push({r,o});
-  return {text:calls.length===1 ? JSON.stringify({overview:'Piano',sections:[{start:0,end:20,observations:'Piano repeats two clipped notes.'}],songClues:'one two three four five six seven eight nine ten eleven'}) : '- **Start Time:** 00:00\nFinal annotation'};
+  return {text:calls.length===1 ? JSON.stringify({overview:'Piano',sections:[{start:0,end:20,observations:'Piano repeats two clipped notes.'}],
+    songClues:'one two three four five six seven eight nine ten eleven', lyricalEvocation:'The singer reflects on leaving home.'}) : '- **Start Time:** 00:00\nFinal annotation'};
 },async()=>report);
 assert.equal(splitResearch(final.text).research?.status,'grounded');
 assert.ok(calls[1].r.config.systemInstruction.includes('example.com/credits'));
 assert.ok(calls[1].r.config.systemInstruction.includes('ONLY the Global Musical Matrix'));
+assert.match(calls[0].r.config.systemInstruction, /lyrics are primarily in English/);
+assert.match(calls[1].r.config.systemInstruction, /"lyricalEvocation":"The singer reflects on leaving home."/);
+assert.match(calls[1].r.config.systemInstruction, /Never use search to fill Lyrical Evocation or override the lyrics-unavailable result/);
+assert.match(calls[2].r.config.systemInstruction, /exactly "Lyrics unavailable"/);
 assert.ok(!calls[1].r.contents[0].parts.some((p:any)=>p.inlineData));
 assert.ok(!calls[1].r.config.systemInstruction.includes('ten eleven'));
 for (const prompt of [SYSTEM_PROMPT, KNOWLEDGE_BASE]) {

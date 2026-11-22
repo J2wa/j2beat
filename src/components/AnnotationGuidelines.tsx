@@ -1,5 +1,5 @@
 import { SECTION_GROUPS, SECTION_TYPES } from '../../shared/annotationSections';
-import { TEMPO_BUCKETS } from '../../shared/goldenAnnotation';
+import { LYRICAL_EVOCATION_RULE, TEMPO_BUCKETS } from '../../shared/goldenAnnotation';
 import { Button, SectionContainer } from './BrandSystem';
 
 const sectionChecks = [
@@ -22,7 +22,7 @@ const globalChecks = [
   ['Mix & Production', 'Describe where the sounds sit, which parts are up front, how wide or dry the mix sounds, and any audible effects or movement across the stereo field.'],
   ['Sonic Fidelity', 'Describe audio quality through what you hear, such as clarity, noise, distortion, or a part being masked.'],
   ['Vocal Expression', 'Describe pitch range, timbre, and delivery. Note audible processing, ad-libs, runs, and changes in delivery when relevant. Identify vocal roles without guessing gender or identity.'],
-  ['Lyrical Evocation', 'Paraphrase the main theme, story, or emotional impression in your own words. Leave out quoted lyrics. For an instrumental, enter exactly N/A in Vocal Expression and Lyrical Evocation and leave those tag lists empty.'],
+  ['Lyrical Evocation', `${LYRICAL_EVOCATION_RULE} For an instrumental, also enter exactly N/A in Vocal Expression and leave both tag lists empty.`],
 ] as const;
 
 const labelComparisons = [

@@ -37,6 +37,8 @@ const cleanedWholeSong = {
   instrumentation: {notes: 'Bass supports the picked line.', tags: []},
 };
 assert.deepEqual(parseGlobalSuggestions(wholeSong), cleanedWholeSong);
+assert.deepEqual(parseGlobalSuggestions('{"suggestions":{"lyrics":{"notes":"lyrics unavailable.","tags":["Heartbreak"]}}}'),
+  {lyrics: {notes: 'Lyrics unavailable', tags: []}});
 assert.deepEqual(parseGlobalSuggestions('{"suggestions":{}}'), {});
 assert.throws(() => parseGlobalSuggestions('{"suggestions":[]}'));
 assert.throws(() => parseGlobalSuggestions('{"suggestions":{"mix":{"notes":"","tags":[]}}}'));
@@ -52,5 +54,6 @@ assert.equal(requests[0].request.contents[0].parts[1].inlineData, requests[1].re
 assert.match(requests[0].request.contents[0].parts[0].text, /120 seconds/);
 assert.match(requests[0].request.config.systemInstruction, /Exact keys or progressions require reliable confirmation/);
 assert.match(requests[0].request.config.systemInstruction, /Never infer gender or identity/);
+assert.match(requests[0].request.config.systemInstruction, /non-English or you cannot understand/);
 assert.ok(requests.every(({request}) => request.config.systemInstruction.includes(PLAIN_MUSIC_PROSE)));
 console.log('Passed whole-song suggestion validation, unsupported field handling, and shared audio across format retries.');

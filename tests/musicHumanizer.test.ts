@@ -35,6 +35,8 @@ const trailingLyrics = '22. Lyrical Evocation: Reflective phrases.\nLyrics & Son
 assert.equal(musicProseFields(trailingLyrics)[0].text, 'Reflective phrases.');
 assert.equal(applyMusicEdits(trailingLyrics, [{ id: 'f0', text: 'The words sound reflective.' }]),
   trailingLyrics.replace('Reflective phrases.', 'The words sound reflective.'));
+assert.equal(musicProseFields('22. Lyrical Evocation: Lyrics unavailable').length,0);
+assert.throws(() => applyMusicEdits(trailingLyrics, [{id:'f0', text:'Lyrics unavailable'}]));
 assert.throws(() => applyMusicEdits(trailingLyrics, [{id:'f0', text:'Reflective phrases.\nLyrics & Song Structure: Different verse.'}]));
 const replacement = fields[0].text.replace('beautifully intertwines with','plays alongside');
 const edited = applyMusicEdits(source,[{id:'f0',text:replacement}]);
