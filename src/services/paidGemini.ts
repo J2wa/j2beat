@@ -1,5 +1,5 @@
 import { GEMINI_KEY_HEADER, isGeminiKey } from '../../shared/geminiKey';
-import { NEMOTRON_MODEL } from '../../shared/models';
+import { GEMINI_NEON_MODEL } from '../../shared/models';
 
 // Keep the user's credential in memory for this signed-in tab.
 let personalKey: string | undefined;
@@ -9,7 +9,7 @@ export function setPaidGeminiKey(key?: string) {
 }
 
 export function paidGeminiHeaders(model: unknown): Record<string, string> {
-  return personalKey && model !== NEMOTRON_MODEL ? { [GEMINI_KEY_HEADER]: personalKey } : {};
+  return personalKey && model === GEMINI_NEON_MODEL ? { [GEMINI_KEY_HEADER]: personalKey } : {};
 }
 
 export async function checkPaidGeminiKey(key: string, signal: AbortSignal): Promise<{neon: boolean}> {

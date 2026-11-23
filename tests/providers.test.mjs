@@ -65,7 +65,7 @@ assert.deepEqual(usedKeys,['numbered-only']);
 delete process.env.GEMINI_API_KEY_1;
 process.env.GEMINI_API_KEY='test';
 console.log('Passed ten-key failover on the same model and numbered-only configuration.');
-const {geminiApiKeys,geminiKeyContext} = await import('../server/apiKeys.ts');
+const {geminiApiKeys,geminiKeyContext,geminiKeysForModel} = await import('../server/apiKeys.ts');
 process.env.GEMINI_API_KEYS='test, second\nsecond';
 process.env.GEMINI_API_KEY_10='third';
 assert.deepEqual(geminiApiKeys(),['test','third','second']);
@@ -195,3 +195,26 @@ await assert.rejects(
 assert.deepEqual(calls.map(call => call.model), [GEMINI_NEON_MODEL]);
 assert.deepEqual(usedKeys, ['personal-neon-key']);
 console.log('Passed paid Gemini request isolation, Neon credential requirement, and no Neon fallback.');
+
+// Standard models ignore a personal Neon key, even inside that key's request context.
+process.env.GEMINI_API_KEY_1 = 'fallback-key-1';
+process.env.GEMINI_API_KEY_2 = 'fallback-key-2';
+calls = []; usedKeys = [];
+responses = [Object.assign(new Error('quota'), {status:429}), good];
+await geminiKeyContext.run('personal-neon-key', async () => {
+  assert.deepEqual(geminiKeysForModel(DEFAULT_MODEL), ['server-key','fallback-key-1','fallback-key-2']);
+  assert.deepEqual(geminiKeysForModel(GEMINI_NEON_MODEL), ['personal-neon-key']);
+  await generateWithFallback(request, {maxAttempts:1});
+});
+assert.deepEqual(usedKeys, ['server-key','fallback-key-1']);
+assert.deepEqual(calls.map(call => call.model), [DEFAULT_MODEL,DEFAULT_MODEL]);
+
+// Model discovery must leave the same model's remaining keys ahead of alternatives.
+calls = []; usedKeys = [];
+globalThis.modelCatalog = [{name:'models/gemini-4.1-flash',supportedActions:['generateContent']}];
+responses = [Object.assign(new Error('missing model'), {status:404}), good];
+await generateWithFallback(request, {maxAttempts:1});
+assert.deepEqual(usedKeys, ['server-key','server-key','fallback-key-1']);
+assert.deepEqual(calls.map(call => call.model), [DEFAULT_MODEL,DEFAULT_MODEL]);
+delete globalThis.modelCatalog;
+console.log('Passed ordered standard-model key fallback with a personal Neon key connected.');

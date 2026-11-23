@@ -10,18 +10,20 @@ export function modelAccess(req: any, res: any, model: ModelId): { geminiKey?: s
     return;
   }
 
-  const key = req.headers[GEMINI_KEY_HEADER];
-  if (key !== undefined && !isGeminiKey(key)) {
-    res.status(400).json({ error: 'Enter a valid Gemini API key.' });
+  if (model === GEMINI_NEON_MODEL) {
+    const key = req.headers[GEMINI_KEY_HEADER];
+    if (isGeminiKey(key)) return { geminiKey: key };
+    if (key !== undefined) {
+      res.status(400).json({ error: 'Enter a valid Gemini API key.' });
+    } else {
+      res.status(403).json({ error: 'Connect a paid Gemini API key with Gemini 4 Neon access in Studio.' });
+    }
     return;
   }
-  if (model === GEMINI_NEON_MODEL && !key) {
-    res.status(403).json({ error: 'Connect a paid Gemini API key with Gemini 4 Neon access in Studio.' });
+
+  if (!geminiApiKeys().length && !process.env.OPENROUTER_API_KEY) {
+    res.status(503).json({ error: 'Ask the project owner to configure a Gemini or OpenRouter key for this model.' });
     return;
   }
-  if (!key && !geminiApiKeys().length && !process.env.OPENROUTER_API_KEY) {
-    res.status(503).json({ error: 'Connect a Gemini API key in Studio or ask the project owner to configure an AI provider.' });
-    return;
-  }
-  return { geminiKey: key };
+  return {};
 }

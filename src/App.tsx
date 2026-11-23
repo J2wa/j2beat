@@ -5,7 +5,7 @@ import { ManualMode } from './components/ManualMode';
 import { AnnotationGuidelines } from './components/AnnotationGuidelines';
 import { importedAudioExpiresAt } from "../shared/importExpiry";
 import { attachResearch, splitResearch, researchAsMarkdown, type ResearchReport } from "../shared/research";
-import { DEFAULT_MODEL, GEMINI_NEON_MODEL, NEMOTRON_MODEL, MODEL_OPTIONS, isModelId, type ModelId } from '../shared/models';
+import { DEFAULT_MODEL, GEMINI_NEON_MODEL, MODEL_OPTIONS, isModelId, type ModelId } from '../shared/models';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -339,7 +339,7 @@ export default function App() {
   };
 
   const hasGuidance = Boolean(generalGuidance.trim() || Object.values(accurateData).some(value => value.trim()));
-  const canAnalyze = Boolean(file && !importing && !isProcessing && !isRefining && !isHumanizing && (serviceReady === true || (geminiAccess && selectedModel !== NEMOTRON_MODEL)));
+  const canAnalyze = Boolean(file && !importing && !isProcessing && !isRefining && !isHumanizing && (selectedModel === GEMINI_NEON_MODEL ? neonAvailable : serviceReady === true));
 
   const handleProcess = async () => {
     if (!file || !canAnalyze) return;
@@ -938,7 +938,7 @@ export default function App() {
     <div className="app-shell">
       <Header view={view} onNavigate={setView} />
       <div className="page-title"><h1>{view === 'workspace' ? 'Studio' : view === 'archive' ? 'Library' : 'Guidelines'}</h1>{view === 'workspace' && <span className="small muted">{sections.length ? `${sections.length} segments` : 'Music annotation'}</span>}</div>
-      {serviceReady === false && !geminiAccess && <p className="service-notice">Connect a Gemini API key in Studio or ask the project owner to configure an AI provider.</p>}
+      {serviceReady === false && selectedModel !== GEMINI_NEON_MODEL && <p className="service-notice">Select Gemini 4 Neon with a paid key, or ask the project owner to configure keys for the other models.</p>}
       {error && <div role="alert" className="error-notice">{error}</div>}
       {view === "guidelines" && <AnnotationGuidelines onOpenStudio={() => setView("workspace")} />}
       {view === 'archive' && <SectionContainer className="document-view"><p className="eyebrow"></p><h2>Saved annotations</h2><p>Annotations are saved in this browser. Unannotated imports expire after 24 hours. Successful analysis removes the stored audio and keeps the annotation.</p>{archive.length === 0 ? <p className="archive-empty">No saved annotations yet.</p> : archive.map(item => <article className="archive-row" key={item.id}><div><h3>{item.name}</h3><p>{new Date(item.date).toLocaleString()}</p>{item.audioPath && item.text === IMPORTED_TRACK_NOTE && <p>Expires {new Date(item.expiresAt ?? importedAudioExpiresAt(item.date)).toLocaleString()}</p>}</div><div className="archive-actions"><Button disabled={isProcessing||isRefining||isHumanizing||importing} onClick={()=>openSaved(item)}><FileAudio />{item.audioPath?'Open & play':'Open annotation'}</Button>{item.text !== IMPORTED_TRACK_NOTE && <Button onClick={async()=>{try{(await import('./utils/pdfGenerator')).exportSavedPDF(item.name,item.text,item.date);}catch{setError('PDF export failed. Please retry.');}}}><Download/>Export PDF</Button>}{item.audioPath&&<a className="aces-button aces-button--secondary" href={'/api/audio?path='+encodeURIComponent(item.audioPath)} download={item.name}>Download audio</a>}</div></article>)}</SectionContainer>}

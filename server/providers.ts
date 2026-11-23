@@ -1,4 +1,4 @@
-import { geminiKeyContext, orderedGeminiKeys } from './apiKeys.js';
+import { geminiKeysForModel } from './apiKeys.js';
 import { MELODY_PRIORITY } from '../shared/melody.js';
 import { reportProgress } from './progress.js';
 import { DEFAULT_MODEL, GEMINI_NEON_MODEL, NEMOTRON_MODEL, isModelId, modelOrder } from '../shared/models.js';
@@ -90,17 +90,16 @@ async function generate(request: any, options: GenerationOptions, audioFiles: Ge
  if (request.model !== undefined && !isModelId(request.model)) throw new Error('Invalid analysis model');
  const model = request.model ?? DEFAULT_MODEL;
  const neon = model === GEMINI_NEON_MODEL;
- const personalKey = geminiKeyContext.getStore();
- if (neon && !personalKey) {
+ const keys = audioFiles.preferUploadedKeys(geminiKeysForModel(model));
+ if (neon && !keys.length) {
   throw new AnalysisError('AI_NEON_ACCESS', 403, 'Connect a paid Gemini API key with Gemini 4 Neon access in Studio.');
  }
  const models = modelOrder(model);
- const keys = audioFiles.preferUploadedKeys(orderedGeminiKeys());
  const routerModel = process.env.OPENROUTER_MODEL || NEMOTRON_MODEL;
  const attempts = model === NEMOTRON_MODEL
    ? [{ provider: 'openrouter', model: NEMOTRON_MODEL, apiKey: undefined }]
    : [...models.slice(0, options.maxAttempts ?? models.length).flatMap(model => keys.map(apiKey => ({provider: 'gemini', model, apiKey}))),
-   ...(!personalKey && (options.maxAttempts === undefined || (!keys.length && (options.maxAttempts ?? 1) > 0)) ? [{provider:'openrouter',model:routerModel,apiKey:undefined}] : [])];
+   ...(!neon && (options.maxAttempts === undefined || (!keys.length && (options.maxAttempts ?? 1) > 0)) ? [{provider:'openrouter',model:routerModel,apiKey:undefined}] : [])];
  for (let attemptIndex = 0; attemptIndex < attempts.length; attemptIndex++) {
   const {provider, model, apiKey} = attempts[attemptIndex];
   let operation = 'generation';
@@ -178,7 +177,7 @@ async function generate(request: any, options: GenerationOptions, audioFiles: Ge
    return {text};
   } catch (error) {
    failure = classifyFailure(error, operation);
-   if (personalKey && failure.code === 'AI_AUTH') {
+   if (neon && failure.code === 'AI_AUTH') {
     throw new AnalysisError('AI_AUTH', 403, 'Google rejected your Gemini key. Check its API permissions or reconnect it in Studio.');
    }
    if (neon && (failure.code === 'AI_MODEL' || failure.code === 'AI_QUOTA' || failure.code === 'AI_CREDITS')) {
@@ -197,14 +196,17 @@ async function generate(request: any, options: GenerationOptions, audioFiles: Ge
      const available:string[]=[]; let count=0;
      for await (const item of catalog) {
       const name=item.name?.replace(/^models\//,'');
-      if(name && /^gemini-[0-9].*-(flash|pro)(?:-|$)/.test(name) && !/image|tts|live|audio|robotics|computer|embedding|research/.test(name) && item.supportedActions?.includes('generateContent')) available.push(name);
+      if(name && name !== GEMINI_NEON_MODEL && /^gemini-[0-9].*-(flash|pro)(?:-|$)/.test(name) && !/image|tts|live|audio|robotics|computer|embedding|research/.test(name) && item.supportedActions?.includes('generateContent')) available.push(name);
       if(++count >= 100) break;
      }
      const candidates=[...new Set(available)].filter(name=>!attempts.slice(0,attemptIndex+1).some(a=>a.apiKey===apiKey && a.model===name))
       .sort((a,b)=>Number(b.includes('flash'))-Number(a.includes('flash')) || b.localeCompare(a,undefined,{numeric:true})).slice(0,3);
      // Replace stale remaining names for this key with API-advertised candidates.
      for(let j=attempts.length-1;j>attemptIndex;j--) if(attempts[j].apiKey===apiKey) attempts.splice(j,1);
-     attempts.splice(attemptIndex+1,0,...candidates.map(model=>({provider:'gemini',model,apiKey})));
+     // Try the other configured keys for the current model before alternatives.
+     let insertAt = attemptIndex + 1;
+     while (attempts[insertAt]?.provider === 'gemini' && attempts[insertAt].model === model) insertAt++;
+     attempts.splice(insertAt, 0, ...candidates.map(model => ({provider:'gemini',model,apiKey})));
     } catch { console.warn('Gemini model discovery unavailable'); }
    }
   }

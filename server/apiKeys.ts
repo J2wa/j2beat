@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { randomInt } from 'node:crypto';
+import { GEMINI_NEON_MODEL } from '../shared/models.js';
 
 export const geminiKeyContext = new AsyncLocalStorage<string | undefined>();
 
@@ -14,12 +14,8 @@ export function geminiApiKeys(): string[] {
     .map(value => value?.trim()).filter((value): value is string => Boolean(value)))];
 }
 
-export function orderedGeminiKeys(): string[] {
-  const personalKey = geminiKeyContext.getStore();
-  if (personalKey) return [personalKey];
-  const keys = geminiApiKeys();
-  if (!keys.length) return [];
-  // Random starting key distributes independent serverless invocations.
-  const start = randomInt(keys.length);
-  return [...keys.slice(start), ...keys.slice(0,start)];
+export function geminiKeysForModel(model: unknown): string[] {
+  if (model !== GEMINI_NEON_MODEL) return geminiApiKeys();
+  const neonKey = geminiKeyContext.getStore();
+  return neonKey ? [neonKey] : [];
 }

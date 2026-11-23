@@ -16,7 +16,7 @@ See [prompt and functionality extraction](docs/CONCEPTS_AND_PROMPTS.md) and the 
 ## Providers and fallback
 Set server-only GEMINI_API_KEY and/or OPENROUTER_API_KEY plus OPENROUTER_MODEL (must support audio input). The default is Gemini 3.5 Flash. The Model selector in Analysis settings remembers your selection in this browser and applies to both analysis and refinement. The selected model is tried first, followed by the remaining Gemini models (3.5 Flash, 3.5 Flash-Lite, 3.1 Flash-Lite, 2.5 Flash, without duplicates), then the configured OpenRouter audio model. Each generation attempt gets at most 50 seconds; errors, timeouts, empty responses, and incomplete Gemini responses trigger the next attempt. Legacy GEMINI_MODEL and AI_PRIMARY_PROVIDER values no longer override this order. All attempts failing preserves the draft and does not deduct local credits. Fallback sends the audio to the secondary provider and may incur charges from either provider. Key presence is not proof of valid credentials. Never paste keys in chat or store them in browser storage.
 
-Studio’s **Paid Gemini API key** accepts a key from a billing-enabled Google AI Studio project. The key stays in tab memory until disconnect, refresh, or sign-out. A Google model lookup enables **Gemini 4 Neon (Paid)** in automatic and manual mode when the key can see it. The connected key handles Gemini listening, research and writing requests. Neon stays on the selected model. Explicit OpenRouter requests use the server’s OpenRouter credentials. Google enforces billing and quota when the app runs analysis.
+Studio’s **Paid Gemini API key** accepts a key from a billing-enabled Google AI Studio project. The key stays in tab memory until disconnect, refresh, or sign-out. A Google model lookup enables **Gemini 4 Neon (Paid)** in automatic and manual mode when the key can see it. The connected key is used only for Neon, including its listening, research, and writing requests. Other Gemini models use the server key pool. Explicit OpenRouter requests use the server’s OpenRouter credentials. Google enforces billing and quota when the app runs analysis.
 
 All generated and refined outputs receive an evidence-first natural-writing directive, overriding formulaic style instructions while preserving parser field labels. Accuracy cannot be guaranteed by a prompt; human listening review remains necessary.
 
@@ -42,7 +42,7 @@ Checks: `npm run lint`, `npm run build`, `node --import tsx tests/providers.test
 
 Initial analysis and refinement search for the song using the uploaded filename, analysis guidance and short intelligible lyric clues from the listening pass. Add the title, artist and recording/version in Analysis guidance when the filename is ambiguous. The server uses Gemini's `googleSearch` tool in a separate text-only request, then retains actual search queries, HTTPS source URLs, supported passages and Google Search suggestions. Source-supported context can inform relevant Global Musical Matrix fields, with inline source links. Lyrical Evocation summarizes understandable English lyrics from listening. It uses “Lyrics unavailable” for non-English or unintelligible lyrics and “N/A” for instrumentals. It never establishes segment timing, melodic movement or which instruments are audible. Only passages with API grounding support are passed to the final writer. A matching search result is not independent proof of the uploaded recording's identity.
 
-The research pass uses the selected Gemini model with a bounded Gemini 2.5 Flash fallback. It uses a connected personal Gemini key or a configured server Gemini key and can incur additional Google Search charges. An unavailable search or uncertain match is shown explicitly, and the normal audio annotation still runs; OpenRouter is never presented as Google Search. No new credentials or browser-stored keys are needed.
+The research pass uses the selected Gemini model with a bounded Gemini 2.5 Flash fallback. Research uses the paid key exclusively for Neon and the server key pool for other models. Google Search can incur additional charges. An unavailable search or uncertain match is shown explicitly, and the normal audio annotation still runs; OpenRouter is never presented as Google Search. No new credentials or browser-stored keys are needed.
 
 Source provenance is retained in browser-local saved annotations using a versioned metadata footer. The footer is hidden from editing and parsing, preserved through form/raw edits, and excluded from refinement requests. The interface shows cited research and sources separately; text copies and PDF exports include a readable research section. Google suggestions are displayed in a sandboxed iframe with scripts and same-origin access disabled.
 
@@ -60,14 +60,15 @@ Alternatively use `GEMINI_API_KEYS` with comma-separated or newline-separated va
 The existing `GEMINI_API_KEY` remains supported; duplicates and blanks are removed.
 Do not use a VITE_ prefix or put credentials in frontend code. Redeploy after saving.
 
-Each provider call starts at a random key to spread independent requests, then
-tries the remaining keys on the same model before moving to fallback models.
+The app starts with `GEMINI_API_KEY`, then tries numbered keys in order,
+then keys in `GEMINI_API_KEYS`. It retries the same model with the other keys
+before moving to fallback models. A key that already holds an audio upload may
+be reused for later passes on the same track.
 This applies to listening, annotation/refinement, coverage repair, and Google
 Search research. Evidence-pass attempt limits still allow credential failover.
 All retries share the existing deadlines; slow failures can exhaust the budget
 before every key is tried. Search retains its 55-second total budget.
 Keys, provider error bodies, and credential indexes are never sent in progress messages.
-This is best-effort distribution, not a centralized queue or concurrency guarantee.
 Existing OpenRouter fallback is unchanged and uses its existing single key.
 
 

@@ -1,4 +1,4 @@
-import { orderedGeminiKeys } from './apiKeys.js';
+import { geminiKeysForModel } from './apiKeys.js';
 import { GoogleGenAI } from '@google/genai';
 import { DEFAULT_MODEL, GEMINI_NEON_MODEL, NEMOTRON_MODEL } from '../shared/models.js';
 import { safeSourceUrl, splitResearch, type ResearchReport } from '../shared/research.js';
@@ -44,8 +44,10 @@ export function researchFromResponse(response: any): ResearchReport {
 }
 
 export async function researchSong(request: any, evidence: unknown, deadline: number, generate?: (request: any) => Promise<any>): Promise<ResearchReport> {
-  const keys = generate ? ['injected'] : orderedGeminiKeys();
-  if (!keys.length) return unavailableResearch('Google Search needs the server Gemini API key. Audio analysis remains available through the configured provider.');
+  const keys = generate ? ['injected'] : geminiKeysForModel(request.model);
+  if (!keys.length) return unavailableResearch(request.model === GEMINI_NEON_MODEL
+    ? 'Google Search for Neon requires the paid key connected in Studio.'
+    : 'Google Search requires a configured Gemini API key.');
   const clues = request.contents.flatMap((c: any) => c.parts).filter((p: any) => typeof p.text === 'string').map((p: any) => splitResearch(p.text).annotation).join('\n').slice(0, 18000);
   const searchDeadline = Math.min(deadline, Date.now() + 55000);
   const models = request.model === GEMINI_NEON_MODEL ? [GEMINI_NEON_MODEL] : [...new Set([request.model === NEMOTRON_MODEL ? DEFAULT_MODEL : request.model ?? DEFAULT_MODEL, 'gemini-2.5-flash'])];
