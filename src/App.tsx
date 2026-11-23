@@ -1,9 +1,11 @@
+import { PaidGeminiSettings } from './components/PaidGeminiSettings';
+import { setPaidGeminiKey } from './services/paidGemini';
 import { parseAnnotation, serializeAnnotation, isSectionUnsure, type AnnotationSection, type GlobalMetadata } from "./utils/annotationForm";
 import { ManualMode } from './components/ManualMode';
 import { AnnotationGuidelines } from './components/AnnotationGuidelines';
 import { importedAudioExpiresAt } from "../shared/importExpiry";
 import { attachResearch, splitResearch, researchAsMarkdown, type ResearchReport } from "../shared/research";
-import { DEFAULT_MODEL, MODEL_OPTIONS, isModelId, type ModelId } from '../shared/models';
+import { DEFAULT_MODEL, GEMINI_NEON_MODEL, NEMOTRON_MODEL, MODEL_OPTIONS, isModelId, type ModelId } from '../shared/models';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -114,10 +116,14 @@ const IMPORTED_TRACK_NOTE = "Audio imported. Analyze this track to generate its 
 export default function App() {
   const [manualMode,setManualMode]=useState(false);
   const [manualMarks,setManualMarks]=useState<{id:number;times:number[]}>({id:0,times:[]});
-  const [selectedModel, setSelectedModel] = useState<ModelId>(() => {
+  const [preferredModel, setSelectedModel] = useState<ModelId>(() => {
     try { const stored = localStorage.getItem('aces_music_model'); return isModelId(stored) ? stored : DEFAULT_MODEL; }
     catch { return DEFAULT_MODEL; }
   });
+  const [geminiAccess, setGeminiAccess] = useState<{neon: boolean} | null>(null);
+  const neonAvailable = geminiAccess?.neon === true;
+  const selectedModel = preferredModel === GEMINI_NEON_MODEL && !neonAvailable ? DEFAULT_MODEL : preferredModel;
+  useEffect(() => () => setPaidGeminiKey(), []);
   const [view, setView] = useState<'workspace' | 'guidelines' | 'archive'>('workspace');
   const [archive, setArchive] = useState<Array<{id: string; name: string; text: string; date: string; audioPath?: string; expiresAt?: number; sourceUrl?: string; duration?: number}>>(() => {
     try { return JSON.parse(localStorage.getItem('aces_music_archive_v1') || '[]'); } catch { return []; }
@@ -333,7 +339,7 @@ export default function App() {
   };
 
   const hasGuidance = Boolean(generalGuidance.trim() || Object.values(accurateData).some(value => value.trim()));
-  const canAnalyze = Boolean(file && !importing && !isProcessing && !isRefining && !isHumanizing && serviceReady === true);
+  const canAnalyze = Boolean(file && !importing && !isProcessing && !isRefining && !isHumanizing && (serviceReady === true || (geminiAccess && selectedModel !== NEMOTRON_MODEL)));
 
   const handleProcess = async () => {
     if (!file || !canAnalyze) return;
@@ -932,7 +938,7 @@ export default function App() {
     <div className="app-shell">
       <Header view={view} onNavigate={setView} />
       <div className="page-title"><h1>{view === 'workspace' ? 'Studio' : view === 'archive' ? 'Library' : 'Guidelines'}</h1>{view === 'workspace' && <span className="small muted">{sections.length ? `${sections.length} segments` : 'Music annotation'}</span>}</div>
-      {serviceReady === false && <details className="service-notice"><summary><span className="status-dot"/> AI offline <span className="muted">Setup required</span></summary><p>In Vercel → j2beat → Settings → Environment Variables, set GEMINI_API_KEY and/or OPENROUTER_API_KEY with OPENROUTER_MODEL (an audio-input model). Your selected model is tried first, followed by the other Gemini models and the configured OpenRouter model if needed. Redeploy to apply. Keys remain server-side.</p></details>}
+      {serviceReady === false && !geminiAccess && <p className="service-notice">Connect a Gemini API key in Studio or ask the project owner to configure an AI provider.</p>}
       {error && <div role="alert" className="error-notice">{error}</div>}
       {view === "guidelines" && <AnnotationGuidelines onOpenStudio={() => setView("workspace")} />}
       {view === 'archive' && <SectionContainer className="document-view"><p className="eyebrow"></p><h2>Saved annotations</h2><p>Annotations are saved in this browser. Unannotated imports expire after 24 hours. Successful analysis removes the stored audio and keeps the annotation.</p>{archive.length === 0 ? <p className="archive-empty">No saved annotations yet.</p> : archive.map(item => <article className="archive-row" key={item.id}><div><h3>{item.name}</h3><p>{new Date(item.date).toLocaleString()}</p>{item.audioPath && item.text === IMPORTED_TRACK_NOTE && <p>Expires {new Date(item.expiresAt ?? importedAudioExpiresAt(item.date)).toLocaleString()}</p>}</div><div className="archive-actions"><Button disabled={isProcessing||isRefining||isHumanizing||importing} onClick={()=>openSaved(item)}><FileAudio />{item.audioPath?'Open & play':'Open annotation'}</Button>{item.text !== IMPORTED_TRACK_NOTE && <Button onClick={async()=>{try{(await import('./utils/pdfGenerator')).exportSavedPDF(item.name,item.text,item.date);}catch{setError('PDF export failed. Please retry.');}}}><Download/>Export PDF</Button>}{item.audioPath&&<a className="aces-button aces-button--secondary" href={'/api/audio?path='+encodeURIComponent(item.audioPath)} download={item.name}>Download audio</a>}</div></article>)}</SectionContainer>}
@@ -943,11 +949,14 @@ export default function App() {
         <div className="analysis-meter" role="progressbar" aria-label="Current operation" aria-valuenow={/Uploading audio.*%/.test(analysisStage)?Number(analysisStage.match(/(\d+)%/)?.[1]):undefined} aria-valuemin={0} aria-valuemax={100} aria-valuetext={analysisStage}><span className={/Uploading audio.*%/.test(analysisStage)?'determinate':'indeterminate'} style={/Uploading audio.*%/.test(analysisStage)?{width:`${analysisStage.match(/(\d+)%/)?.[1]}%`}:undefined}/></div>
         <small>{elapsedSeconds>90?'Taking longer than usual. Progress and retries appear above.':'You can listen, seek, and loop while the annotation runs.'} Analysis may take several minutes, followed by the automatic wording pass.</small>
       </section>}
+      {view === 'workspace' && <PaidGeminiSettings access={geminiAccess} onAccessChange={setGeminiAccess}
+        disabled={isProcessing || isRefining || isHumanizing} />}
       {view === 'workspace' && <section className={cn("annotation-mode-picker", manualMode && "annotation-mode-picker--compact")} aria-label="Choose annotation mode">
         <button type="button" aria-pressed={!manualMode} disabled={isProcessing||isRefining||isHumanizing} onClick={()=>setManualMode(false)}><span className="mode-icon">✦</span><strong>Automatic annotation</strong><span>Upload your audio. AI listens and drafts the full annotation.</span><small>{!manualMode?'Selected':'Choose automatic →'}</small></button>
         <button type="button" aria-pressed={manualMode} disabled={isProcessing||isRefining||isHumanizing} onClick={()=>setManualMode(true)}><span className="mode-icon">✎</span><strong>Manual annotation</strong><span>Mark sections, add listening notes, then let AI complete the draft.</span><small>{manualMode?'Selected':'Choose manual →'}</small></button>
       </section>}
       <ManualMode
+        neonAvailable={neonAvailable}
         active={manualMode && view === 'workspace'}
         marksRequest={manualMarks}
         playerMarks={splitMarkers}
@@ -1015,8 +1024,8 @@ export default function App() {
             <label className="field-label" htmlFor="model-select">Model</label>
             <select id="model-select" value={selectedModel} disabled={isProcessing || isRefining || isHumanizing} onChange={e=>{
               if (isModelId(e.target.value)) { setSelectedModel(e.target.value); try { localStorage.setItem('aces_music_model',e.target.value); } catch {} }
-            }}>{MODEL_OPTIONS.map(model=><option key={model.id} value={model.id}>{model.label}{model.id===DEFAULT_MODEL?' (default)':''}</option>)}</select>
-            <p className="field-hint">Automatic fallback enabled.</p>
+            }}>{MODEL_OPTIONS.map(model=><option key={model.id} value={model.id} disabled={model.id === GEMINI_NEON_MODEL && !neonAvailable}>{model.label}{model.id===DEFAULT_MODEL?' (default)':''}</option>)}</select>
+            <p className="field-hint">{selectedModel === GEMINI_NEON_MODEL ? 'Uses your connected Gemini key.' : 'Automatic fallback enabled.'}</p>
           </div>
           <p className="field-hint">Natural writing is automatic. Each segment uses fresh phrasing based on its musical details.</p>
           <div className="settings-options">

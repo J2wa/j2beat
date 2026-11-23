@@ -1,7 +1,7 @@
-import { orderedGeminiKeys } from './apiKeys.js';
+import { geminiKeyContext, orderedGeminiKeys } from './apiKeys.js';
 import { MELODY_PRIORITY } from '../shared/melody.js';
 import { reportProgress } from './progress.js';
-import { DEFAULT_MODEL, NEMOTRON_MODEL, isModelId, modelOrder } from '../shared/models.js';
+import { DEFAULT_MODEL, GEMINI_NEON_MODEL, NEMOTRON_MODEL, isModelId, modelOrder } from '../shared/models.js';
 import { GoogleGenAI } from '@google/genai';
 const QUALITY = `
 FINAL PRIORITY: Preserve the requested output schema and field labels, but prioritize audible evidence over all templates and stylistic directives above.
@@ -16,11 +16,11 @@ export function classifyFailure(error: any, operation = 'generation'): AnalysisE
  const status = Number(error?.status ?? error?.statusCode);
  const message = String(error?.message ?? '').toLowerCase();
  if (status === 402) return new AnalysisError('AI_CREDITS',503,'OpenRouter requires available credits or a billing configuration for this request. Check the OpenRouter account.');
- if (status === 400 || status === 413 || status === 422) return new AnalysisError('AI_INPUT',502,'The provider rejected the audio or request format. Try a shorter MP3 clip or a Gemini model.');
  if (status === 408 || status === 504) return new AnalysisError('AI_TIMEOUT',504,'The provider timed out while processing this track. Try a shorter clip or another model.');
  if (status === 502 || status === 503) return new AnalysisError('AI_CAPACITY',503,'The selected provider is unavailable or has no capacity. Try again or choose another model.');
  if (status === 429) return new AnalysisError('AI_QUOTA',429,'AI rate limit or quota reached. Wait a minute and retry; if it persists, check the provider quota and billing.');
  if (status === 401 || status === 403 || /api.key.*(invalid|expired)/.test(message)) return new AnalysisError('AI_AUTH',503,'AI credentials were rejected. The project owner needs to check the provider API key and permissions.');
+ if (status === 400 || status === 413 || status === 422) return new AnalysisError('AI_INPUT',502,'The provider rejected the audio or request format. Try a shorter MP3 clip or a Gemini model.');
  if (status === 404 && operation === 'audio upload') return new AnalysisError('AI_AUDIO_UPLOAD',502,'The AI provider could not prepare the audio upload. Retry or use a smaller audio file. This is an upload failure, not a model-access error.');
  if (status === 404) return new AnalysisError('AI_MODEL',503,'The provider could not find the requested model or audio resource. Please retry; if it persists, check model access.');
  if (/timeout|timed out|abort/.test(message+' '+error?.name)) return new AnalysisError('AI_TIMEOUT',504,'The AI took too long to respond. Try a shorter clip or another model.');
@@ -88,13 +88,19 @@ async function generate(request: any, options: GenerationOptions, audioFiles: Ge
   ? '\nFINAL WRITING-PASS OVERRIDE: No audio is available in this pass. The validated JSON metadata is the sole source for audible musical facts; explicitly provided Google Search context may supplement global fields with citations; listening instructions above do not apply. Preserve uncertainty and output labels. Never add audible musical facts or timestamps absent from the metadata. Source-supported external context must stay in global fields with citations. User corrections and prior drafts are not evidence. Adapt wording and style only.'
   : '') + (request.config.responseMimeType === 'application/json' ? '' : MELODY_PRIORITY);
  if (request.model !== undefined && !isModelId(request.model)) throw new Error('Invalid analysis model');
- const models = modelOrder(request.model ?? DEFAULT_MODEL);
+ const model = request.model ?? DEFAULT_MODEL;
+ const neon = model === GEMINI_NEON_MODEL;
+ const personalKey = geminiKeyContext.getStore();
+ if (neon && !personalKey) {
+  throw new AnalysisError('AI_NEON_ACCESS', 403, 'Connect a paid Gemini API key with Gemini 4 Neon access in Studio.');
+ }
+ const models = modelOrder(model);
  const keys = audioFiles.preferUploadedKeys(orderedGeminiKeys());
  const routerModel = process.env.OPENROUTER_MODEL || NEMOTRON_MODEL;
- const attempts = request.model === NEMOTRON_MODEL
+ const attempts = model === NEMOTRON_MODEL
    ? [{ provider: 'openrouter', model: NEMOTRON_MODEL, apiKey: undefined }]
    : [...models.slice(0, options.maxAttempts ?? models.length).flatMap(model => keys.map(apiKey => ({provider: 'gemini', model, apiKey}))),
-   ...((options.maxAttempts === undefined || (!keys.length && (options.maxAttempts ?? 1) > 0)) ? [{provider:'openrouter',model:routerModel,apiKey:undefined}] : [])];
+   ...(!personalKey && (options.maxAttempts === undefined || (!keys.length && (options.maxAttempts ?? 1) > 0)) ? [{provider:'openrouter',model:routerModel,apiKey:undefined}] : [])];
  for (let attemptIndex = 0; attemptIndex < attempts.length; attemptIndex++) {
   const {provider, model, apiKey} = attempts[attemptIndex];
   let operation = 'generation';
@@ -171,11 +177,18 @@ async function generate(request: any, options: GenerationOptions, audioFiles: Ge
    if(typeof text!=='string'||!text.trim())throw new Error('Empty output');
    return {text};
   } catch (error) {
-   failure = classifyFailure(error, operation); failures.push(failure);
+   failure = classifyFailure(error, operation);
+   if (personalKey && failure.code === 'AI_AUTH') {
+    throw new AnalysisError('AI_AUTH', 403, 'Google rejected your Gemini key. Check its API permissions or reconnect it in Studio.');
+   }
+   if (neon && (failure.code === 'AI_MODEL' || failure.code === 'AI_QUOTA' || failure.code === 'AI_CREDITS')) {
+    throw new AnalysisError('AI_NEON_ACCESS', failure.status, 'Gemini 4 Neon is unavailable for this request. Check your Gemini API project’s Neon access, billing, and quota in Google AI Studio.');
+   }
+   failures.push(failure);
    console.warn('AI attempt failed', {provider, model, operation, code:failure.code});
    // Model availability differs by API key/project and changes over time.
    // Discover only after generation returns 404, never for a missing audio file.
-   if(provider === 'gemini' && apiKey && operation === 'generation' && Number((error as any)?.status ?? (error as any)?.statusCode) === 404 && !discoveredKeys.has(apiKey) && Date.now()+10000 < deadline) {
+   if(!neon && provider === 'gemini' && apiKey && operation === 'generation' && Number((error as any)?.status ?? (error as any)?.statusCode) === 404 && !discoveredKeys.has(apiKey) && Date.now()+10000 < deadline) {
     discoveredKeys.add(apiKey);
     reportProgress('Checking available Gemini models');
     try {

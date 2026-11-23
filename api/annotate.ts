@@ -1,9 +1,10 @@
 import { DIRECT_UPLOAD_AUDIO_PATH } from '../shared/importExpiry.js';
 import { suggestGlobalMusic, suggestMusic } from '../server/musicSuggestions.js';
-import { geminiApiKeys } from '../server/apiKeys.js';
+import { geminiKeyContext } from '../server/apiKeys.js';
+import { modelAccess } from '../server/modelAccess.js';
 import { progressContext } from '../server/progress.js';
 import { AnalysisError } from '../server/providers.js';
-import { DEFAULT_MODEL, NEMOTRON_MODEL, isModelId, type ModelId } from '../shared/models.js';
+import { DEFAULT_MODEL, isModelId, type ModelId } from '../shared/models.js';
 import { requireSession } from '../server/auth.js';
 import { get, del } from '@vercel/blob';
 import { annotateAudio, refineAnnotation } from '../server/annotation.js';
@@ -12,10 +13,10 @@ export default async function handler(req: any, res: any) {
  if (!requireSession(req, res)) return;
  res.setHeader('Cache-Control', 'no-store');
  if (req.method !== 'POST') { res.setHeader('Allow','POST'); return res.status(405).json({error:'Use POST for analysis.'}); }
- if (!geminiApiKeys().length && !(process.env.OPENROUTER_API_KEY)) return res.status(503).json({error:'AI analysis is not configured. Configure Gemini or OpenRouter in Vercel.'});
  const b = req.body;
- if (b?.model === NEMOTRON_MODEL && !process.env.OPENROUTER_API_KEY) return res.status(503).json({error:'Nemotron requires OPENROUTER_API_KEY. Choose a Gemini model or configure OpenRouter.'});
  if (b?.model !== undefined && !isModelId(b.model)) return res.status(400).json({error:'Choose a supported analysis model.'});
+ const access = modelAccess(req, res, b?.model ?? DEFAULT_MODEL);
+ if (!access) return;
  if(b?.audio?.path) {
   const path=b.audio.path;
   if(typeof path!=='string'||!DIRECT_UPLOAD_AUDIO_PATH.test(path))return res.status(400).json({error:'Invalid audio reference.'});
@@ -40,14 +41,14 @@ export default async function handler(req: any, res: any) {
  if(streaming) { res.setHeader('Content-Type','application/x-ndjson'); res.setHeader('X-Accel-Buffering','no'); res.flushHeaders(); emit({stage:'Preparing AI analysis'}); }
  try {
    const args = [b.audio, !!b.isSimplified, !!b.isHighAccuracy, b.creativeGuidance || '', b.audioDuration, b.model ?? DEFAULT_MODEL, b.songHint || ''] as const;
-   const text = await progressContext.run(stage => {if(streaming) emit({stage});}, async () => {
+   const text = await geminiKeyContext.run(access.geminiKey, () => progressContext.run(stage => {if(streaming) emit({stage});}, async () => {
     switch (b.action) {
      case 'suggest': return suggestMusic(b.audio,b.audioDuration,b.model??DEFAULT_MODEL,b.suggestionStarts);
      case 'suggest-global': return suggestGlobalMusic(b.audio,b.audioDuration,b.model??DEFAULT_MODEL);
      case 'refine': return refineAnnotation(b.audio,b.previousResult,b.feedback,...args.slice(1) as [boolean,boolean,string,number,ModelId,string]);
      default: return annotateAudio(...args);
     }
-   });
+   }));
    if(streaming) {emit({text}); return res.end();}
    return res.status(200).json({text});
  } catch (error) { if(streaming) { emit({error:error instanceof AnalysisError ? error.message+' Your input has been preserved.' : 'AI analysis failed. Your input is preserved. Please retry.'}); return res.end(); } if (error instanceof AnalysisError) return res.status(error.status).json({code:error.code,error:error.message+' Your input has been preserved.'}); return res.status(502).json({error:'The AI provider could not complete the analysis. Please retry, or ask the project owner to check the API key and model availability. Your input has been preserved.'}); }

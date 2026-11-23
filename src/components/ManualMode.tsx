@@ -1,3 +1,4 @@
+import { paidGeminiHeaders } from '../services/paidGemini';
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ArrowLeft, ArrowRight, Check, Flag, Play, Sparkles, X } from 'lucide-react';
 import { parseMusicSuggestions, addConfirmedInstrument, type MusicSuggestion } from '../../shared/musicSuggestions';
@@ -8,7 +9,7 @@ import { mergeSplitMarks, displayTimestamp, timestampSeconds } from '../../share
 import { splitResearch, researchAsMarkdown } from '../../shared/research';
 import { annotateAudio, suggestAudio, suggestGlobalAudio } from '../services/geminiService';
 import { automaticallyHumanize } from '../services/humanizerService';
-import { DEFAULT_MODEL, MODEL_OPTIONS, type ModelId } from '../../shared/models';
+import { DEFAULT_MODEL, GEMINI_NEON_MODEL, MODEL_OPTIONS, type ModelId } from '../../shared/models';
 import { parseAnnotation } from '../utils/annotationForm';
 import {
   COMMON_INSTRUMENTS, MOODS, QUESTIONS, QUESTION_GROUPS, GAP_MARKER,
@@ -29,6 +30,7 @@ const INSTRUCTIONS = [
 
 type Props = {
   active: boolean;
+  neonAvailable: boolean;
   marksRequest: {id: number; times: number[]};
   playerMarks: number[];
   file: File | null;
@@ -62,7 +64,7 @@ function reviewText(text: string) {
     : part);
 }
 
-export function ManualMode({active, marksRequest, playerMarks, file, duration, currentTime, renderPlayer, onSeek, onPlaySection, onComplete, onBusy}: Props) {
+export function ManualMode({active, neonAvailable, marksRequest, playerMarks, file, duration, currentTime, renderPlayer, onSeek, onPlaySection, onComplete, onBusy}: Props) {
   const [sheet, setSheet] = useState(loadSheet);
   const {rows, notes, tags, song} = sheet;
   const starts = useMemo(() => rows.map(row => timestampSeconds(row.start)), [rows]);
@@ -70,7 +72,8 @@ export function ManualMode({active, marksRequest, playerMarks, file, duration, c
   const [furthest, setFurthest] = useState(0);
   const [selected, setSelected] = useState(0);
   const [group, setGroup] = useState<number | null>(0);
-  const [model, setModel] = useState<ModelId>(DEFAULT_MODEL);
+  const [preferredModel, setModel] = useState<ModelId>(DEFAULT_MODEL);
+  const model = preferredModel === GEMINI_NEON_MODEL && !neonAvailable ? DEFAULT_MODEL : preferredModel;
   const [useAudio, setUseAudio] = useState(false);
   const [busy, setBusy] = useState(false);
   const [stage, setStage] = useState('');
@@ -250,7 +253,7 @@ export function ManualMode({active, marksRequest, playerMarks, file, duration, c
       } else {
         const response = await fetch('/api/manual', {
           method: 'POST',
-          headers: {'Content-Type': 'application/json'},
+          headers: {'Content-Type': 'application/json', ...paidGeminiHeaders(model)},
           body: JSON.stringify({text: input, model}),
           signal: AbortSignal.timeout(125000),
         });
@@ -641,7 +644,7 @@ export function ManualMode({active, marksRequest, playerMarks, file, duration, c
                     setModel(event.target.value as ModelId);
                     setGlobalSuggestionField(undefined);
                     setGlobalSuggestionError('');
-                  }}>{MODEL_OPTIONS.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label>
+                  }}>{MODEL_OPTIONS.map(option => <option key={option.id} value={option.id} disabled={option.id === GEMINI_NEON_MODEL && !neonAvailable}>{option.label}</option>)}</select></label>
                 </details>
               </div>
             )}

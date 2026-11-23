@@ -1,9 +1,10 @@
+import { paidGeminiHeaders } from './paidGemini';
 import {DEFAULT_MODEL, type ModelId} from '../../shared/models';
 import {applyMusicEdits, musicProseFields} from '../../shared/musicHumanizer';
 
 export type WordingRequest = {text:string; model?:ModelId; fieldId?:string; instruction?:string; signal?:AbortSignal};
 export async function requestMusicWording({text,model=DEFAULT_MODEL,fieldId,instruction,signal}: WordingRequest): Promise<string> {
-  const response = await fetch('/api/humanize', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text,model,fieldId,instruction}),signal:signal ?? AbortSignal.timeout(125000)});
+  const response = await fetch('/api/humanize', {method:'POST',headers:{'Content-Type':'application/json', ...paidGeminiHeaders(model)},body:JSON.stringify({text,model,fieldId,instruction}),signal:signal ?? AbortSignal.timeout(125000)});
   const body = await response.json().catch(()=>({}));
   if (!response.ok || typeof body.text !== 'string' || !body.text.trim()) throw new Error(typeof body.error==='string' ? body.error : 'Wording revision failed. Your original is unchanged.');
   // Verify the same field boundaries and immutable bytes in the browser, too.

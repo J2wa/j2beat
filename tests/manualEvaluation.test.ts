@@ -48,7 +48,7 @@ for (const useAudio of [false, true]) {
 }
 
 const html = renderToStaticMarkup(createElement(ManualMode, {
-  active: true, marksRequest: {id: 0, times: []}, playerMarks: [],
+  active: true, neonAvailable: false, marksRequest: {id: 0, times: []}, playerMarks: [],
   file: new File([], 'morning.mp3', {type: 'audio/mpeg'}), duration: 55, currentTime: 0,
   renderPlayer: (starts, canMark) => {
     assert.deepEqual(starts, [0]);

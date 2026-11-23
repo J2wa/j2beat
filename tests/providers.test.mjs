@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import ts from 'typescript';
-import { DEFAULT_MODEL, GEMINI_OPTIONS as MODEL_OPTIONS, NEMOTRON_MODEL, modelOrder } from '../shared/models.ts';
+import { DEFAULT_MODEL, GEMINI_OPTIONS as MODEL_OPTIONS, GEMINI_NEON_MODEL, NEMOTRON_MODEL, modelOrder } from '../shared/models.ts';
 let calls=[], responses=[], usedKeys=[];
 globalThis.MockGoogleGenAI=class { constructor(options){usedKeys.push(options.apiKey);} files={upload:async()=>{globalThis.uploadCount++;if(globalThis.uploadError)throw globalThis.uploadError;return {name:"files/test",uri:"https://example.test/audio",state:"ACTIVE"};},delete:async()=>{globalThis.deleteCount++;}}; models={list:async()=>globalThis.modelCatalog ?? [],generateContent:async request=>{calls.push(request);const next=responses.shift();if(next instanceof Error)throw next;return next;}}; };
 const source=readFileSync(new URL('../server/providers.ts',import.meta.url),'utf8')
@@ -65,7 +65,7 @@ assert.deepEqual(usedKeys,['numbered-only']);
 delete process.env.GEMINI_API_KEY_1;
 process.env.GEMINI_API_KEY='test';
 console.log('Passed ten-key failover on the same model and numbered-only configuration.');
-const {geminiApiKeys} = await import('../server/apiKeys.ts');
+const {geminiApiKeys,geminiKeyContext} = await import('../server/apiKeys.ts');
 process.env.GEMINI_API_KEYS='test, second\nsecond';
 process.env.GEMINI_API_KEY_10='third';
 assert.deepEqual(geminiApiKeys(),['test','third','second']);
@@ -170,3 +170,28 @@ responses = [evidence([interval(0,60)]), evidence([interval(0,60),interval(60,12
 await assert.rejects(generateMusicAnnotation(largeRequest,150,generateWithFallback,async()=>unavailableResearch()), /full recording/);
 assert.equal(globalThis.deleteCount - beforeDeletes, 2);
 console.log('Passed same-key Gemini file reuse across listening, recheck and QA, and cleanup on success and failure.');
+
+// Paid requests use their own key across awaits, and Neon never falls back.
+const paidRequest = {...request, model:GEMINI_NEON_MODEL};
+process.env.GEMINI_API_KEY = 'server-key';
+process.env.OPENROUTER_API_KEY = 'server-router';
+calls = []; usedKeys = []; responses = [good,good];
+await assert.rejects(generateWithFallback(paidRequest), error => error.code === 'AI_NEON_ACCESS');
+await Promise.all([
+  geminiKeyContext.run('personal-neon-key', async () => {
+    await Promise.resolve();
+    return generateWithFallback(paidRequest);
+  }),
+  generateWithFallback(request),
+]);
+assert.deepEqual(usedKeys, ['server-key','personal-neon-key']);
+assert.deepEqual(calls.map(call => call.model), [DEFAULT_MODEL,GEMINI_NEON_MODEL]);
+calls = []; usedKeys = [];
+responses = [Object.assign(new Error('missing model'), {status:404})];
+await assert.rejects(
+  geminiKeyContext.run('personal-neon-key', () => generateWithFallback(paidRequest)),
+  error => error.code === 'AI_NEON_ACCESS',
+);
+assert.deepEqual(calls.map(call => call.model), [GEMINI_NEON_MODEL]);
+assert.deepEqual(usedKeys, ['personal-neon-key']);
+console.log('Passed paid Gemini request isolation, Neon credential requirement, and no Neon fallback.');

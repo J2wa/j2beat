@@ -1,4 +1,7 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomInt } from 'node:crypto';
+
+export const geminiKeyContext = new AsyncLocalStorage<string | undefined>();
 
 // Server-only; never return key values through API responses or progress events.
 export function geminiApiKeys(): string[] {
@@ -12,6 +15,8 @@ export function geminiApiKeys(): string[] {
 }
 
 export function orderedGeminiKeys(): string[] {
+  const personalKey = geminiKeyContext.getStore();
+  if (personalKey) return [personalKey];
   const keys = geminiApiKeys();
   if (!keys.length) return [];
   // Random starting key distributes independent serverless invocations.

@@ -145,7 +145,11 @@ async function runMusicAnnotation(request: any, duration: number, generate: type
       evidence = cleanEvidence(result.text, duration);
       if (coverageIssues(evidence.sections, duration).length) evidence = undefined;
     }
-  } catch { evidence = undefined; /* Incomplete notes must never become the sole evidence. */ }
+  } catch (error) {
+    if (error instanceof AnalysisError && error.code === 'AI_NEON_ACCESS') throw error;
+    // Incomplete notes must never become the sole evidence.
+    evidence = undefined;
+  }
   reportProgress('Searching Google for song context');
   let songResearch: ResearchReport;
   try { songResearch = await research(request, evidence, draftDeadline); }

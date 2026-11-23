@@ -223,3 +223,11 @@ button.aces-brand{background:none;border:0;padding:0;color:inherit;cursor:pointe
 .manual-instrument-suggestion {display:flex;justify-content:space-between;align-items:center;gap:16px;border-top:1px solid #334155;padding:12px 0;}
 .manual-instrument-suggestion p {color:#aabbd2;font-size:13px;}
 @media(max-width:640px){.manual-instrument-suggestion{align-items:flex-start;flex-direction:column;}}
+
+.paid-gemini { margin: 0 0 16px; padding: 12px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+.paid-gemini summary { cursor: pointer; font-size: 14px; font-weight: 600; }
+.paid-gemini-content { display: grid; gap: 8px; justify-items: start; padding-top: 12px; font-size: 13px; }
+.paid-gemini-content p { color: var(--muted); }
+.paid-gemini-content .paid-gemini-error { color: #ffb6c3; }
+.paid-gemini-controls { display: flex; flex-wrap: wrap; gap: 8px; width: min(100%, 520px); }
+.paid-gemini-controls input { flex: 1 1 200px; min-width: 0; }

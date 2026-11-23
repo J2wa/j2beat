@@ -5,7 +5,7 @@ globalThis.window={dispatchEvent:()=>{}};
 globalThis.CustomEvent=class {};
 let puts=0;
 globalThis.mockPut=async(path,file,options)=>{puts++;assert.equal(options.token,'temporary-token');options.onUploadProgress({percentage:50});return {pathname:path};};
-const source=readFileSync(new URL('../src/services/geminiService.ts',import.meta.url),'utf8').replace(/import .*shared\/models';/,"const DEFAULT_MODEL='test';").replace("'../../shared/research'",JSON.stringify(new URL('../shared/research.ts',import.meta.url).href)).replace('import { put } from "@vercel/blob/client";','const put=globalThis.mockPut;');
+const source=readFileSync(new URL('../src/services/geminiService.ts',import.meta.url),'utf8').replace("'./paidGemini'",JSON.stringify(new URL('../src/services/paidGemini.ts',import.meta.url).href)).replace(/import .*shared\/models';/,"const DEFAULT_MODEL='test';").replace("'../../shared/research'",JSON.stringify(new URL('../shared/research.ts',import.meta.url).href)).replace('import { put } from "@vercel/blob/client";','const put=globalThis.mockPut;');
 const code=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
 const {annotateAudio,refineAnnotation}=await import('data:text/javascript;base64,'+Buffer.from(code).toString('base64'));
 const file={name:'song.mp3',type:'audio/mpeg',size:4*1024*1024};

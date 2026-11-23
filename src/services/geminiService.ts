@@ -1,3 +1,4 @@
+import { paidGeminiHeaders } from './paidGemini';
 import { DEFAULT_MODEL, type ModelId } from '../../shared/models';
 import { splitResearch } from '../../shared/research';
 import { put } from "@vercel/blob/client";
@@ -11,8 +12,9 @@ function errorMessage(value: unknown, fallback: string): string {
   }
   return fallback;
 }
-// Credentials and prompt assembly live exclusively in the server function.
+// Provider calls and prompt assembly run in the server function.
 async function request(audioFile: File, options: Record<string, unknown>): Promise<string> {
+  const keyHeaders = paidGeminiHeaders(options.model);
   progress('Preparing audio upload');
   let audio: {data?:string;path?:string;type:string};
   const type=audioFile.type || (audioFile.name.endsWith('.wav')?'audio/wav':'audio/mpeg');
@@ -47,7 +49,7 @@ async function request(audioFile: File, options: Record<string, unknown>): Promi
   progress('Sending audio to server');
   const response = await fetch('/api/annotate', {
     signal: AbortSignal.timeout(270000),
-    method: 'POST', headers: { 'Content-Type': 'application/json', Accept:'application/x-ndjson' },
+    method: 'POST', headers: { 'Content-Type': 'application/json', Accept:'application/x-ndjson', ...keyHeaders },
     body: JSON.stringify({ audio, songHint: audioFile.name.slice(0, 500), ...options }),
   }).catch((error) => {
     if(error?.name === 'TimeoutError' || error?.name === 'AbortError') throw new Error('AI processing timed out after 4½ minutes. Your input is preserved. Try a shorter clip or another model.');
