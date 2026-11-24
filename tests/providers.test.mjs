@@ -8,7 +8,7 @@ const source=readFileSync(new URL('../server/providers.ts',import.meta.url),'utf
  .replace("'./apiKeys.js'",JSON.stringify(new URL('../server/apiKeys.ts',import.meta.url).href))
  .replace("'../shared/melody.js'",JSON.stringify(new URL('../shared/melody.ts',import.meta.url).href))
  .replace("import { reportProgress } from './progress.js';", "const reportProgress = () => {};")
- .replace("import { GoogleGenAI } from '@google/genai';",'const GoogleGenAI = globalThis.MockGoogleGenAI;')
+ .replace("import { GoogleGenAI, ThinkingLevel } from '@google/genai';",'const GoogleGenAI = globalThis.MockGoogleGenAI; const ThinkingLevel = {LOW:"LOW"};')
  .replace("'../shared/models.js'",JSON.stringify(new URL('../shared/models.ts',import.meta.url).href));
 const code=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
 const {generateWithFallback}=await import('data:text/javascript;base64,'+Buffer.from(code).toString('base64'));
@@ -20,6 +20,7 @@ responses=[good];
 assert.equal((await generateWithFallback(request)).text,'annotation');
 assert.equal(calls[0].model,'gemini-3.5-flash');
 assert.equal(calls[0].config.temperature,undefined);
+assert.equal(calls[0].config.thinkingConfig,undefined);
 for(const option of MODEL_OPTIONS){
  calls=[];responses=[good];await generateWithFallback({...request,model:option.id});assert.equal(calls[0].model,option.id);
  assert.equal(new Set(modelOrder(option.id)).size,MODEL_OPTIONS.length);
@@ -186,6 +187,8 @@ await Promise.all([
 ]);
 assert.deepEqual(usedKeys, ['server-key','personal-neon-key']);
 assert.deepEqual(calls.map(call => call.model), [DEFAULT_MODEL,GEMINI_NEON_MODEL]);
+assert.deepEqual(calls[1].config.thinkingConfig,{thinkingLevel:'LOW'});
+assert.ok(calls[1].config.httpOptions.timeout > 90000);
 calls = []; usedKeys = [];
 responses = [Object.assign(new Error('missing model'), {status:404})];
 await assert.rejects(

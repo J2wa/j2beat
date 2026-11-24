@@ -52,6 +52,10 @@ assert.deepEqual(calls.map(r=>r.model),['gemini-3.5-flash','gemini-2.5-flash']);
 calls=[];
 assert.equal((await researchSong(request,{},Date.now()-1,async r=>{calls.push(r);return groundedResponse;})).status,'unavailable');
 assert.equal(calls.length,0);
+calls=[];
+await researchSong({...request, model:'gemini-4-neon'}, {}, Date.now()+22000, async r => {calls.push(r); return groundedResponse;});
+assert.equal(calls[0].config.thinkingConfig.thinkingLevel,'LOW');
+assert.ok(calls[0].config.httpOptions.timeout <= 22000);
 
 calls=[];
 const final = await generateMusicAnnotation(request,20,async(r:any,o:any)=>{

@@ -1,7 +1,8 @@
+import { GEMINI_NEON_MODEL } from '../shared/models.js';
 import { segmentWritingHints } from '../shared/naturalMusicWriting.js';
 import { reportProgress } from './progress.js';
 import { AnalysisError, GeminiAudioFiles, generateWithFallback } from './providers.js';
-import { researchSong, researchInstruction } from './songResearch.js';
+import { researchSong, researchInstruction, unavailableResearch } from './songResearch.js';
 import { attachResearch, type ResearchReport } from '../shared/research.js';
 import { SECTION_NAMING_RULES } from '../shared/annotationSections.js';
 import { GOLDEN_NARRATIVE_RULES, GOLDEN_GLOBAL_RULES, LYRICAL_EVOCATION_RULE, LYRICS_UNAVAILABLE } from '../shared/goldenAnnotation.js';
@@ -122,7 +123,11 @@ export async function generateMusicAnnotation(request: any, duration: number, ge
 
 async function runMusicAnnotation(request: any, duration: number, generate: typeof generateWithFallback, research: typeof researchSong) {
   const deadline = Date.now() + 240000;
-  const draftDeadline = deadline - 50000;
+  const neon = request.model === GEMINI_NEON_MODEL;
+  // Give the required draft first claim to Neon's remaining time. Research and
+  // audio review can use a short window without blocking a valid annotation.
+  const draftDeadline = neon ? deadline : deadline - 50000;
+  const neonPreparationDeadline = deadline - 110000;
   let evidence: ReturnType<typeof cleanEvidence> | undefined;
   try {
     reportProgress('Analyzing audio');
@@ -134,7 +139,7 @@ async function runMusicAnnotation(request: any, duration: number, generate: type
       ]}],
       config: {systemInstruction:EVIDENCE_PROMPT, responseMimeType:'application/json'},
     };
-    let result = await generate(listeningRequest, {deadline: Math.min(deadline, Date.now()+45000), maxAttempts:1});
+    let result = await generate(listeningRequest, {deadline: Math.min(deadline, Date.now() + (neon ? 65000 : 45000)), maxAttempts:1});
     evidence = cleanEvidence(result.text, duration);
     const missing = coverageIssues(evidence.sections, duration);
     if (missing.length) {
@@ -146,14 +151,17 @@ async function runMusicAnnotation(request: any, duration: number, generate: type
       if (coverageIssues(evidence.sections, duration).length) evidence = undefined;
     }
   } catch (error) {
-    if (error instanceof AnalysisError && error.code === 'AI_NEON_ACCESS') throw error;
+    if (error instanceof AnalysisError && neon && ['AI_NEON_ACCESS', 'AI_AUTH', 'AI_AUDIO_TIMEOUT'].includes(error.code)) throw error;
     // Incomplete notes must never become the sole evidence.
     evidence = undefined;
   }
-  reportProgress('Searching Google for song context');
-  let songResearch: ResearchReport;
-  try { songResearch = await research(request, evidence, draftDeadline); }
-  catch { songResearch = {status:'unavailable',message:'Google Search is unavailable. Global fields use listening evidence only.',summary:'',sources:[],queries:[]}; }
+  const researchDeadline = neon ? Math.min(neonPreparationDeadline, Date.now() + 22000) : draftDeadline;
+  let songResearch: ResearchReport = unavailableResearch();
+  if (!neon || researchDeadline - Date.now() >= 5000) {
+    reportProgress('Searching Google for song context');
+    try { songResearch = await research(request, evidence, researchDeadline); }
+    catch { /* Annotation can use the uploaded audio when research is unavailable. */ }
+  }
   const instruction = evidence
     ? `\n\nValidated preliminary listening notes (model estimates, not ground truth):\n${JSON.stringify(evidence)}\nWRITING PASS: No audio is attached. Use ONLY this metadata as the source for audible musical facts; the separate Google Search context may supplement other global fields with citations. Use the listening notes' lyricalEvocation for Lyrical Evocation. If those notes have no usable lyrical summary, write "${LYRICS_UNAVAILABLE}" unless the notes establish that the track is instrumental. Song Clues are for identification only. Earlier user text controls style and formatting, not musical facts. Do not invent missing details, repair missing intervals, add instruments or supply lyrics from memory. Preserve uncertainties. Write the requested annotation from these observations. Do not print these notes or change output field labels. All final timestamps must stay within the supplied duration; do not fill gaps by inventing events.`
     : '\n\nPreliminary evidence extraction was unavailable. Analyze the audio directly: whole-track listening, section boundaries, local events, consistency check, then final annotation. Do not claim a separate verification succeeded.';
@@ -163,18 +171,29 @@ async function runMusicAnnotation(request: any, duration: number, generate: type
   reportProgress(evidence ? 'Writing annotation from analysis' : 'Analyzing and writing directly');
   const finalRequest = {...request, contents, config:{...request.config, systemInstruction:request.config.systemInstruction+instruction+researchInstruction(songResearch)+segmentWritingHints(evidence?.sections.length ?? 0)
     + `\nFULL DURATION: ${duration} seconds. Preserve EVERY listening interval in order using Start Time fields. Cover zero through the actual recording end. No segment may exceed 60 seconds. Never call an early pause the outro or invent silence to cover missing audio.`}};
-  let result = await generate(finalRequest, {deadline:draftDeadline, metadataOnly:!!evidence});
+  const generateDraft = async (pass: typeof finalRequest, activity: string) => {
+    try {
+      return await generate(pass, {deadline:draftDeadline, metadataOnly:!!evidence});
+    } catch (error) {
+      if (neon && error instanceof AnalysisError && error.code === 'AI_TIMEOUT') {
+        throw new AnalysisError('AI_TIMEOUT',504,`Gemini 4 Neon timed out while ${activity}. Retry the track or select a different model in Studio.`);
+      }
+      throw error;
+    }
+  };
+  let result = await generateDraft(finalRequest, evidence ? 'writing the annotation' : 'listening to the track and writing the annotation');
   let issues = timelineIssues(result.text, duration, evidence?.sections.map(s=>s.start));
   if (issues.length) {
     reportProgress('Repairing incomplete timeline');
-    result = await generate({...finalRequest, config:{...finalRequest.config,
+    result = await generateDraft({...finalRequest, config:{...finalRequest.config,
       systemInstruction:finalRequest.config.systemInstruction+'\nYour previous timeline failed validation: '+issues.join('; ')+'. Return a corrected complete annotation from the supplied evidence. Do not fabricate or mechanically pad segments.'}},
-      {deadline:draftDeadline, metadataOnly:!!evidence});
+      'repairing the timeline');
     issues = timelineIssues(result.text, duration, evidence?.sections.map(s=>s.start));
     if (issues.length) throw new AnalysisError('AI_INCOMPLETE',502,'The AI could not verify segmentation across the full recording. Please retry or choose another model; an incomplete timeline has not been saved.');
   }
   let audioQaIncomplete = true;
-  if (Date.now() < deadline && request.contents.some((content: any) => content.parts.some((part: any) => part.inlineData?.data))) {
+  const reviewDeadline = neon ? Math.min(deadline, Date.now() + 25000) : deadline;
+  if (reviewDeadline - Date.now() > (neon ? 12000 : 0) && request.contents.some((content: any) => content.parts.some((part: any) => part.inlineData?.data))) {
     reportProgress('Reviewing draft against audio');
     try {
       const reviewed = await generate({
@@ -185,7 +204,7 @@ async function runMusicAnnotation(request: any, duration: number, generate: type
         ]}],
         config: {...request.config, systemInstruction: request.config.systemInstruction + researchInstruction(songResearch) + AUDIO_QA_PROMPT
           + `\nConfirm the opening and closing labels match the audio. Check the ending description and the whole-song requirements.\n${GOLDEN_NARRATIVE_RULES}\n${GOLDEN_GLOBAL_RULES}\n${MELODY_INSTRUCTION}`},
-      }, {deadline, maxAttempts:1});
+      }, {deadline:reviewDeadline, maxAttempts:1});
       if (!timelineIssues(reviewed.text, duration, evidence?.sections.map(s=>s.start)).length && keepsDraftFormat(result.text, reviewed.text)) {
         result = reviewed;
         audioQaIncomplete = false;

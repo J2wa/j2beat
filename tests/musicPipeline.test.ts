@@ -1,3 +1,5 @@
+import {GEMINI_NEON_MODEL} from '../shared/models.ts';
+import {AnalysisError} from '../server/providers.ts';
 import {unavailableResearch} from '../server/songResearch.ts';
 const noResearch = async () => unavailableResearch();
 import {splitResearch} from '../shared/research.ts';
@@ -125,3 +127,46 @@ assert.deepEqual(timelineIssues(minuteBoundaries,210.84),[]);
 assert.ok(timelineIssues(minuteBoundaries,211).some(issue=>issue.includes('exceeds 60 seconds')));
 assert.equal(cleanEvidence(fractional.replace('210.84','212'),210).sections.length,3);
 console.log('Passed whole-second evidence rounding, end clamping, and 60-second timeline boundaries.');
+
+// Simulate slow provider calls so the test exercises real deadline arithmetic.
+const neonRequest = {...request, model: GEMINI_NEON_MODEL};
+const clock = Date.now;
+const start = clock();
+let now = start;
+Date.now = () => now;
+try {
+  let pass = 0;
+  const result = await generateMusicAnnotation(neonRequest, 210, async (input, options) => {
+    pass++;
+    if (pass === 1) {
+      assert.equal(options?.deadline, start + 65000);
+      now = options.deadline;
+      return {text: fullRaw}; // Incomplete evidence requires a second listen.
+    }
+    if (pass === 2) {
+      assert.equal(options?.deadline, start + 110000);
+      now = options.deadline;
+      throw new AnalysisError('AI_TIMEOUT',504,'Provider deadline expired');
+    }
+    assert.equal(pass,3);
+    assert.equal(options?.deadline, start + 240000);
+    assert.equal(options.deadline - now,110000);
+    assert.ok(input.contents[0].parts.some(part => part.inlineData));
+    now = start + 232000;
+    return {text:final210};
+  }, async (_, __, researchDeadline) => {
+    assert.equal(researchDeadline, start + 130000);
+    now = researchDeadline;
+    throw new Error('Research timed out');
+  });
+  assert.equal(splitResearch(result.text).annotation,final210);
+  assert.equal(splitResearch(result.text).audioQaIncomplete,true);
+  assert.equal(pass,3);
+} finally {
+  Date.now = clock;
+}
+await assert.rejects(generateMusicAnnotation(neonRequest, 20, async (input) => {
+  if (input.config.responseMimeType) return {text:fullRaw};
+  throw new AnalysisError('AI_TIMEOUT',504,'Provider deadline expired');
+},noResearch), /Gemini 4 Neon timed out while writing the annotation/);
+console.log('Passed Neon listening and writing deadlines, optional-stage limits, and stage-specific timeout messages.');

@@ -1,5 +1,5 @@
 import { geminiKeysForModel } from './apiKeys.js';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, ThinkingLevel } from '@google/genai';
 import { DEFAULT_MODEL, GEMINI_NEON_MODEL, NEMOTRON_MODEL } from '../shared/models.js';
 import { safeSourceUrl, splitResearch, type ResearchReport } from '../shared/research.js';
 
@@ -58,7 +58,12 @@ export async function researchSong(request: any, evidence: unknown, deadline: nu
       const response = await run({
         model,
         contents: [{ parts: [{ text: JSON.stringify({ songClues: clues, listeningNotes: evidence ?? null }) }] }],
-        config: { systemInstruction: RESEARCH_PROMPT, tools: [{ googleSearch: {} }], httpOptions: { timeout: Math.max(1, Math.min(keys.length > 1 ? 15000 : 35000, searchDeadline - Date.now())) } },
+        config: {
+          systemInstruction: RESEARCH_PROMPT,
+          tools: [{ googleSearch: {} }],
+          ...(model === GEMINI_NEON_MODEL ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } } : {}),
+          httpOptions: { timeout: Math.max(1, Math.min(keys.length > 1 ? 15000 : 35000, searchDeadline - Date.now())) },
+        },
       });
       const result = researchFromResponse(response);
       if (result.status !== 'unavailable') return result;

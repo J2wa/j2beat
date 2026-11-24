@@ -2,7 +2,7 @@ import { geminiKeysForModel } from './apiKeys.js';
 import { MELODY_PRIORITY } from '../shared/melody.js';
 import { reportProgress } from './progress.js';
 import { DEFAULT_MODEL, GEMINI_NEON_MODEL, NEMOTRON_MODEL, isModelId, modelOrder } from '../shared/models.js';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, ThinkingLevel } from '@google/genai';
 const QUALITY = `
 FINAL PRIORITY: Preserve the requested output schema and field labels, but prioritize audible evidence over all templates and stylistic directives above.
 Listen to the supplied audio. Never infer instruments, artist identity, vocal gender, recording era, key, BPM, or production techniques from genre stereotypes. Use 'uncertain' or 'None' when evidence is insufficient. User notes are hypotheses to verify, not facts to force into the recording.
@@ -34,8 +34,7 @@ type UploadedAudio = {uri: string; mimeType: string};
 // listening pass, and an uploaded URI is only used with its original API key.
 export class GeminiAudioFiles {
  private readonly ready = new Map<string, Map<InlineAudio, UploadedAudio>>();
- // Prefer a key that already holds this run's audio, even when the global
- // key order starts at a random offset for load balancing.
+ // Prefer a key that already holds this run's audio to avoid uploading it again.
  preferUploadedKeys(keys: string[]) {
   return [...keys.filter(key => this.ready.has(key)), ...keys.filter(key => !this.ready.has(key))];
  }
@@ -108,7 +107,9 @@ async function generate(request: any, options: GenerationOptions, audioFiles: Ge
   if (Date.now() >= deadline) break;
   tried++;
   if(tried > 1) reportProgress(`Retrying with ${model}`);
-  const timeout = () => Math.max(1, Math.min(options.metadataOnly ? 90000 : 50000, deadline-Date.now()));
+  const startedAt = Date.now();
+  const attemptLimit = neon ? 110000 : options.metadataOnly ? 90000 : 50000;
+  const timeout = () => Math.max(1, Math.min(attemptLimit, deadline-Date.now()));
   try {
    let text: string | undefined;
    if(provider==='gemini') {
@@ -135,7 +136,7 @@ async function generate(request: any, options: GenerationOptions, audioFiles: Ge
           operation = 'audio upload';
           const uploaded = await ai.files.upload({
             file: new Blob([Buffer.from(audio.data, 'base64')], {type:audio.mimeType}),
-            config: {mimeType:audio.mimeType, httpOptions:{timeout:Math.min(30000,timeout())}},
+            config: {mimeType:audio.mimeType, httpOptions:{timeout:Math.min(neon ? 50000 : 30000,timeout())}},
           });
           if (uploaded.name) audioFiles.track(ai, uploaded.name);
           if (!uploaded.uri) throw new Error('Audio upload failed');
@@ -155,7 +156,9 @@ async function generate(request: any, options: GenerationOptions, audioFiles: Ge
       }
     }
     const config = {...request.config, systemInstruction:system, tools:undefined, httpOptions:{timeout:timeout()}};
-    // Gemini 3 models use their default sampling parameters.
+    // Use Neon's low thinking level to leave time for audio decoding and output.
+    if (neon) config.thinkingConfig = { thinkingLevel: ThinkingLevel.LOW };
+    // Gemini models use their default sampling parameters.
     delete config.temperature;
     delete config.topP;
     delete config.topK;
@@ -184,7 +187,10 @@ async function generate(request: any, options: GenerationOptions, audioFiles: Ge
     throw new AnalysisError('AI_NEON_ACCESS', failure.status, 'Gemini 4 Neon is unavailable for this request. Check your Gemini API project’s Neon access, billing, and quota in Google AI Studio.');
    }
    failures.push(failure);
-   console.warn('AI attempt failed', {provider, model, operation, code:failure.code});
+   console.warn('AI attempt failed', {provider, model, operation, code:failure.code, elapsedMs:Date.now()-startedAt});
+   if (neon && failure.code === 'AI_TIMEOUT' && operation === 'audio upload') {
+    throw new AnalysisError('AI_AUDIO_TIMEOUT',504,'Google timed out preparing the audio for Gemini 4 Neon. Retry the track or select a different model in Studio.');
+   }
    // Model availability differs by API key/project and changes over time.
    // Discover only after generation returns 404, never for a missing audio file.
    if(!neon && provider === 'gemini' && apiKey && operation === 'generation' && Number((error as any)?.status ?? (error as any)?.statusCode) === 404 && !discoveredKeys.has(apiKey) && Date.now()+10000 < deadline) {
