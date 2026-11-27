@@ -1,17 +1,16 @@
-# ACES MUSIC
+# ACES Music
 
-Music annotation workspace adapted from J2wa/j2beatsv1 with the ACES Intelligence visual system.
+A music annotation workspace for timed song sections and whole-track notes. Open a local audio file or import a supported track link, generate and review annotations, and export a PDF. The Studio also supports manual edits and wording refinement.
 
 ## Development
 `npm ci`, then `npm run dev`. `npm run lint` checks TypeScript; `npm run build` creates the production frontend. Local Vite alone does not serve the Vercel API functions. Use Vercel's development runtime to test live AI requests.
 
 ## Vercel
-Project: `j2beat`. Intended domain: `music.acesintelligence.xyz`.
-Configure `GEMINI_API_KEY` as a server environment variable. Redeploy after changing configuration. Never use a VITE_ prefix for secrets.
+Production is [music.acesintelligence.xyz](https://music.acesintelligence.xyz), project `j2beat` in the `aces-intelligence` team. Build from the repository root using the Vite preset and [vercel.json](vercel.json). Configure the shared login, server-side provider keys, and private Blob storage in Vercel.
 
-AI files must be under 3 MB; larger files remain playable locally. Archives are stored only in the current browser and domain. The source had no authentication, database, or real payment system. Local credits are a convenience counter only.
+Larger audio files can use private multipart upload. Saved annotation metadata is browser-local, and imported audio can use private Vercel Blob storage. The shared-password login controls workspace access. The local credit counter is for convenience.
 
-See [prompt and functionality extraction](docs/CONCEPTS_AND_PROMPTS.md) and the original annotation SOP/template. These retain the original annotation reference material; no original app-building conversation was present in the repository.
+See the [annotation SOP](Music_Annotation_SOP.md), [annotation template](Human_Music_Annotation_Template.md), and [implementation notes](docs/CONCEPTS_AND_PROMPTS.md).
 
 ## Providers and fallback
 Set server-only GEMINI_API_KEY and/or OPENROUTER_API_KEY plus OPENROUTER_MODEL (must support audio input). The default is Gemini 3.5 Flash. The Model selector in Analysis settings remembers your selection in this browser and applies to both analysis and refinement. The selected model is tried first, followed by the remaining Gemini models (3.5 Flash, 3.5 Flash-Lite, 3.1 Flash-Lite, 2.5 Flash, without duplicates), then the configured OpenRouter audio model. For standard models, an audio attempt gets at most 50 seconds; errors, timeouts, empty responses, and incomplete Gemini responses trigger the next attempt. Legacy GEMINI_MODEL and AI_PRIMARY_PROVIDER values no longer override this order. All attempts failing preserves the draft and does not deduct local credits. Fallback sends the audio to the secondary provider and may incur charges from either provider. Key presence is not proof of valid credentials. Never paste keys in chat or store them in browser storage.
