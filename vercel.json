@@ -2,12 +2,13 @@
   "framework": "vite",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "crons": [
-    {
+  "schedules": {
+    "expire-imports": {
       "path": "/api/expire-imports",
-      "schedule": "0 0 * * *"
+      "schedule": "0 */4 * * *",
+      "requestMethod": "GET"
     }
-  ],
+  },
   "functions": {
     "api/annotate.ts": {
       "maxDuration": 300
