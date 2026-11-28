@@ -95,7 +95,14 @@ export function MusicPlayer(p: Props) {
    {p.file ? <>
    <div className="waveform-wrap" onPointerMove={e=>{const r=e.currentTarget.getBoundingClientRect();setHoverTime(Math.max(0,Math.min(1,(e.clientX-r.left)/r.width))*p.duration);}} onPointerLeave={()=>setHoverTime(null)}>
     <svg viewBox="0 0 1080 100" preserveAspectRatio="none" aria-hidden="true" className="waveform-svg">
-      {peaks.map((v,i)=><rect key={i} x={i*6} y={50-v*44} width="3.5" height={Math.max(2,v*88)} rx="1.5" fill={i/peaks.length<=progress/100?'#6090ff':'#34435d'}/>)}
+      <defs>
+        <linearGradient id="aces-wave-played" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#85B6FF" />
+          <stop offset="50%" stopColor="#3B82F6" />
+          <stop offset="100%" stopColor="#1D5EFF" />
+        </linearGradient>
+      </defs>
+      {peaks.map((v,i)=><rect key={i} x={i*6} y={50-v*44} width="3.5" height={Math.max(2,v*88)} rx="1.75" fill={i/peaks.length<=progress/100?'url(#aces-wave-played)':'#253249'}/>)}
     </svg>
     {peaks.length===0&&<span className="wave-status">{largeFile?'Waveform preview skipped for large file — playback and seeking remain active.':decoding?'Reading waveform…':waveError?'Waveform unavailable. Playback and seeking still work.':''}</span>}
     {loopStart!==null&&p.duration>0&&<div className="loop-area" style={{left:`${loopStart/p.duration*100}%`,width:`${((loopEnd??p.duration)-loopStart)/p.duration*100}%`}}/>}

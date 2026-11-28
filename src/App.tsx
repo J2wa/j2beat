@@ -41,6 +41,7 @@ import { DescriptionRevision } from "./components/DescriptionRevision";
 import { MusicHumanizer } from "./components/MusicHumanizer";
 import { GuidanceDialog } from "./components/GuidanceDialog";
 import { MusicPlayer, formatTime } from "./components/MusicPlayer";
+import { AcesDistortionLoader } from "./components/AcesDistortionLoader";
 
 /** Utility for Tailwind class merging */
 function cn(...inputs: ClassValue[]) {
@@ -943,7 +944,7 @@ export default function App() {
       {view === "guidelines" && <AnnotationGuidelines onOpenStudio={() => setView("workspace")} />}
       {view === 'archive' && <SectionContainer className="document-view"><p className="eyebrow"></p><h2>Saved annotations</h2><p>Annotations are saved in this browser. Unannotated imports expire after 24 hours. Successful analysis removes the stored audio and keeps the annotation.</p>{archive.length === 0 ? <p className="archive-empty">No saved annotations yet.</p> : archive.map(item => <article className="archive-row" key={item.id}><div><h3>{item.name}</h3><p>{new Date(item.date).toLocaleString()}</p>{item.audioPath && item.text === IMPORTED_TRACK_NOTE && <p>Expires {new Date(item.expiresAt ?? importedAudioExpiresAt(item.date)).toLocaleString()}</p>}</div><div className="archive-actions"><Button disabled={isProcessing||isRefining||isHumanizing||importing} onClick={()=>openSaved(item)}><FileAudio />{item.audioPath?'Open & play':'Open annotation'}</Button>{item.text !== IMPORTED_TRACK_NOTE && <Button onClick={async()=>{try{(await import('./utils/pdfGenerator')).exportSavedPDF(item.name,item.text,item.date);}catch{setError('PDF export failed. Please retry.');}}}><Download/>Export PDF</Button>}{item.audioPath&&<a className="aces-button aces-button--secondary" href={'/api/audio?path='+encodeURIComponent(item.audioPath)} download={item.name}>Download audio</a>}</div></article>)}</SectionContainer>}
       {!manualMode && (isProcessing || isRefining) && <section className="analysis-progress-panel" aria-label="Annotation progress">
-        <div className="analysis-progress-heading"><div><span className="analysis-pulse"/><strong>{isRefining ? 'Refining annotation' : 'Analyzing track'}</strong></div><time>{Math.floor(elapsedSeconds/60)}:{String(elapsedSeconds%60).padStart(2,'0')}</time></div>
+        <div className="analysis-progress-heading"><div className="analysis-progress-title"><AcesDistortionLoader variant="compact" /><div><span className="analysis-progress-kicker"><span className="analysis-pulse"/>Aces Intelligence</span><strong>{isRefining ? 'Refining annotation' : 'Analyzing track'}</strong></div></div><time>{Math.floor(elapsedSeconds/60)}:{String(elapsedSeconds%60).padStart(2,'0')}</time></div>
         <p role="status" aria-live="polite">{analysisStage}</p>
         <div className="analysis-stage-track" aria-label="Processing stages">{['Upload','Analyze','Research','Write','Review','Humanize'].map((label,i)=>{const stage=/Humanizing/i.test(analysisStage)?5:/Reviewing/i.test(analysisStage)?4:/Writing|Repairing/i.test(analysisStage)?3:/Searching/i.test(analysisStage)?2:/Analyzing|Retrying|Preparing AI|Rechecking/i.test(analysisStage)?1:0;return <span key={label} className={i<stage?'complete':i===stage?'active':''}>{i<stage?'✓':i+1} {label}</span>;})}</div>
         <div className="analysis-meter" role="progressbar" aria-label="Current operation" aria-valuenow={/Uploading audio.*%/.test(analysisStage)?Number(analysisStage.match(/(\d+)%/)?.[1]):undefined} aria-valuemin={0} aria-valuemax={100} aria-valuetext={analysisStage}><span className={/Uploading audio.*%/.test(analysisStage)?'determinate':'indeterminate'} style={/Uploading audio.*%/.test(analysisStage)?{width:`${analysisStage.match(/(\d+)%/)?.[1]}%`}:undefined}/></div>
@@ -1100,26 +1101,19 @@ export default function App() {
               <AnimatePresence mode="wait">
                 {isProcessing ? (
                   <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="h-full flex flex-col items-center justify-center space-y-8"
+                    key="processing"
+                    initial={{ opacity: 0, scale: 0.98 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.98 }}
+                    transition={{ duration: 0.28 }}
+                    className="annotation-loading-state h-full flex flex-col items-center justify-center"
                   >
-                    <div className="relative group">
-                      <div className="w-20 h-20 border border-border-dim rounded-full flex items-center justify-center bg-bg-main">
-                        <Activity className="w-10 h-10 text-accent animate-pulse" />
-                      </div>
-                      <div className="absolute inset-[-4px] border border-accent/20 rounded-full animate-[spin_4s_linear_infinite]" />
-                      <div className="absolute inset-[-8px] border border-accent/5 rounded-full animate-[spin_8s_linear_infinite_reverse]" />
-                    </div>
-                    <div className="text-center space-y-3">
-                      <p className="mono text-sm text-accent tracking-wide uppercase">
-                        Structural Parsing In Progress
-                      </p>
-                      <p className="text-sm text-dim uppercase tracking-wide font-medium">
-                        Deconstructing Spectral data
-                      </p>
-                    </div>
+                    <AcesDistortionLoader
+                      variant="hero"
+                      stage={analysisStage}
+                      subtitle="Deconstructing spectral layers, instrumentation & musical form"
+                      elapsedSeconds={elapsedSeconds}
+                    />
                   </motion.div>
                 ) : error ? (
                   <motion.div
@@ -1504,18 +1498,17 @@ export default function App() {
                   </motion.div>
                 ) : (
                   <motion.div
+                    key="empty"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="h-full flex flex-col items-center justify-center space-y-6 text-dim"
+                    className="annotation-empty-state h-full flex flex-col items-center justify-center"
                   >
-                    <div className="w-20 h-20 border border-dashed border-border-dim rounded-full flex items-center justify-center">
-                      <FileAudio className="w-8 h-8 opacity-100" />
+                    <div className="annotation-empty-emblem">
+                      <aces-logo size="116" theme="dark" intro="off" track="on" label="Aces Intelligence" />
                     </div>
                     <div className="text-center space-y-2">
-                      <p className="text-sm font-bold tracking-wide uppercase text-primary">
-                        No annotations yet
-                      </p>
-                      <p className="text-sm uppercase tracking-[0.2em] opacity-100">
+                      <p className="annotation-empty-title">No annotations yet</p>
+                      <p className="annotation-empty-copy">
                         Upload a track and select Analyze.
                       </p>
                     </div>

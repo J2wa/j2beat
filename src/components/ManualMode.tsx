@@ -16,6 +16,7 @@ import {
   manualRow, emptySong, itemList, missingInstruments, sectionEnd, buildManualInput, prepareManualDraft,
   type ManualSheet, type ManualRow,
 } from '../utils/manualEvaluation';
+import { AcesDistortionLoader } from './AcesDistortionLoader';
 
 const STORAGE_KEY = 'aces_guided_manual';
 const PlayingTechniquePicker = lazy(() => import('./PlayingTechniquePicker'));
@@ -367,7 +368,15 @@ export function ManualMode({active, neonAvailable, marksRequest, playerMarks, fi
       {renderPlayer([...new Set(starts.filter(start => Number.isFinite(start) && start >= 0 && start < trackEnd))], step === 0)}
       {active && (
         <section id="manual-annotation" className="manual-guide guide-content" aria-label="Manual evaluation" aria-busy={busy}>
-          {busy && <p className="guide-banner" role="status">{stage}…</p>}
+          {busy && (
+            <div className="guide-banner guide-busy-banner" role="status">
+              <AcesDistortionLoader variant="compact" />
+              <div>
+                <strong>Aces Intelligence</strong>
+                <p>{stage}…</p>
+              </div>
+            </div>
+          )}
           {notice && <p className="guide-banner" role="status">{notice}</p>}
           {error && <p className="guide-banner guide-warning" role="alert">{error}</p>}
           <fieldset className="guide-fields" disabled={busy}>
